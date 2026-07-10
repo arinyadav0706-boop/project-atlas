@@ -19,8 +19,15 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled (PgBouncer) connection — used at runtime. Vercel's serverless
+  // functions open far more short-lived connections than a normal server;
+  // a direct connection exhausts Supabase's connection limit fast.
+  url       = env("DATABASE_URL")
+  // Direct, unpooled connection — used only by `prisma migrate`.
+  // PgBouncer's pooling breaks the session-level locking migrations rely
+  // on, so Migrate needs to bypass the pooler.
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------- Enums (Database Design §3) ----------

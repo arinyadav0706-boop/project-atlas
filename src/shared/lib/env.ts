@@ -5,6 +5,10 @@ import { z } from "zod";
 // See docs/06_Infrastructure/01_Infrastructure_Overview.md §4.
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
+  // Only Prisma itself reads this (schema.prisma's directUrl) — included
+  // here too so a missing value fails fast at app startup, consistent with
+  // every other required var, rather than only surfacing during a migration.
+  DIRECT_URL: z.string().min(1),
   NEXTAUTH_URL: z.string().min(1),
   NEXTAUTH_SECRET: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),

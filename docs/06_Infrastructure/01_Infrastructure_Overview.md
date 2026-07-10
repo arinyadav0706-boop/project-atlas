@@ -49,6 +49,19 @@ graph LR
   process startup with a Zod-parsed schema (`shared/lib/env.ts`, Phase 3).
 - Local secrets live in a git-ignored `.env.local`; hosted secrets are set
   in Vercel/Azure's respective secret stores — never committed.
+- **Two Postgres connection strings, not one**: `DATABASE_URL` (pooled —
+  Supabase's PgBouncer connection on port 6543) is used at runtime, since
+  Vercel's serverless functions open far more short-lived connections than
+  a normal server and a direct connection exhausts Supabase's connection
+  limit quickly. `DIRECT_URL` (unpooled, port 5432) is used only by
+  `prisma migrate`, since PgBouncer's transaction pooling breaks the
+  session-level locking migrations rely on. Both point at the same
+  Postgres instance in local Docker Compose (no pooler in front of it
+  there). See `prisma/schema.prisma`'s `datasource` block.
+- `package.json`'s `postinstall` script runs `prisma generate` — required
+  so Vercel's build (which only runs `npm install` then the build command)
+  actually has a generated Prisma Client available; CI runs it as an
+  explicit step for the same reason.
 
 ## 5. Observability (V1 baseline)
 
