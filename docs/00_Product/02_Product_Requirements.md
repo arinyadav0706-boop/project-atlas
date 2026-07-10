@@ -28,10 +28,72 @@ Related: `01_Product_Vision.md`, `03_Business_Requirements.md`,
 | 15 | Roles | RBAC role definitions and assignment |
 | 16 | Profile | User profile, avatar, notification preferences |
 
-V2 (explicitly out of scope for V1): Timesheets, Time Tracking, Wiki,
-Calendar, Gantt, Automation, Custom Fields, Subtasks, AI Assistant, MS Teams
-integration, GitHub integration, public REST API, Webhooks, Knowledge Base,
-Analytics. See `docs/10_Roadmap/01_Development_Roadmap.md`.
+V2 and V3 scope (explicitly out of scope for V1) is detailed in §1a/§1b
+below and sequenced in `docs/10_Roadmap/01_Development_Roadmap.md §3`.
+
+## 1a. Version 2 Scope — "credible daily-driver replacement"
+
+Theme: the features most responsible for teams staying on Jira/Asana
+instead of switching — without these, V1 is a good internal MVP but not
+yet a full replacement for teams with real workflow complexity.
+
+| # | Feature | Reference product | Why it's V2, not V3 |
+|---|---|---|---|
+| 1 | Subtasks | Jira | Breaking Task/Story into checklist-style items is a daily-use pattern, not a power feature |
+| 2 | Custom Fields | Jira | Every real team needs at least one field the MVP didn't anticipate |
+| 3 | Automation rules ("when X, do Y") | Both | The single most-used power feature in both products |
+| 4 | Issue dependencies (blocks/blocked-by) | Both | Needed the moment two teams' work overlaps — already flagged as Issues Future Scope in `docs/02_Modules/04_issues.md` |
+| 5 | Recurring tasks | Asana | Heavily used for standing work (weekly reports, recurring reviews) |
+| 6 | Calendar view | Both | Common alternate view alongside Board/Backlog |
+| 7 | Time Tracking | Jira | Client billing/reporting — already an MVP-adjacent module name in the original scope |
+| 8 | Public REST API + Webhooks | Both | **Prerequisite** for every integration below — build this before Slack/GitHub, not alongside |
+| 9 | Slack integration | Both | The most-requested integration in both ecosystems |
+| 10 | GitHub integration | Jira | Link commits/PRs to issues, auto-transition on merge |
+| 11 | Wiki/Docs | Increasingly expected (Notion-adjacent) | Lightweight project documentation next to issues |
+| 12 | Multi-tenant SaaS conversion | ADR-0006 (business-driven) | Tenant resolution, per-request org scoping, self-serve signup |
+| 13 | Self-hosted packaging | ADR-0006 (business-driven) | Private registry, license decision, real setup wizard |
+
+**Sequencing dependency**: #8 (API + Webhooks) must ship before #9/#10 —
+Slack/GitHub integrations are built on top of the public API, not
+independently of it.
+
+**Scaling considerations introduced by V2** (not built until needed, but
+worth planning for so V2 doesn't require a mid-stream redesign):
+- Automation rules + webhook delivery are inherently async (a rule
+  firing shouldn't block the request that triggered it) — this is where a
+  background job queue (e.g., a Postgres-backed queue to start, avoiding a
+  new infra dependency; revisit if volume demands Redis/BullMQ) enters the
+  architecture for the first time.
+- Public API introduces rate limiting as a real requirement, not optional.
+- Multi-tenant conversion is the point where per-tenant query scoping
+  needs an audit pass across every repository, not just new tenants added
+  to existing code paths.
+
+## 1b. Version 3 Scope — "platform maturity / defensibility"
+
+Theme: what makes EAGLES defensible against Jira/Asana long-term, once V2
+has made it a credible daily driver.
+
+| # | Feature | Reference product | Why V3, not V2 |
+|---|---|---|---|
+| 1 | Portfolio / cross-project rollup view | Jira ("Advanced Roadmaps"), Asana ("Portfolios") | Needs multiple mature projects with real history to be useful |
+| 2 | Goals/OKR tracking | Asana | Ties issues to company objectives — needs the reporting foundation (V1) plus API (V2) first |
+| 3 | Workload/capacity view | Asana | Needs real usage data across sprints to be meaningful |
+| 4 | Forms-based intake | Both | Needs the public API (V2) as its foundation |
+| 5 | Approval workflows | Asana | A new task-type concept, not a small addition |
+| 6 | AI Assistant (auto-summarize, suggest triage, draft descriptions) | Both racing to build this | Deliberately deferred from the original V2 wishlist — a differentiator once the core product is solid, not before; building it on an unstable core wastes the investment |
+| 7 | Marketplace/plugin ecosystem | Jira's biggest moat | Long-term; needs a stable public API (V2) as a prerequisite and its own governance model |
+| 8 | Advanced/granular permissions (issue-level security) | Jira | Real demand signal is self-hosted enterprise customers (ADR-0006), which is itself V2 scope |
+| 9 | Mobile apps | Both | Table stakes eventually, not a blocker before V3 |
+
+**Scaling considerations introduced by V3**:
+- Portfolio/rollup views and workload views are read-heavy aggregate
+  queries across many projects — likely the first real trigger for a
+  caching layer or read replica, not V1/V2's straightforward per-project
+  queries.
+- A plugin/marketplace ecosystem introduces third-party code running
+  against your data — a genuinely new security boundary, not an extension
+  of existing RBAC.
 
 ## 2. Requirement Format
 
