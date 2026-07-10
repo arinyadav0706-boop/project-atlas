@@ -22,8 +22,8 @@ repository.
 | 0 — Kickoff | ✅ Done |
 | 1 — Foundational Documentation | ✅ Done |
 | 2 — Detailed Design (DB, API, UI, module docs) | ✅ Done |
-| 3 — Scaffolding (Next.js, Prisma, Docker, CI) | ⬜ Next |
-| 4–6 — MVP Build | ⬜ Pending |
+| 3 — Scaffolding (Next.js, Prisma, Docker, CI) | ✅ Done |
+| 4–6 — MVP Build | ⬜ Next |
 | 7 — Hardening | ⬜ Pending |
 | 8 — Internal GA | ⬜ Pending |
 
@@ -40,11 +40,31 @@ project-atlas/
 ├── diagrams/               # Shared/large Mermaid diagrams
 ├── templates/              # ADR + module doc templates
 ├── assets/                 # Static assets for docs
-├── src/                    # Application source (Phase 3+)
-├── prisma/                 # Prisma schema (Phase 3+)
-├── docker/                 # Dockerfiles, docker-compose (Phase 3+)
-└── .github/workflows/      # CI pipelines (Phase 3+)
+├── src/                    # Application source (Next.js App Router, feature-first)
+├── prisma/                 # Prisma schema + seed script
+├── docker/                 # Dockerfile + docker-compose
+└── .github/workflows/      # CI (lint/typecheck/build)
 ```
+
+## Getting Started
+
+```bash
+cp .env.example .env.local   # fill in DATABASE_URL, NEXTAUTH_SECRET, OAuth credentials
+npm install
+npm run prisma:generate
+npm run dev                  # or: docker compose -f docker/docker-compose.yml up
+```
+
+First-run bootstrap (creates the one Organization row + first ADMIN — see
+`docs/02_Modules/01_authentication.md` BR-2):
+
+```bash
+SEED_ADMIN_EMAIL=you@example.com npm run prisma:seed
+```
+
+Only the app shell and Auth.js wiring exist so far (Phase 3 scaffolding).
+Feature modules (Projects, Issues, Board, etc.) are built in Phase 4+
+against the docs in `docs/02_Modules/`.
 
 ## Tech Stack
 

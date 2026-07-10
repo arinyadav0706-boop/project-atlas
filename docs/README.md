@@ -22,8 +22,10 @@ new:
 12. [`10_Roadmap/`](10_Roadmap/README.md) — program phases and delivery
     order
 
-Current program phase: **Phase 2 — Detailed Design, complete.** Next is
-Phase 3 (Next.js/Prisma/Docker/CI scaffolding). See
-`10_Roadmap/01_Development_Roadmap.md` for what's next and what gates each
-phase transition, and `02_Modules/README.md` for two open items awaiting
-founder input before the Prisma schema is generated.
+Current program phase: **Phase 3 — Scaffolding, complete.** The Next.js
+app, Prisma schema, Auth.js wiring, Docker, and CI now exist (no feature
+business logic yet — that's Phase 4). See
+`10_Roadmap/01_Development_Roadmap.md` for what's next, and
+`02_Modules/README.md` for two open items still awaiting founder
+confirmation (Phase 3 proceeded with the documented default answer for
+each; revisit before Phase 4 if the defaults are wrong).

@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light theme is the default/primary look — docs/05_UI/01_UI_Design_Principles.md §2.
+   Values mirror docs/05_UI/02_Screens_and_Information_Architecture.md §5.
+   Accent is a placeholder (Apple system blue) pending a confirmed brand color. */
+:root {
+  --background: 0 0% 100%;
+  --surface: 0 0% 98%;
+  --foreground: 240 4% 12%;
+  --border: 240 9% 91%;
+  --accent: 211 100% 52%;
+  --accent-foreground: 0 0% 100%;
+  --muted: 240 9% 96%;
+  --muted-foreground: 240 2% 45%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}

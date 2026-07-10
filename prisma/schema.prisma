@@ -1,0 +1,370 @@
+// Canonical source: docs/03_Database/01_Database_Design.md
+// This file must match that document. Do not add a table/field/relation
+// here without updating the doc first (CLAUDE.md rule 2).
+//
+// Audit fields (createdAt/updatedAt/createdBy/updatedBy/deletedAt) are
+// modeled as plain scalar columns, not Prisma relations, to avoid an
+// unmanageable number of named back-relations on User (every audited
+// model would otherwise need two: "<Model>CreatedBy"/"<Model>UpdatedBy").
+// They are intentionally soft references (informational actor id), not
+// DB-enforced foreign keys — see Database Design §1.
+//
+// Full-text search (Database Design §5: GIN index over tsvector for Issue
+// title/description and Project name) is added via a raw-SQL follow-up
+// migration in Phase 4 (search module) — Prisma's declarative schema
+// cannot express a computed tsvector + GIN index directly.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums (Database Design §3) ----------
+
+enum OrgRole {
+  ADMIN
+  MEMBER
+}
+
+enum ProjectRole {
+  LEAD
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AuthProvider {
+  GOOGLE
+  MICROSOFT_ENTRA
+  CREDENTIALS
+}
+
+enum IssueType {
+  EPIC
+  STORY
+  TASK
+  BUG
+}
+
+enum IssueStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum IssuePriority {
+  LOWEST
+  LOW
+  MEDIUM
+  HIGH
+  HIGHEST
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
+enum NotificationType {
+  ASSIGNED
+  MENTIONED
+  STATUS_CHANGED
+  COMMENT_ADDED
+}
+
+enum NotificationEntityType {
+  ISSUE
+  COMMENT
+  SPRINT
+}
+
+// ---------- Entities (Database Design §2) ----------
+
+model Organization {
+  id     String @id @default(cuid())
+  name   String
+  domain String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  users     User[]
+  projects  Project[]
+  labels    Label[]
+  auditLogs AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  email                String   @unique
+  name                 String
+  avatarUrl            String?
+  passwordHash         String?
+  orgRole              OrgRole  @default(MEMBER)
+  isActive             Boolean  @default(true)
+  lastLoginAt          DateTime?
+  notificationsEnabled Boolean  @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  authAccounts       AuthAccount[]
+  projectMemberships ProjectMember[]
+  assignedIssues     Issue[]        @relation("IssueAssignee")
+  reportedIssues     Issue[]        @relation("IssueReporter")
+  comments           Comment[]
+  attachments        Attachment[]
+  notifications      Notification[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model AuthAccount {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id])
+  provider          AuthProvider
+  providerAccountId String
+  createdAt         DateTime     @default(now())
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  key             String
+  name            String
+  description     String?
+  status          ProjectStatus @default(ACTIVE)
+  issueKeyCounter Int           @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  members ProjectMember[]
+  sprints Sprint[]
+  issues  Issue[]
+
+  @@unique([organizationId, key])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id])
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  role      ProjectRole @default(MEMBER)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Sprint {
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id])
+  name      String
+  goal      String?
+  status    SprintStatus @default(PLANNED)
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  issues Issue[]
+
+  @@index([projectId, status])
+  @@map("sprints")
+}
+
+model Issue {
+  id          String        @id @default(cuid())
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id])
+  key         String
+  type        IssueType
+  title       String
+  description String?
+  status      IssueStatus   @default(TODO)
+  priority    IssuePriority @default(MEDIUM)
+  assigneeId  String?
+  assignee    User?         @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  reporterId  String
+  reporter    User          @relation("IssueReporter", fields: [reporterId], references: [id])
+  sprintId    String?
+  sprint      Sprint?       @relation(fields: [sprintId], references: [id])
+  epicId      String?
+  epic        Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
+  children    Issue[]       @relation("EpicChildren")
+  storyPoints Int?
+  boardOrder  Float         @default(0)
+  dueDate     DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  comments    Comment[]
+  attachments Attachment[]
+  labels      IssueLabel[]
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+  @@index([sprintId])
+  @@index([assigneeId])
+  @@map("issues")
+}
+
+model Label {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  color          String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  issues IssueLabel[]
+
+  @@unique([organizationId, name])
+  @@map("labels")
+}
+
+model IssueLabel {
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id])
+  labelId   String
+  label     Label    @relation(fields: [labelId], references: [id])
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@id([issueId, labelId])
+  @@map("issue_labels")
+}
+
+model Comment {
+  id              String    @id @default(cuid())
+  issueId         String
+  issue           Issue     @relation(fields: [issueId], references: [id])
+  authorId        String
+  author          User      @relation(fields: [authorId], references: [id])
+  parentCommentId String?
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+  body            String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([issueId])
+  @@map("comments")
+}
+
+model Attachment {
+  id           String @id @default(cuid())
+  issueId      String
+  issue        Issue  @relation(fields: [issueId], references: [id])
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  fileName     String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([issueId])
+  @@map("attachments")
+}
+
+model Notification {
+  id         String                 @id @default(cuid())
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id])
+  type       NotificationType
+  entityType NotificationEntityType
+  entityId   String
+  message    String
+  isRead     Boolean                @default(false)
+  readAt     DateTime?
+  createdBy  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// Explicit exception to the audit-field convention: immutable, append-only
+// (Database Design §1, §2.13). Dual-purpose — also stores
+// ISSUE_STATUS_CHANGED entries powering the cycle-time report.
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actorId        String?
+  action         String
+  entityType     String
+  entityId       String
+  beforeData     Json?
+  afterData      Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
+}
