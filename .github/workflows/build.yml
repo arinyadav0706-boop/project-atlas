@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: "postgresql://eagles:eagles@localhost:5432/eagles?schema=public"
+      DIRECT_URL: "postgresql://eagles:eagles@localhost:5432/eagles?schema=public"
       NEXTAUTH_URL: "http://localhost:3000"
       NEXTAUTH_SECRET: "ci-build-only-secret"
     steps:
