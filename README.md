@@ -21,8 +21,8 @@ repository.
 |---|---|
 | 0 — Kickoff | ✅ Done |
 | 1 — Foundational Documentation | ✅ Done |
-| 2 — Detailed Design (DB, API, UI, module docs) | ⬜ Next |
-| 3 — Scaffolding (Next.js, Prisma, Docker, CI) | ⬜ Pending |
+| 2 — Detailed Design (DB, API, UI, module docs) | ✅ Done |
+| 3 — Scaffolding (Next.js, Prisma, Docker, CI) | ⬜ Next |
 | 4–6 — MVP Build | ⬜ Pending |
 | 7 — Hardening | ⬜ Pending |
 | 8 — Internal GA | ⬜ Pending |
@@ -93,12 +93,12 @@ GitHub integration, public REST API, Webhooks, Knowledge Base, Analytics.
 - [x] Security Architecture (overview)
 - [x] Infrastructure Overview
 - [x] Development Roadmap
-- [x] Architecture Decision Records (0001–0004)
+- [x] Architecture Decision Records (0001–0005)
 - [x] AI Context (Claude/Cursor rules)
-- [ ] Database Design + ER Diagram *(Phase 2)*
-- [ ] API Specification (OpenAPI) *(Phase 2)*
-- [ ] UI Specification *(Phase 2)*
-- [ ] Per-module docs (16 modules) *(Phase 2)*
+- [x] Database Design + ER Diagram
+- [x] API Specification (OpenAPI)
+- [x] UI Specification (design principles + screens/IA)
+- [x] Per-module docs (16 modules)
 
 ## Cost Targets
 

@@ -1,0 +1,1105 @@
+openapi: 3.0.3
+info:
+  title: EAGLES API (Project Atlas)
+  version: "1.0.0-draft"
+  description: >
+    Canonical API contract for EAGLES V1. Route Handlers implemented in
+    Phase 4+ must match this document; no endpoint may be added to the
+    application that isn't specified here first (CLAUDE.md rule 2).
+    Authentication itself (`/api/auth/*`) is handled entirely by Auth.js
+    and is not enumerated below — every path in this document requires an
+    authenticated session (Auth.js JWT cookie) unless noted otherwise, and
+    every mutating operation is authorized server-side per
+    `docs/07_Security/01_Security_Architecture.md`.
+servers:
+  - url: /api
+
+tags:
+  - name: profile
+  - name: admin
+  - name: projects
+  - name: issues
+  - name: comments
+  - name: attachments
+  - name: sprints
+  - name: backlog
+  - name: board
+  - name: notifications
+  - name: search
+  - name: reports
+  - name: dashboard
+
+paths:
+  /users/me:
+    get:
+      tags: [profile]
+      summary: Get the current authenticated user's profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+    patch:
+      tags: [profile]
+      summary: Update own profile (name, avatar, notification preferences)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: List all users in the organization (ADMIN only)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/User" } }
+                  pagination: { $ref: "#/components/schemas/Pagination" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [admin]
+      summary: Invite a new user (ADMIN only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteUserInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/UserIdParam"
+    patch:
+      tags: [admin]
+      summary: Update a user's org role or active status (ADMIN only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserAdminInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/organization:
+    get:
+      tags: [admin]
+      summary: Get organization settings (ADMIN only)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Organization" }
+    patch:
+      tags: [admin]
+      summary: Update organization settings (ADMIN only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateOrganizationInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Organization" }
+
+  /admin/audit-log:
+    get:
+      tags: [admin]
+      summary: List audit log entries, newest first (ADMIN only)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/AuditLogEntry" } }
+                  pagination: { $ref: "#/components/schemas/Pagination" }
+
+  /dashboard:
+    get:
+      tags: [dashboard]
+      summary: Personal dashboard — assigned issues, recent activity, project shortcuts
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardResponse" }
+
+  /projects:
+    get:
+      tags: [projects]
+      summary: List projects visible to the current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+    post:
+      tags: [projects]
+      summary: Create a project (creator becomes LEAD)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProjectInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /projects/{projectId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: Get a project by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [projects]
+      summary: Update project settings (LEAD only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProjectInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    delete:
+      tags: [projects]
+      summary: Soft-delete a project (LEAD only)
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /projects/{projectId}/members:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: List project members
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProjectMember" }
+    post:
+      tags: [projects]
+      summary: Add a member to the project (LEAD only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddProjectMemberInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectMember" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /projects/{projectId}/members/{memberId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [projects]
+      summary: Change a member's project role (LEAD only)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { $ref: "#/components/schemas/ProjectRole" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectMember" }
+        "409":
+          description: Cannot remove the last LEAD from a project
+    delete:
+      tags: [projects]
+      summary: Remove a member from the project (LEAD only)
+      responses:
+        "204": { description: Removed }
+        "409":
+          description: Cannot remove the last LEAD from a project
+
+  /projects/{projectId}/issues:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [issues]
+      summary: List issues in a project
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/IssueStatus" }
+        - name: sprintId
+          in: query
+          schema: { type: string }
+          description: Pass "null" to filter for backlog (unscheduled) issues
+        - name: assigneeId
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/IssueType" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Issue" }
+    post:
+      tags: [issues]
+      summary: Create an issue (server generates the key from Project.issueKeyCounter)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateIssueInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+
+  /issues/{issueId}:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [issues]
+      summary: Get an issue by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [issues]
+      summary: Update an issue's fields (title, description, priority, assignee, sprint, labels, etc.)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateIssueInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+    delete:
+      tags: [issues]
+      summary: Soft-delete an issue
+      responses:
+        "204": { description: Deleted }
+
+  /issues/{issueId}/transition:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    post:
+      tags: [issues]
+      summary: Transition an issue's status (validated against the fixed V1 workflow)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/IssueStatus" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+        "422":
+          description: Invalid transition for the current status
+
+  /issues/{issueId}/rank:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    patch:
+      tags: [board, backlog]
+      summary: Reorder an issue within its board column or the backlog (fractional-index boardOrder update)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [beforeIssueId, afterIssueId]
+              properties:
+                beforeIssueId: { type: string, nullable: true }
+                afterIssueId: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Reordered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+
+  /issues/{issueId}/comments:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [comments]
+      summary: List comments on an issue
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Comment" }
+    post:
+      tags: [comments]
+      summary: Add a comment (parses @mentions to trigger notifications)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+                parentCommentId:
+                  type: string
+                  nullable: true
+                  description: Must reference a top-level comment (no nested replies beyond one level)
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+
+  /comments/{commentId}:
+    parameters:
+      - name: commentId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [comments]
+      summary: Edit own comment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+    delete:
+      tags: [comments]
+      summary: Delete own comment (or any comment, if PROJECT_LEAD/ADMIN)
+      responses:
+        "204": { description: Deleted }
+
+  /issues/{issueId}/attachments:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [attachments]
+      summary: List attachments on an issue
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Attachment" }
+    post:
+      tags: [attachments]
+      summary: Upload an attachment (multipart; validated server-side for MIME type and size)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Attachment" }
+        "413":
+          description: File exceeds the configured maximum size
+        "415":
+          description: MIME type not in the configured allow-list
+
+  /attachments/{attachmentId}:
+    parameters:
+      - name: attachmentId
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [attachments]
+      summary: Delete an attachment
+      responses:
+        "204": { description: Deleted }
+
+  /attachments/{attachmentId}/download:
+    parameters:
+      - name: attachmentId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [attachments]
+      summary: Redirect to a short-lived signed URL from the StorageAdapter
+      responses:
+        "302": { description: Redirect to signed URL }
+
+  /projects/{projectId}/sprints:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [sprints]
+      summary: List sprints for a project
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Sprint" }
+    post:
+      tags: [sprints]
+      summary: Create a sprint (PLANNED status; LEAD only)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSprintInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sprint" }
+
+  /sprints/{sprintId}:
+    parameters:
+      - $ref: "#/components/parameters/SprintIdParam"
+    patch:
+      tags: [sprints]
+      summary: Update sprint details (name, goal, dates) — LEAD only
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSprintInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sprint" }
+
+  /sprints/{sprintId}/start:
+    parameters:
+      - $ref: "#/components/parameters/SprintIdParam"
+    post:
+      tags: [sprints]
+      summary: Start a sprint (requires name + start/end dates; only one ACTIVE sprint per project)
+      responses:
+        "200":
+          description: Started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sprint" }
+        "409":
+          description: Another sprint is already ACTIVE for this project
+
+  /sprints/{sprintId}/close:
+    parameters:
+      - $ref: "#/components/parameters/SprintIdParam"
+    post:
+      tags: [sprints]
+      summary: Close a sprint; incomplete issues move to the backlog or a specified follow-up sprint
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                moveIncompleteIssuesToSprintId:
+                  type: string
+                  nullable: true
+                  description: If omitted, incomplete issues return to the backlog
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sprint" }
+
+  /projects/{projectId}/backlog:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [backlog]
+      summary: Get the ordered backlog (issues with sprintId = null), ordered by boardOrder
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Issue" }
+
+  /projects/{projectId}/board:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+      - name: sprintId
+        in: query
+        schema: { type: string }
+        description: Defaults to the project's current ACTIVE sprint if omitted
+    get:
+      tags: [board]
+      summary: Get board issues grouped by status column
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardResponse" }
+
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: List the current user's notifications, newest first
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notification" }
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [notifications]
+      summary: Mark a single notification as read
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+
+  /notifications/read-all:
+    post:
+      tags: [notifications]
+      summary: Mark all of the current user's notifications as read
+      responses:
+        "204": { description: Done }
+
+  /search:
+    get:
+      tags: [search]
+      summary: Global search across projects and issues the user is authorized to see
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse" }
+
+  /projects/{projectId}/reports/velocity:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [reports]
+      summary: Velocity report (completed story points per closed sprint)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VelocityReport" }
+
+  /projects/{projectId}/reports/status-breakdown:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [reports]
+      summary: Current issue count by status
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusBreakdownReport" }
+
+  /projects/{projectId}/reports/cycle-time:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [reports]
+      summary: Average time from IN_PROGRESS to DONE over a trailing window
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CycleTimeReport" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+      description: >
+        Auth.js JWT session cookie (HttpOnly, SameSite=Lax). Set on
+        successful sign-in via /api/auth/*; every path in this document
+        requires it unless the operation is otherwise unauthenticated
+        (none currently are).
+
+  parameters:
+    ProjectIdParam:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string }
+    IssueIdParam:
+      name: issueId
+      in: path
+      required: true
+      schema: { type: string }
+    SprintIdParam:
+      name: sprintId
+      in: path
+      required: true
+      schema: { type: string }
+    UserIdParam:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string }
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    Forbidden:
+      description: Caller is authenticated but not authorized for this action
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found (or soft-deleted)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+
+    OrgRole:
+      type: string
+      enum: [ADMIN, MEMBER]
+    ProjectRole:
+      type: string
+      enum: [LEAD, MEMBER, VIEWER]
+    IssueType:
+      type: string
+      enum: [EPIC, STORY, TASK, BUG]
+    IssueStatus:
+      type: string
+      enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
+    IssuePriority:
+      type: string
+      enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST]
+    SprintStatus:
+      type: string
+      enum: [PLANNED, ACTIVE, COMPLETED]
+    ProjectStatus:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+    NotificationType:
+      type: string
+      enum: [ASSIGNED, MENTIONED, STATUS_CHANGED, COMMENT_ADDED]
+
+    Organization:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        domain: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        orgRole: { $ref: "#/components/schemas/OrgRole" }
+        isActive: { type: boolean }
+        notificationsEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        name: { type: string }
+        notificationsEnabled: { type: boolean }
+        avatarUrl: { type: string, nullable: true }
+
+    InviteUserInput:
+      type: object
+      required: [email, name]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        orgRole: { $ref: "#/components/schemas/OrgRole" }
+
+    UpdateUserAdminInput:
+      type: object
+      properties:
+        orgRole: { $ref: "#/components/schemas/OrgRole" }
+        isActive: { type: boolean }
+
+    UpdateOrganizationInput:
+      type: object
+      properties:
+        name: { type: string }
+        domain: { type: string }
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id: { type: string }
+        actorId: { type: string, nullable: true }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        beforeData: { type: object, nullable: true }
+        afterData: { type: object, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/ProjectStatus" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateProjectInput:
+      type: object
+      required: [key, name]
+      properties:
+        key: { type: string, description: "Short uppercase code, e.g. ENG" }
+        name: { type: string }
+        description: { type: string }
+
+    UpdateProjectInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        status: { $ref: "#/components/schemas/ProjectStatus" }
+
+    ProjectMember:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        projectId: { type: string }
+        role: { $ref: "#/components/schemas/ProjectRole" }
+
+    AddProjectMemberInput:
+      type: object
+      required: [userId, role]
+      properties:
+        userId: { type: string }
+        role: { $ref: "#/components/schemas/ProjectRole" }
+
+    Sprint:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        name: { type: string }
+        goal: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/SprintStatus" }
+        startDate: { type: string, format: date-time, nullable: true }
+        endDate: { type: string, format: date-time, nullable: true }
+
+    CreateSprintInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        goal: { type: string }
+
+    UpdateSprintInput:
+      type: object
+      properties:
+        name: { type: string }
+        goal: { type: string }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+
+    Issue:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        key: { type: string }
+        type: { $ref: "#/components/schemas/IssueType" }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/IssueStatus" }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assigneeId: { type: string, nullable: true }
+        reporterId: { type: string }
+        sprintId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        storyPoints: { type: integer, nullable: true }
+        boardOrder: { type: number }
+        dueDate: { type: string, format: date-time, nullable: true }
+        labelIds: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateIssueInput:
+      type: object
+      required: [type, title]
+      properties:
+        type: { $ref: "#/components/schemas/IssueType" }
+        title: { type: string }
+        description: { type: string }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assigneeId: { type: string, nullable: true }
+        sprintId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        storyPoints: { type: integer }
+        dueDate: { type: string, format: date-time }
+        labelIds: { type: array, items: { type: string } }
+
+    UpdateIssueInput:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assigneeId: { type: string, nullable: true }
+        sprintId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        storyPoints: { type: integer }
+        dueDate: { type: string, format: date-time }
+        labelIds: { type: array, items: { type: string } }
+
+    Comment:
+      type: object
+      properties:
+        id: { type: string }
+        issueId: { type: string }
+        authorId: { type: string }
+        parentCommentId: { type: string, nullable: true }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Attachment:
+      type: object
+      properties:
+        id: { type: string }
+        issueId: { type: string }
+        uploadedById: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        type: { $ref: "#/components/schemas/NotificationType" }
+        entityType: { type: string }
+        entityId: { type: string }
+        message: { type: string }
+        isRead: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    BoardResponse:
+      type: object
+      properties:
+        sprintId: { type: string, nullable: true }
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { $ref: "#/components/schemas/IssueStatus" }
+              issues:
+                type: array
+                items: { $ref: "#/components/schemas/Issue" }
+
+    DashboardResponse:
+      type: object
+      properties:
+        assignedIssues:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/AuditLogEntry" }
+        projectShortcuts:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+
+    SearchResponse:
+      type: object
+      properties:
+        projects:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+        issues:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+
+    VelocityReport:
+      type: object
+      properties:
+        sprints:
+          type: array
+          items:
+            type: object
+            properties:
+              sprintId: { type: string }
+              sprintName: { type: string }
+              committedPoints: { type: integer }
+              completedPoints: { type: integer }
+
+    StatusBreakdownReport:
+      type: object
+      properties:
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+
+    CycleTimeReport:
+      type: object
+      properties:
+        averageDays: { type: number }
+        sampleSize: { type: integer }
+        windowDays: { type: integer }
+
+security:
+  - sessionCookie: []

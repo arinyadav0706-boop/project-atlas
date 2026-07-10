@@ -9,10 +9,10 @@ new:
 3. [`11_ADR/`](11_ADR/README.md) — the formal decision records behind the
    architecture
 4. [`02_Modules/`](02_Modules/README.md) — per-module business rules, DB,
-   API, UI, acceptance criteria *(Phase 2)*
-5. [`03_Database/`](03_Database/README.md) — schema & ER diagram *(Phase 2)*
-6. [`04_API/`](04_API/README.md) — OpenAPI specification *(Phase 2)*
-7. [`05_UI/`](05_UI/README.md) — UI/UX specification *(Phase 2)*
+   API, UI, acceptance criteria
+5. [`03_Database/`](03_Database/README.md) — schema & ER diagram
+6. [`04_API/`](04_API/README.md) — OpenAPI specification
+7. [`05_UI/`](05_UI/README.md) — UI/UX specification
 8. [`06_Infrastructure/`](06_Infrastructure/README.md) — environments,
    CI/CD, cost model
 9. [`07_Security/`](07_Security/README.md) — security architecture
@@ -22,6 +22,8 @@ new:
 12. [`10_Roadmap/`](10_Roadmap/README.md) — program phases and delivery
     order
 
-Current program phase: **Phase 1 — Foundational Documentation, complete.**
-See `10_Roadmap/01_Development_Roadmap.md` for what's next and what gates
-each phase transition.
+Current program phase: **Phase 2 — Detailed Design, complete.** Next is
+Phase 3 (Next.js/Prisma/Docker/CI scaffolding). See
+`10_Roadmap/01_Development_Roadmap.md` for what's next and what gates each
+phase transition, and `02_Modules/README.md` for two open items awaiting
+founder input before the Prisma schema is generated.
