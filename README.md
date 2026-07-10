@@ -22,3 +22,38 @@ Project Atlas
 
 ## Repository Structure
 
+docs/
+diagrams/
+templates/
+assets/
+
+
+---
+
+## Tech Stack (Planned)
+
+- Next.js
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Prisma ORM
+- PostgreSQL
+- Auth.js
+- Docker
+- GitHub Actions
+
+---
+
+## Documentation Status
+
+- [ ] Product Vision
+- [ ] MVP Scope
+- [ ] Feature Architecture
+- [ ] Domain Model
+- [ ] Screen Specifications
+- [ ] Database Design
+- [ ] API Specification
+- [ ] Infrastructure
+- [ ] Security
+- [ ] AI Context Packs
+
