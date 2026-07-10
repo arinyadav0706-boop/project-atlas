@@ -9,6 +9,13 @@
 - Auth.js (NextAuth) handles OAuth/OIDC flows for Google and Microsoft Entra
   ID, plus an email/password fallback (bcrypt/argon2 hashed, never
   reversible encryption).
+- Email-domain restriction is **configuration, not a hardcoded rule** —
+  an `ALLOWED_EMAIL_DOMAINS` env var, checked in the Auth.js `signIn`
+  callback. It defaults to unset (no restriction) until the organization
+  formally signs off on adopting EAGLES, at which point it is set to the
+  confirmed company domain in production. See ADR-0005 for the full
+  rationale — this lets the founders use and evaluate EAGLES immediately
+  without prematurely hardcoding a domain that isn't yet confirmed.
 - Sessions use signed, HttpOnly, `SameSite=Lax` cookies (JWT strategy via
   Auth.js). Tokens are never stored in `localStorage`.
 - Session lifetime: 12 hours idle timeout, 7-day absolute maximum, forcing

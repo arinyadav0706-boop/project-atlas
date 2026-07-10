@@ -49,3 +49,8 @@ forward per Infrastructure §6 cost triggers).
   schema is generated (schema changes after Phase 3 starts require
   migrations, not free edits).
 - End of Phase 7: go/no-go for internal GA.
+- Whenever the organization formally signs off on adopting EAGLES (may
+  land before or after Phase 7): set `ALLOWED_EMAIL_DOMAINS` in production
+  and confirm the Entra app registration is bound to the company's real
+  tenant, per ADR-0005. Not gated to a specific phase since the business
+  decision timeline is independent of the build timeline.

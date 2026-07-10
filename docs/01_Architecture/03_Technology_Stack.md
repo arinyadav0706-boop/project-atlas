@@ -17,6 +17,7 @@ Decisions here are recorded formally in `docs/11_ADR/0002-tech-stack-selection.m
 | shadcn/ui | Copy-in component primitives (not an npm black box) — the team owns and can modify every component; accessible by default (Radix) |
 | React Hook Form | De facto standard form state library, integrates with Zod |
 | Zod | Single schema definition shared between client validation, server validation, and TypeScript types |
+| Framer Motion | Drives the interaction/motion bar set in `docs/05_UI/01_UI_Design_Principles.md` (transitions, drag-and-drop board reordering); additive on top of shadcn/ui's Radix primitives, no stack change |
 
 ## 2. Backend
 
