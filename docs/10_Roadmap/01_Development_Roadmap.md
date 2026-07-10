@@ -41,6 +41,14 @@ V2 also revisits: multi-tenant SaaS conversion, configurable workflows,
 granular per-field permissions, Azure production migration (unless pulled
 forward per Infrastructure §6 cost triggers).
 
+Per ADR-0006 (dual distribution strategy — confirmed, not speculative),
+V2+ also includes: self-hosted packaging (private container registry,
+per-customer access control, a real setup wizard replacing the terminal
+seed script), a license enforcement decision, and billing/subscription
+infrastructure for the SaaS path. See
+`docs/00_Product/04_Business_Model_and_Distribution_Strategy.md` for the
+full breakdown of what's already architecturally ready vs. still needed.
+
 ## 4. Decision Checkpoints Requiring Founder Sign-off
 
 - End of Phase 1: confirm assumptions in Vision §8 and Security §2 (A5 role
