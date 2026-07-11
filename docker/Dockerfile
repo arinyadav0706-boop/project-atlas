@@ -25,8 +25,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Prisma CLI + engines so the entrypoint can run `migrate deploy` at
+# startup — this is what makes the image self-setting-up against an empty
+# database (docs/06_Infrastructure/02_Self_Hosted_Client_Lifecycle.md §4).
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --chown=nextjs:nodejs docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
-CMD ["node", "server.js"]
+ENTRYPOINT ["./entrypoint.sh"]

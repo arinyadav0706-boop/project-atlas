@@ -61,13 +61,13 @@ the container runs `prisma migrate deploy` and builds every table,
 column, and relation, identical to ours, in seconds. The customer's DBA
 writes zero SQL. We never connect to their database.
 
-> **Current gap (tracked, deliberate):** today's `docker/Dockerfile`
-> starts the app directly and does **not** yet run `prisma migrate
-> deploy` first — while we are the only deployers, running migrations
-> manually is fine. Wiring it into container startup is a one-line
-> entrypoint change, scheduled with the rest of V2 self-hosted packaging
-> (Roadmap Phase 9). Nothing about the mechanism is novel or risky; it
-> is simply not connected yet.
+> **Status: wired.** The image's entrypoint (`docker/entrypoint.sh`)
+> runs `prisma migrate deploy` before starting the app, and skips
+> gracefully if no migrations exist yet (the repo's pre-first-migration
+> state). Verified by exercising both entrypoint branches in a simulated
+> image layout; the full `docker build` is confirmed the first time the
+> image is actually built (no Docker daemon in the authoring
+> environment).
 
 ### Step 5 — First run
 A setup wizard (V2 scope) asks: organization name? first admin email?
@@ -107,7 +107,9 @@ upgraded in place. One command, minutes, zero involvement from us.
 ## What This Requires Us to Build (all V2 — Roadmap Phase 9)
 
 1. Private container registry + per-customer pull access.
-2. Migration-on-startup entrypoint in the Docker image (the Step 4 gap).
+2. ~~Migration-on-startup entrypoint in the Docker image~~ — **done**
+   (`docker/entrypoint.sh`, pulled forward from V2 since it was tiny and
+   also fixes the local `docker compose up` first-run experience).
 3. First-run setup wizard replacing the terminal seed script (Step 5).
 4. Versioned release process: semantic version tags, release notes,
    backwards-compatible migrations as a hard rule once any customer is
