@@ -1,0 +1,63 @@
+---
+description: Project Atlas / EAGLES engineering rules — feature-first architecture, RBAC, validation, and documentation-first process
+globs:
+  - "src/**/*"
+  - "prisma/**/*"
+alwaysApply: true
+---
+
+# Project Atlas (EAGLES) — Cursor Rules
+
+You are assisting a 2-founder team (Data Scientists, ~6 months of software
+experience) building an enterprise work-management platform. Full context
+lives in `docs/`. Read `CLAUDE.md` at the repo root for the canonical rule
+set — this file mirrors it for Cursor.
+
+## Before writing code
+
+- Check `docs/02_Modules/<feature>.md` for the feature's Overview, Business
+  Rules, Database, API, UI, Acceptance Criteria, Validation, and Future
+  Scope. If it doesn't exist, stop and ask for it to be written first —
+  documentation precedes implementation on this project.
+- Check `docs/03_Database/` and `prisma/schema.prisma` for the actual
+  schema. Never invent a table, column, or relation that isn't documented
+  there.
+- Check `docs/04_API/openapi.yaml` for the actual API contract. Never
+  invent an endpoint or response shape.
+
+## Architecture rules (enforced, not optional)
+
+- Feature-first folders only:
+  `src/features/<feature>/{components,hooks,services,repositories,validation,types,api}`.
+- Prisma is imported ONLY inside `*.repository.ts` files.
+- Route Handlers (`src/app/api/**/route.ts`) are thin: resolve session,
+  delegate to a feature's service, map errors to HTTP responses. No
+  business logic, no Prisma calls in `app/`.
+- Services own business rules and RBAC checks. Every mutating service
+  method takes an authenticated `actor` and authorizes before acting.
+- Cross-feature calls go through another feature's service, never its
+  repository or Prisma models.
+- Every Prisma model has `createdAt`, `updatedAt`, `createdBy`,
+  `updatedBy`, `deletedAt`. No hard deletes from app code.
+
+## Code style rules
+
+- TypeScript `strict: true`. Never use `any`; use `unknown` + narrowing or
+  a precise type instead.
+- All external input validated with Zod before use; reuse the same schema
+  for client (`zodResolver`) and server validation.
+- No comments that restate the code. Comments only for non-obvious "why."
+- Follow `docs/01_Architecture/04_Coding_Standards.md` for naming, error
+  handling, and testing expectations.
+
+## Portability rules
+
+- Never call a Vercel-only API or a Supabase client SDK feature beyond
+  Postgres connection + Storage from feature code. Storage goes through
+  `shared/lib/storage/StorageAdapter`. See ADR-0004.
+
+## When unsure
+
+If a request would require guessing at a schema shape, an API contract, or
+a business rule not yet documented, do not invent one — surface the gap
+and propose a doc update instead of silently generating placeholder logic.

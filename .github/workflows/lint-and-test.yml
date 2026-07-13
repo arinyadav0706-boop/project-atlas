@@ -1,0 +1,35 @@
+name: Lint and Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Test suite is introduced alongside the first feature module in
+      # Phase 4 (docs/08_Testing/README.md) — this step is a no-op today
+      # rather than a placeholder that silently passes forever.
+      - name: Test
+        run: npm test --if-present
