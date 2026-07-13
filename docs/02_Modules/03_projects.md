@@ -40,6 +40,15 @@ membership. Every other module operates inside a project's scope.
 `GET/POST /projects/{projectId}/members`,
 `PATCH/DELETE /projects/{projectId}/members/{memberId}` — `docs/04_API/openapi.yaml`.
 
+**Spec change during implementation (2026-07-13):** `AddProjectMemberInput`
+takes `email` (of an existing, active org user) rather than `userId` — a
+LEAD has no org-wide user-search endpoint (that's ADMIN-only in
+`14_user_management.md`), so email is the identifier a LEAD actually
+knows. The service resolves email → user and rejects unknown/inactive
+users. Re-adding a previously removed member restores their original
+membership row (the `(projectId, userId)` unique constraint spans
+soft-deleted rows).
+
 ## UI
 
 Screens #3 (Project list) and #4 (Project settings) in

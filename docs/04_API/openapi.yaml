@@ -923,9 +923,16 @@ components:
 
     AddProjectMemberInput:
       type: object
-      required: [userId, role]
+      required: [email, role]
       properties:
-        userId: { type: string }
+        email:
+          type: string
+          description: >
+            Email of an existing, active org user. Members are added by
+            email rather than userId because project LEADs have no
+            org-wide user-search endpoint (that's ADMIN-only) — email is
+            the natural key a LEAD actually knows. See
+            docs/02_Modules/03_projects.md §API.
         role: { $ref: "#/components/schemas/ProjectRole" }
 
     Sprint:
