@@ -7,8 +7,8 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const orgName = process.env.SEED_ORG_NAME ?? "Consit AI";
-  const orgDomain = process.env.SEED_ORG_DOMAIN ?? "consit.ai";
+  const orgName = process.env.SEED_ORG_NAME ?? "Consint AI";
+  const orgDomain = process.env.SEED_ORG_DOMAIN ?? "consint.ai";
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
   const adminName = process.env.SEED_ADMIN_NAME ?? "Founder";
 

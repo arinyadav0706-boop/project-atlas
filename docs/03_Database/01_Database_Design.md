@@ -32,7 +32,7 @@ Multi-tenancy anchor (Vision §8 A1). V1 has exactly one row.
 |---|---|---|
 | id | String (PK) | |
 | name | String | |
-| domain | String | e.g. `consit.ai` — used by ADR-0005's `ALLOWED_EMAIL_DOMAINS` config, not enforced at the DB level |
+| domain | String | e.g. `consint.ai` — used by ADR-0005's `ALLOWED_EMAIL_DOMAINS` config, not enforced at the DB level |
 | + audit fields | | `createdBy`/`updatedBy` nullable (bootstrap row has no creator) |
 
 ### 2.2 User
