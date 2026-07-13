@@ -243,8 +243,16 @@ Full visual: `02_ER_Diagram.md`.
 | `AuditLog` | index `(organizationId, createdAt)` | audit review, newest-first |
 | Full-text search | `GIN` index on `to_tsvector` over `Issue.title`/`Issue.description` and `Project.name` | PRD FR-6.1, `docs/02_Modules/12_search.md` |
 
-## 6. Open Items Before Phase 3 Locks the Prisma Schema
+## 6. Formerly Open Items — Now Decided
 
-- Confirm `ProjectRole`/`OrgRole` granularity (§3, restated from Security §2 A5) with founders.
-- Confirm `description`/`Comment.body` storage format: sanitized HTML vs. Markdown source (affects XSS-sanitization approach — Security Architecture §4). Default assumption: Markdown source, rendered client-side with a sanitizing renderer.
-- Confirm attachment max file size / allowed MIME types (module doc `09_attachments.md` proposes a default; founders to confirm before Phase 3).
+- `ProjectRole`/`OrgRole` granularity (§3): **confirmed as-is**, with the
+  explicit founder decision (2026-07-12) that org `ADMIN` carries **no**
+  implicit project-level powers — see `docs/02_Modules/15_roles.md`.
+- `description`/`Comment.body` storage format: **founder-confirmed
+  (2026-07-12): Markdown source**, sanitized at render. (For reference:
+  Jira Cloud uses its proprietary ADF JSON format, Asana a restricted
+  HTML subset — both serve collaborative-editing needs V1 doesn't have;
+  Markdown remains convertible to a richer format later if V2+ needs it.)
+- Attachment max size / MIME allow-list: defaults in
+  `docs/02_Modules/09_attachments.md` (25 MB, allow-list per BR-3) stand
+  unless founders object before the Attachments module is built (Phase 5).

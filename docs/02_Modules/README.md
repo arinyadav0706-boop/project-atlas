@@ -23,12 +23,16 @@ Acceptance Criteria, Validation, Future Scope — see
 | 15 | Roles | [15_roles.md](15_roles.md) |
 | 16 | Profile | [16_profile.md](16_profile.md) |
 
-Two open items surfaced while authoring these docs need founder input
-before Phase 3 generates the Prisma schema and Route Handlers:
+Two design questions were flagged here during authoring; both are now
+**decided by founders (2026-07-12)**:
 
-- `15_roles.md` — should org `ADMIN` implicitly act as project `LEAD` on
-  every project, or is org admin strictly separate from project
-  leadership (current default: separate)?
-- `03_Database/01_Database_Design.md §6` — Markdown vs. sanitized-HTML
-  storage for `Issue.description`/`Comment.body` (current default:
-  Markdown source, sanitized at render).
+- Org `ADMIN` does **not** implicitly act as project `LEAD` — org
+  administration and project leadership are strictly separate powers.
+  Every project's authority belongs to its `LEAD`(s). See `15_roles.md`.
+- `Issue.description`/`Comment.body` are stored as **Markdown source**,
+  sanitized at render time. Rationale: Jira uses its proprietary ADF
+  (JSON) and Asana a restricted HTML subset — both exist to serve
+  realtime collaborative editing we don't need in V1; Markdown is
+  portable, safe when sanitized, and convertible to a richer format
+  later if V2+ ever requires it. See
+  `docs/03_Database/01_Database_Design.md §6`.

@@ -25,15 +25,21 @@ This module doc defines the permission matrix that every other module's
 
 ## Permission Matrix
 
-| Action | `VIEWER` | `MEMBER` | `LEAD` | Org `ADMIN` |
+Project-scoped rows are governed **solely by the caller's project role**
+(founder-confirmed 2026-07-12, see BR-2 and Acceptance Criteria): an org
+`ADMIN` gets no implicit project powers — on a project where they hold no
+`ProjectMember` row, they have viewer-level visibility only (BR from
+`03_projects.md` BR-7: all employees can view active projects).
+
+| Action | `VIEWER` | `MEMBER` | `LEAD` | Org `ADMIN` (org-level only) |
 |---|---|---|---|---|
-| View project/issues/board/backlog | ✅ | ✅ | ✅ | ✅ (all projects) |
-| Create/edit issue, comment, attachment | ❌ | ✅ | ✅ | ✅ |
-| Delete own comment/attachment | ❌ | ✅ | ✅ | ✅ |
-| Delete any comment/attachment (moderation) | ❌ | ❌ | ✅ | ✅ |
-| Create/start/close sprint | ❌ | ❌ | ✅ | ✅ |
-| Manage project members/roles | ❌ | ❌ | ✅ | ✅ |
-| Edit project settings, archive/delete project | ❌ | ❌ | ✅ | ✅ |
+| View project/issues/board/backlog | ✅ | ✅ | ✅ | ✅ (like any employee, per `03_projects.md` BR-7) |
+| Create/edit issue, comment, attachment | ❌ | ✅ | ✅ | per their project role, if any |
+| Delete own comment/attachment | ❌ | ✅ | ✅ | per their project role, if any |
+| Delete any comment/attachment (moderation) | ❌ | ❌ | ✅ | per their project role, if any |
+| Create/start/close sprint | ❌ | ❌ | ✅ | per their project role, if any |
+| Manage project members/roles | ❌ | ❌ | ✅ | per their project role, if any |
+| Edit project settings, archive/delete project | ❌ | ❌ | ✅ | per their project role, if any |
 | Invite/deactivate users, change org roles | ❌ | ❌ | ❌ | ✅ |
 | View/edit org settings, audit log | ❌ | ❌ | ❌ | ✅ |
 
@@ -65,10 +71,10 @@ Admin → Users.
   (Coding Standards §8).
 - Given an org `ADMIN` who is not a `ProjectMember` of a given project,
   when they attempt a project-scoped action requiring `LEAD`, then org
-  `ADMIN` status alone is **not** sufficient — confirm with founders
-  whether `ADMIN` should implicitly act as `LEAD` on all projects; current
-  default (BR-2) is **no**, admin ≠ automatic project ownership, flagged
-  here as it's a plausible point of confusion.
+  `ADMIN` status alone is **not** sufficient. **Founder-confirmed
+  (2026-07-12):** `ADMIN` never implicitly acts as `LEAD`; org
+  administration and project leadership are strictly separate powers
+  (BR-2, and the Permission Matrix above reflects this).
 
 ## Validation
 
