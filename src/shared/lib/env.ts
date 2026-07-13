@@ -9,7 +9,11 @@ const envSchema = z.object({
   // here too so a missing value fails fast at app startup, consistent with
   // every other required var, rather than only surfacing during a migration.
   DIRECT_URL: z.string().min(1),
-  NEXTAUTH_URL: z.string().min(1),
+  // Optional: with authConfig.trustHost, Auth.js infers the URL from the
+  // request (Vercel/proxied deployments). Set it explicitly in production
+  // once the final domain is known; required-ness here would deadlock the
+  // very first Vercel deploy, whose URL isn't known until it exists.
+  NEXTAUTH_URL: z.string().optional().default(""),
   NEXTAUTH_SECRET: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
