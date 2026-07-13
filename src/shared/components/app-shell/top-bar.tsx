@@ -24,17 +24,20 @@ export function TopBar({
     .toUpperCase();
 
   return (
-    <header className="flex h-14 items-center justify-end gap-3 border-b border-border bg-background px-4">
+    <header className="flex h-14 shrink-0 items-center justify-end gap-3 border-b border-border bg-background px-5">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-            <Avatar>
+          <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Avatar className="h-8 w-8">
               <AvatarImage src={userImage ?? undefined} alt={userName} />
-              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarFallback className="text-xs font-medium">
+                {initials}
+              </AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">{userName}</div>
           <DropdownMenuItem asChild>
             <a href="/profile">Profile</a>
           </DropdownMenuItem>

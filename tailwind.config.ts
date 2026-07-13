@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animatePlugin from "tailwindcss-animate";
 
 // Color tokens mirror docs/05_UI/02_Screens_and_Information_Architecture.md §5.
 // Light theme is the default/primary look (docs/05_UI/01_UI_Design_Principles.md §2) —
@@ -37,7 +38,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [animatePlugin],
 };
 
 export default config;
