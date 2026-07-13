@@ -66,8 +66,8 @@ provider error.
 - Given `ALLOWED_EMAIL_DOMAINS` is unset (pre-signoff default), when any
   user authenticates via a configured provider, then sign-in succeeds
   regardless of email domain.
-- Given `ALLOWED_EMAIL_DOMAINS=consit.ai` (post-signoff), when a user
-  authenticates with a non-`consit.ai` email, then sign-in is rejected with
+- Given `ALLOWED_EMAIL_DOMAINS=consint.ai` (post-signoff), when a user
+  authenticates with a non-`consint.ai` email, then sign-in is rejected with
   a clear message and the attempt is logged to `AuditLog`.
 - Given a deactivated user, when they attempt to sign in (or have an
   existing session), then access is denied and they're redirected to

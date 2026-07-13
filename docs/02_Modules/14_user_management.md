@@ -50,7 +50,7 @@ last login, and row actions (change role, deactivate/reactivate); an
 - Given an `ADMIN` invites a new user by email, when that email later
   signs in via Google/Microsoft, then it matches the pre-created `User`
   row rather than creating a duplicate account.
-- Given `ALLOWED_EMAIL_DOMAINS=consit.ai` is set, when an `ADMIN` invites
+- Given `ALLOWED_EMAIL_DOMAINS=consint.ai` is set, when an `ADMIN` invites
   `someone@other.com`, then the invite is rejected immediately with a
   clear reason.
 - Given exactly one `ADMIN` exists, when someone attempts to deactivate or

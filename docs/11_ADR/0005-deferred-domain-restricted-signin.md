@@ -8,13 +8,13 @@ decision, only the launch configuration of the domain-restriction control.
 
 ## Context
 
-The founders' company (working domain assumed: `consit.ai`) has not yet
+The founders' company (working domain assumed: `consint.ai`) has not yet
 formally decided whether to adopt EAGLES org-wide. Until that sign-off
 happens, the founders need to sign in themselves, explore the running
 product, and brainstorm functionality — i.e., authentication must work
 *now*, before there is an official rollout decision. At the same time, the
 long-term enterprise requirement (once adopted) is that only company
-accounts (`@consit.ai`) may ever sign in — this cannot be an afterthought
+accounts (`@consint.ai`) may ever sign in — this cannot be an afterthought
 bolted on after go-live.
 
 ## Decision
@@ -22,7 +22,7 @@ bolted on after go-live.
 Implement email-domain restriction as **configuration, not a hardcoded
 rule**, enforced in the Auth.js `signIn` callback via an
 `ALLOWED_EMAIL_DOMAINS` environment variable (comma-separated list, e.g.
-`consit.ai`).
+`consint.ai`).
 
 - **Pre-signoff (current default):** `ALLOWED_EMAIL_DOMAINS` is unset →
   no application-level domain restriction. Sign-in still requires a
@@ -31,7 +31,7 @@ rule**, enforced in the Auth.js `signIn` callback via an
   open to anyone who can authenticate against the configured identity
   provider(s), which in practice is the founders and any invited testers.
 - **Post-signoff:** once the company formally commits to adopting EAGLES,
-  ops sets `ALLOWED_EMAIL_DOMAINS=consit.ai` (or the confirmed real domain)
+  ops sets `ALLOWED_EMAIL_DOMAINS=consint.ai` (or the confirmed real domain)
   in the production environment. From that point, any authenticated
   identity whose email domain isn't in the list is rejected at the
   `signIn` callback and logged to `AuditLog` as a denied sign-in attempt.
@@ -43,14 +43,14 @@ rule**, enforced in the Auth.js `signIn` callback via an
   restriction layer for the Google provider (via Google's `hd` hosted-domain
   parameter, same allow-list).
 - No code path may assume a specific domain literal — the allow-list is
-  always read from configuration, never hardcoded to `consit.ai`, since the
+  always read from configuration, never hardcoded to `consint.ai`, since the
   actual domain is not yet confirmed by sign-off.
 
 ## Alternatives Considered
 
 | Option | Rejected because |
 |---|---|
-| Hardcode `@consit.ai` restriction now | Blocks the founders' own pre-signoff evaluation use; also risky to hardcode a domain that isn't yet confirmed as final |
+| Hardcode `@consint.ai` restriction now | Blocks the founders' own pre-signoff evaluation use; also risky to hardcode a domain that isn't yet confirmed as final |
 | No domain-restriction capability at all until explicitly requested later | Enterprise requirement is already known; building the capability now (just defaulted off) costs almost nothing and avoids a rushed retrofit at go-live |
 | Restrict via a separate feature flag service | Overkill — a single validated env var is sufficient and consistent with how all other provider config is handled (Coding Standards, Tech Stack §9) |
 
