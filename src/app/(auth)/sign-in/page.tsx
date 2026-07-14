@@ -1,9 +1,40 @@
+import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { signIn } from "@/features/authentication/api/auth-config";
 import { Button } from "@/shared/components/ui/button";
 
 // Screen #1 — docs/05_UI/02_Screens_and_Information_Architecture.md.
 // SSO is the intended default path (ADR-0003); email/password is a
 // secondary, collapsed fallback, not a coin-flip choice.
+//
+// Auth.js's signIn() signals failure by THROWING (CredentialsSignin etc.),
+// and signals success by throwing Next's internal redirect. So: catch
+// AuthError and turn it into a friendly ?error= redirect, but always
+// re-throw everything else or successful sign-ins would break.
+async function signInWithProvider(
+  provider: "google" | "microsoft-entra-id" | "credentials",
+  formData?: FormData,
+) {
+  "use server";
+  try {
+    if (provider === "credentials") {
+      await signIn("credentials", {
+        email: formData?.get("email"),
+        password: formData?.get("password"),
+        redirectTo: "/dashboard",
+      });
+    } else {
+      await signIn(provider, { redirectTo: "/dashboard" });
+    }
+  } catch (error) {
+    if (error instanceof AuthError) {
+      const code = error.type === "CredentialsSignin" ? "CredentialsSignin" : "Default";
+      redirect(`/sign-in?error=${code}`);
+    }
+    throw error;
+  }
+}
+
 export default function SignInPage({
   searchParams,
 }: {
@@ -20,7 +51,10 @@ export default function SignInPage({
         </p>
 
         {errorMessage && (
-          <p className="mb-4 rounded-md bg-muted px-3 py-2 text-center text-sm text-foreground">
+          <p
+            role="alert"
+            className="mb-4 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-center text-sm text-destructive"
+          >
             {errorMessage}
           </p>
         )}
@@ -28,7 +62,7 @@ export default function SignInPage({
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: "/dashboard" });
+            await signInWithProvider("google");
           }}
         >
           <Button type="submit" variant="outline" className="mb-3 w-full">
@@ -39,7 +73,7 @@ export default function SignInPage({
         <form
           action={async () => {
             "use server";
-            await signIn("microsoft-entra-id", { redirectTo: "/dashboard" });
+            await signInWithProvider("microsoft-entra-id");
           }}
         >
           <Button type="submit" variant="outline" className="w-full">
@@ -56,11 +90,7 @@ export default function SignInPage({
         <form
           action={async (formData: FormData) => {
             "use server";
-            await signIn("credentials", {
-              email: formData.get("email"),
-              password: formData.get("password"),
-              redirectTo: "/dashboard",
-            });
+            await signInWithProvider("credentials", formData);
           }}
           className="space-y-3"
         >
@@ -69,14 +99,16 @@ export default function SignInPage({
             type="email"
             placeholder="Email"
             required
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            aria-label="Email"
+            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-accent"
           />
           <input
             name="password"
             type="password"
             placeholder="Password"
             required
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            aria-label="Password"
+            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-accent"
           />
           <Button type="submit" variant="ghost" className="w-full">
             Sign in with email
@@ -89,10 +121,12 @@ export default function SignInPage({
 
 function mapAuthError(code?: string): string | null {
   switch (code) {
-    case "AccessDenied":
-      return "Sign-in was rejected. Contact your admin if you believe this is an error.";
     case "CredentialsSignin":
       return "Invalid email or password.";
+    case "AccessDenied":
+      return "Sign-in was rejected. Contact your admin if you believe this is an error.";
+    case "Default":
+      return "Sign-in failed. Please try again.";
     default:
       return null;
   }
