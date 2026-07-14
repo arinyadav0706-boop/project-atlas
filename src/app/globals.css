@@ -4,16 +4,19 @@
 
 /* Light theme is the default/primary look — docs/05_UI/01_UI_Design_Principles.md §2.
    Values mirror docs/05_UI/02_Screens_and_Information_Architecture.md §5.
-   Accent is a placeholder (Apple system blue) pending a confirmed brand color. */
+   Accent is a placeholder (Apple system blue) pending a confirmed brand color.
+   Semantic colors (destructive) are tokens, never ad-hoc hexes in components. */
 :root {
   --background: 0 0% 100%;
-  --surface: 0 0% 98%;
+  --surface: 240 20% 99%;
   --foreground: 240 4% 12%;
-  --border: 240 9% 91%;
-  --accent: 211 100% 52%;
+  --border: 240 6% 90%;
+  --accent: 211 100% 50%;
   --accent-foreground: 0 0% 100%;
-  --muted: 240 9% 96%;
-  --muted-foreground: 240 2% 45%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
 }
 
 * {
@@ -23,4 +26,9 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: hsl(var(--accent) / 0.15);
 }

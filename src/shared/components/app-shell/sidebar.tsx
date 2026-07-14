@@ -21,15 +21,18 @@ export function Sidebar({ isOrgAdmin }: { isOrgAdmin: boolean }) {
     ? [...navItems, { href: "/admin", label: "Admin", icon: ShieldCheck }]
     : navItems;
 
+  // Below md the sidebar collapses to an icon rail so the app stays usable
+  // on small screens; a full mobile drawer is tracked as a later pass.
   return (
-    <nav className="flex h-full w-60 flex-col border-r border-border bg-surface">
-      <div className="flex h-14 items-center px-5">
+    <nav className="flex h-full w-14 flex-col border-r border-border bg-surface md:w-60">
+      <div className="flex h-14 items-center justify-center md:justify-start md:px-5">
         <span className="text-[15px] font-semibold tracking-tight text-foreground">
-          EAGLES
+          <span className="md:hidden">E</span>
+          <span className="hidden md:inline">EAGLES</span>
         </span>
       </div>
 
-      <div className="flex flex-col gap-0.5 px-3 pt-2">
+      <div className="flex flex-col gap-0.5 px-2 pt-2 md:px-3">
         {items.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -37,15 +40,20 @@ export function Sidebar({ isOrgAdmin }: { isOrgAdmin: boolean }) {
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors duration-150",
+                "flex items-center justify-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors duration-150 md:justify-start",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 isActive
                   ? "bg-accent/10 text-accent"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              <item.icon className="h-4 w-4" strokeWidth={isActive ? 2.2 : 1.8} />
-              {item.label}
+              <item.icon
+                className="h-4 w-4 shrink-0"
+                strokeWidth={isActive ? 2.2 : 1.8}
+              />
+              <span className="hidden md:inline">{item.label}</span>
             </Link>
           );
         })}

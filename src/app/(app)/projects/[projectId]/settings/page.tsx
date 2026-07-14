@@ -17,7 +17,13 @@ export default async function ProjectSettingsPage({
       ProjectService.get(actor, params.projectId),
       ProjectService.listMembers(actor, params.projectId),
     ]);
-    return <ProjectSettingsView project={project} members={members} />;
+    return (
+      <ProjectSettingsView
+        project={project}
+        members={members}
+        currentUserId={actor.userId}
+      />
+    );
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;

@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import {
@@ -28,9 +29,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/shared/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/shared/components/ui/tooltip";
 
 // Screen #4 (Project settings) — General / Members / Danger Zone.
-// All buttons hidden for non-LEADs are conveniences; the server re-checks
+// Buttons hidden for non-LEADs are conveniences; the server re-checks
 // every action (Coding Standards §7).
 
 async function apiCall(path: string, method: string, body?: unknown) {
@@ -56,51 +70,84 @@ type GeneralFormInput = z.infer<typeof generalFormSchema>;
 export function ProjectSettingsView({
   project,
   members,
+  currentUserId,
 }: {
   project: ProjectDto;
   members: ProjectMemberDto[];
+  currentUserId: string;
 }) {
   const isLead = project.myRole === "LEAD";
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link
-        href="/projects"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Projects
-      </Link>
+    <TooltipProvider delayDuration={300}>
+      <div className="mx-auto max-w-3xl">
+        <Link
+          href="/projects"
+          className="mb-6 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Projects
+        </Link>
 
-      <div className="mb-8 flex items-center gap-3">
-        <Badge variant="accent">{project.key}</Badge>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          {project.name}
-        </h1>
-        {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
-      </div>
+        <div className="mb-8 flex items-center gap-3">
+          <Badge variant="accent">{project.key}</Badge>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {project.name}
+          </h1>
+          {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
+        </div>
 
-      <div className="space-y-10">
-        <GeneralSection project={project} isLead={isLead} />
-        <MembersSection project={project} members={members} isLead={isLead} />
-        {isLead && <DangerZone project={project} />}
+        {!isLead && (
+          <p className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 text-[13px] text-muted-foreground">
+            You&apos;re viewing this project&apos;s settings
+            {project.myRole
+              ? ` as a ${project.myRole.toLowerCase()}`
+              : " without being a member"}
+            . Only a project lead can make changes here.
+          </p>
+        )}
+
+        <div className="space-y-10">
+          <GeneralSection project={project} isLead={isLead} />
+          <MembersSection
+            project={project}
+            members={members}
+            isLead={isLead}
+            currentUserId={currentUserId}
+          />
+          {isLead && <DangerZone project={project} />}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
 function SectionCard({
   title,
   description,
+  destructive,
   children,
 }: {
   title: string;
   description: string;
+  destructive?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-background">
-      <div className="border-b border-border px-5 py-4">
+    <section
+      className={
+        destructive
+          ? "rounded-xl border border-destructive/25 bg-background"
+          : "rounded-xl border border-border bg-background"
+      }
+    >
+      <div
+        className={
+          destructive
+            ? "border-b border-destructive/25 px-5 py-4"
+            : "border-b border-border px-5 py-4"
+        }
+      >
         <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
         <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>
       </div>
@@ -125,6 +172,7 @@ function GeneralSection({
       description: project.description ?? "",
     },
   });
+  const isDirty = form.formState.isDirty;
 
   async function onSubmit(input: GeneralFormInput) {
     setSaving(true);
@@ -134,6 +182,7 @@ function GeneralSection({
         description: input.description || null,
       });
       toast.success("Project updated");
+      form.reset(input);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Update failed.");
@@ -146,26 +195,34 @@ function GeneralSection({
     <SectionCard title="General" description="Name and description of this project.">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Name
-          </label>
-          <Input disabled={!isLead} {...form.register("name")} />
+          <Label htmlFor="project-name">Name</Label>
+          <Input
+            id="project-name"
+            disabled={!isLead}
+            aria-invalid={Boolean(form.formState.errors.name)}
+            {...form.register("name")}
+          />
           {form.formState.errors.name && (
-            <p className="mt-1 text-xs text-red-600">
+            <p role="alert" className="mt-1 text-xs text-destructive">
               {form.formState.errors.name.message}
             </p>
           )}
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Description
-          </label>
-          <Textarea disabled={!isLead} {...form.register("description")} />
+          <Label htmlFor="project-description">Description</Label>
+          <Textarea
+            id="project-description"
+            disabled={!isLead}
+            {...form.register("description")}
+          />
         </div>
         {isLead && (
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
+          <div className="flex items-center justify-end gap-3">
+            {isDirty && (
+              <span className="text-xs text-muted-foreground">Unsaved changes</span>
+            )}
+            <Button type="submit" size="sm" loading={saving} disabled={!isDirty}>
+              Save changes
             </Button>
           </div>
         )}
@@ -178,35 +235,45 @@ function MembersSection({
   project,
   members,
   isLead,
+  currentUserId,
 }: {
   project: ProjectDto;
   members: ProjectMemberDto[];
   isLead: boolean;
+  currentUserId: string;
 }) {
   const router = useRouter();
+  const [removeTarget, setRemoveTarget] = useState<ProjectMemberDto | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   async function changeRole(member: ProjectMemberDto, role: string) {
     try {
-      await apiCall(
-        `/api/projects/${project.id}/members/${member.id}`,
-        "PATCH",
-        { role },
-      );
+      await apiCall(`/api/projects/${project.id}/members/${member.id}`, "PATCH", {
+        role,
+      });
       toast.success(`${member.name} is now ${role.toLowerCase()}`);
-      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Change failed.");
+    } finally {
       router.refresh();
     }
   }
 
-  async function removeMember(member: ProjectMemberDto) {
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    setRemoving(true);
     try {
-      await apiCall(`/api/projects/${project.id}/members/${member.id}`, "DELETE");
-      toast.success(`${member.name} removed from the project`);
+      await apiCall(
+        `/api/projects/${project.id}/members/${removeTarget.id}`,
+        "DELETE",
+      );
+      toast.success(`${removeTarget.name} removed from the project`);
+      setRemoveTarget(null);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Remove failed.");
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -219,7 +286,7 @@ function MembersSection({
         {members.map((member) => (
           <li key={member.id} className="flex items-center gap-3 py-3">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={member.avatarUrl ?? undefined} alt={member.name} />
+              <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
               <AvatarFallback className="text-xs">
                 {member.name
                   .split(" ")
@@ -230,29 +297,41 @@ function MembersSection({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
+              <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
                 {member.name}
+                {member.userId === currentUserId && (
+                  <Badge className="shrink-0">You</Badge>
+                )}
               </p>
               <p className="truncate text-xs text-muted-foreground">{member.email}</p>
             </div>
-            {isLead ? (
+            {isLead && project.status !== "ARCHIVED" ? (
               <>
-                <select
+                <Select
                   value={member.role}
-                  onChange={(event) => changeRole(member, event.target.value)}
-                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  onValueChange={(role) => changeRole(member, role)}
                 >
-                  <option value="LEAD">Lead</option>
-                  <option value="MEMBER">Member</option>
-                  <option value="VIEWER">Viewer</option>
-                </select>
-                <button
-                  onClick={() => removeMember(member)}
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
-                  title="Remove member"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  <SelectTrigger className="w-[110px]" aria-label="Change role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LEAD">Lead</SelectItem>
+                    <SelectItem value="MEMBER">Member</SelectItem>
+                    <SelectItem value="VIEWER">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setRemoveTarget(member)}
+                      aria-label={`Remove ${member.name}`}
+                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove from project</TooltipContent>
+                </Tooltip>
               </>
             ) : (
               <Badge>{member.role.charAt(0) + member.role.slice(1).toLowerCase()}</Badge>
@@ -266,6 +345,32 @@ function MembersSection({
           <AddMemberDialog projectId={project.id} />
         </div>
       )}
+
+      <Dialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+      >
+        <DialogContent>
+          <DialogTitle>Remove {removeTarget?.name}?</DialogTitle>
+          <DialogDescription>
+            They lose access to this project&apos;s issues and board. Their
+            past work and comments stay attributed to them, and a lead can
+            add them back anytime.
+          </DialogDescription>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setRemoveTarget(null)}
+              disabled={removing}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmRemove} loading={removing}>
+              Remove member
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SectionCard>
   );
 }
@@ -310,28 +415,37 @@ function AddMemberDialog({ projectId }: { projectId: string }) {
         </DialogDescription>
         <form onSubmit={form.handleSubmit(onSubmit)} className="mt-5 space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Email
-            </label>
-            <Input placeholder="colleague@company.com" {...form.register("email")} />
+            <Label htmlFor="member-email">Email</Label>
+            <Input
+              id="member-email"
+              placeholder="colleague@company.com"
+              autoFocus
+              aria-invalid={Boolean(form.formState.errors.email)}
+              {...form.register("email")}
+            />
             {form.formState.errors.email && (
-              <p className="mt-1 text-xs text-red-600">
+              <p role="alert" className="mt-1 text-xs text-destructive">
                 {form.formState.errors.email.message}
               </p>
             )}
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Role
-            </label>
-            <select
-              {...form.register("role")}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            <Label htmlFor="member-role">Role</Label>
+            <Select
+              value={form.watch("role")}
+              onValueChange={(role) =>
+                form.setValue("role", role as AddProjectMemberInput["role"])
+              }
             >
-              <option value="MEMBER">Member — can create and edit issues</option>
-              <option value="LEAD">Lead — manages the project</option>
-              <option value="VIEWER">Viewer — read-only</option>
-            </select>
+              <SelectTrigger id="member-role" className="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MEMBER">Member — creates and edits issues</SelectItem>
+                <SelectItem value="LEAD">Lead — manages the project</SelectItem>
+                <SelectItem value="VIEWER">Viewer — read-only</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -342,8 +456,8 @@ function AddMemberDialog({ projectId }: { projectId: string }) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Adding…" : "Add member"}
+            <Button type="submit" loading={submitting}>
+              Add member
             </Button>
           </div>
         </form>
@@ -358,14 +472,28 @@ function DangerZone({ project }: { project: ProjectDto }) {
   const [working, setWorking] = useState(false);
   const archived = project.status === "ARCHIVED";
 
+  async function setStatus(status: "ACTIVE" | "ARCHIVED") {
+    await apiCall(`/api/projects/${project.id}`, "PATCH", { status });
+    router.refresh();
+  }
+
+  // Archiving is reversible, so it gets the toast+Undo pattern
+  // (Design Principles §5) instead of a blocking confirmation.
   async function toggleArchive() {
     setWorking(true);
+    const next = archived ? "ACTIVE" : "ARCHIVED";
     try {
-      await apiCall(`/api/projects/${project.id}`, "PATCH", {
-        status: archived ? "ACTIVE" : "ARCHIVED",
+      await setStatus(next);
+      toast.success(archived ? "Project restored" : "Project archived", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void setStatus(archived ? "ARCHIVED" : "ACTIVE").catch(() =>
+              toast.error("Could not undo."),
+            );
+          },
+        },
       });
-      toast.success(archived ? "Project restored" : "Project archived");
-      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Action failed.");
     } finally {
@@ -388,21 +516,18 @@ function DangerZone({ project }: { project: ProjectDto }) {
 
   return (
     <SectionCard
+      destructive
       title="Danger zone"
       description="Archiving makes the project read-only; deleting hides it everywhere (data is retained for audit)."
     >
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Button variant="outline" size="sm" onClick={toggleArchive} disabled={working}>
+        <Button variant="outline" size="sm" onClick={toggleArchive} loading={working}>
           {archived ? "Restore project" : "Archive project"}
         </Button>
 
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-red-200 text-red-600 hover:bg-red-50"
-            >
+            <Button variant="destructive-outline" size="sm">
               Delete project
             </Button>
           </DialogTrigger>
@@ -421,12 +546,8 @@ function DangerZone({ project }: { project: ProjectDto }) {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={deleteProject}
-                disabled={working}
-                className="bg-red-600 text-white hover:bg-red-600/90"
-              >
-                {working ? "Deleting…" : "Delete project"}
+              <Button variant="destructive" onClick={deleteProject} loading={working}>
+                Delete project
               </Button>
             </div>
           </DialogContent>
