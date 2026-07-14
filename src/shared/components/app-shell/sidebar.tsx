@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, FolderKanban, ShieldCheck } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { LogoMark } from "@/shared/components/brand/logo";
 
 // App shell — docs/05_UI/02_Screens_and_Information_Architecture.md §1.
 // Admin link visibility (ADMIN-only) is a UX convenience; the security
@@ -25,10 +26,10 @@ export function Sidebar({ isOrgAdmin }: { isOrgAdmin: boolean }) {
   // on small screens; a full mobile drawer is tracked as a later pass.
   return (
     <nav className="flex h-full w-14 flex-col border-r border-border bg-surface md:w-60">
-      <div className="flex h-14 items-center justify-center md:justify-start md:px-5">
-        <span className="text-[15px] font-semibold tracking-tight text-foreground">
-          <span className="md:hidden">E</span>
-          <span className="hidden md:inline">EAGLES</span>
+      <div className="flex h-14 items-center justify-center gap-2 md:justify-start md:px-4">
+        <LogoMark className="h-7 w-7" />
+        <span className="hidden text-[15px] font-semibold tracking-tight text-foreground md:inline">
+          EAGLES
         </span>
       </div>
 
