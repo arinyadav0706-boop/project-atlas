@@ -22,7 +22,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
             Everything your teams are working on, in one place.
           </p>
         </div>
-        <CreateProjectDialog />
+        <CreateProjectDialog withHotkey />
       </div>
 
       {projects.length === 0 ? (
@@ -38,7 +38,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
             >
               <Link
                 href={`/projects/${project.id}/settings`}
-                className="group block rounded-xl border border-border bg-background p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
+                className="group block rounded-xl border border-border bg-background p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               >
                 <div className="mb-3 flex items-center justify-between">
                   <Badge variant="accent">{project.key}</Badge>
