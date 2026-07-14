@@ -32,3 +32,12 @@ body {
 ::selection {
   background-color: hsl(var(--accent) / 0.15);
 }
+
+/* Brand panel background for the sign-in screen — soft accent light,
+   kept subtle so it reads as designed, not decorated (Design Principles). */
+.auth-surface {
+  background-color: hsl(var(--surface));
+  background-image:
+    radial-gradient(60% 55% at 12% 8%, hsl(var(--accent) / 0.1), transparent 60%),
+    radial-gradient(52% 55% at 92% 100%, hsl(var(--accent) / 0.07), transparent 60%);
+}
