@@ -37,7 +37,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
               transition={{ duration: 0.2, delay: index * 0.04, ease: "easeOut" }}
             >
               <Link
-                href={`/projects/${project.id}/settings`}
+                href={`/projects/${project.id}/issues`}
                 className="group block rounded-xl border border-border bg-background p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               >
                 <div className="mb-3 flex items-center justify-between">

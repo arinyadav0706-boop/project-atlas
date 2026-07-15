@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ArrowLeft, UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import type {
   ProjectDto,
@@ -80,23 +79,7 @@ export function ProjectSettingsView({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="mx-auto max-w-3xl">
-        <Link
-          href="/projects"
-          className="mb-6 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Projects
-        </Link>
-
-        <div className="mb-8 flex items-center gap-3">
-          <Badge variant="accent">{project.key}</Badge>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            {project.name}
-          </h1>
-          {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
-        </div>
-
+      <div className="max-w-3xl">
         {!isLead && (
           <p className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 text-[13px] text-muted-foreground">
             You&apos;re viewing this project&apos;s settings
