@@ -28,6 +28,17 @@ export interface IssueListItemDto {
   updatedAt: string;
 }
 
+// Per-status totals for the filter chips (ALL = sum). Always present so the
+// UI never guesses counts from a partial, paginated list.
+export type IssueStatusCounts = Record<IssueStatusDto, number> & { ALL: number };
+
+// One page of issues plus the cursor for the next page (null = last page).
+export interface IssueListPageDto {
+  items: IssueListItemDto[];
+  nextCursor: string | null;
+  counts: IssueStatusCounts;
+}
+
 // Full shape for the detail view.
 export interface IssueDetailDto extends IssueListItemDto {
   description: string | null;

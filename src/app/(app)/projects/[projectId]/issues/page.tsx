@@ -14,7 +14,7 @@ export default async function ProjectIssuesPage({
   if (!actor) redirect("/sign-in");
 
   try {
-    const [project, issues, members] = await Promise.all([
+    const [project, page, members] = await Promise.all([
       ProjectService.get(actor, params.projectId),
       IssueService.list(actor, params.projectId),
       ProjectService.listMembers(actor, params.projectId),
@@ -25,7 +25,9 @@ export default async function ProjectIssuesPage({
     return (
       <IssuesView
         projectId={params.projectId}
-        issues={issues}
+        initialItems={page.items}
+        initialCursor={page.nextCursor}
+        counts={page.counts}
         members={members.map((m) => ({ userId: m.userId, name: m.name }))}
         canWrite={canWrite}
       />

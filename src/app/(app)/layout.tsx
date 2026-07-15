@@ -1,18 +1,12 @@
 import { redirect } from "next/navigation";
-import type { Session } from "next-auth";
-import { auth } from "@/features/authentication/api/auth-config";
+import { getSession } from "@/features/authentication/services/actor.service";
 import { Sidebar } from "@/shared/components/app-shell/sidebar";
 import { TopBar } from "@/shared/components/app-shell/top-bar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // Fail closed: an error from auth() must never be treated as an
-  // authenticated session — see src/app/page.tsx for the same pattern.
-  let session: Session | null = null;
-  try {
-    session = await auth();
-  } catch {
-    session = null;
-  }
+  // getSession fails closed (returns null on error) and is request-cached, so
+  // the layout and the page it wraps share a single JWT verification.
+  const session = await getSession();
   if (!session) {
     redirect("/sign-in");
   }

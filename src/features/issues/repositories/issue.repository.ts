@@ -21,21 +21,56 @@ const listSelect = {
   assignee: assigneeSelect,
 } as const;
 
+// Keyset pagination: never return an unbounded result set. `id` is the final
+// tiebreaker so the ordering is total and the cursor is deterministic.
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 100;
+
+function issueWhere(
+  projectId: string,
+  filters: { status?: IssueStatus; assigneeId?: string; type?: IssueType },
+) {
+  return {
+    projectId,
+    deletedAt: null,
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
+    ...(filters.type ? { type: filters.type } : {}),
+  };
+}
+
 export const IssueRepository = {
   listByProject(
     projectId: string,
     filters: { status?: IssueStatus; assigneeId?: string; type?: IssueType },
+    page: { cursor?: string; take?: number } = {},
   ) {
+    const take = Math.min(page.take ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     return prisma.issue.findMany({
-      where: {
-        projectId,
-        deletedAt: null,
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
-        ...(filters.type ? { type: filters.type } : {}),
-      },
+      where: issueWhere(projectId, filters),
       select: listSelect,
-      orderBy: [{ status: "asc" }, { boardOrder: "asc" }, { createdAt: "desc" }],
+      orderBy: [
+        { status: "asc" },
+        { boardOrder: "asc" },
+        { createdAt: "desc" },
+        { id: "asc" },
+      ],
+      // Fetch one extra row to detect whether a further page exists.
+      take: take + 1,
+      ...(page.cursor ? { cursor: { id: page.cursor }, skip: 1 } : {}),
+    });
+  },
+
+  // Per-status totals for the filter chips — independent of the current
+  // status filter and of pagination, so the counts stay stable as you page.
+  countByStatus(
+    projectId: string,
+    filters: { assigneeId?: string; type?: IssueType } = {},
+  ) {
+    return prisma.issue.groupBy({
+      by: ["status"],
+      where: issueWhere(projectId, filters),
+      _count: { _all: true },
     });
   },
 

@@ -1,4 +1,8 @@
-import { IssueRepository } from "@/features/issues/repositories/issue.repository";
+import {
+  IssueRepository,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from "@/features/issues/repositories/issue.repository";
 import {
   ProjectService,
   type ProjectContext,
@@ -15,7 +19,9 @@ import type { Actor } from "@/shared/types/actor";
 import type {
   IssueDetailDto,
   IssueListItemDto,
+  IssueListPageDto,
   IssuePriorityDto,
+  IssueStatusCounts,
   IssueStatusDto,
   IssueTypeDto,
 } from "@/features/issues/types/issue.types";
@@ -112,11 +118,46 @@ export const IssueService = {
   async list(
     actor: Actor,
     projectId: string,
-    filters: { status?: IssueStatusDto; assigneeId?: string; type?: IssueTypeDto } = {},
-  ): Promise<IssueListItemDto[]> {
+    options: {
+      status?: IssueStatusDto;
+      assigneeId?: string;
+      type?: IssueTypeDto;
+      cursor?: string;
+      take?: number;
+    } = {},
+  ): Promise<IssueListPageDto> {
     await resolve(projectId, actor); // existence check + (implicit) visibility
-    const rows = await IssueRepository.listByProject(projectId, filters);
-    return rows.map(toListDto);
+    const { status, assigneeId, type, cursor, take } = options;
+    const pageSize = Math.min(take ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+
+    // Page and counts are independent — fetch them together.
+    const [rows, grouped] = await Promise.all([
+      IssueRepository.listByProject(
+        projectId,
+        { status, assigneeId, type },
+        { cursor, take: pageSize },
+      ),
+      IssueRepository.countByStatus(projectId, { assigneeId, type }),
+    ]);
+
+    // listByProject fetches pageSize + 1 to detect a further page.
+    const hasMore = rows.length > pageSize;
+    const items = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore ? (items.at(-1)?.id ?? null) : null;
+
+    const counts: IssueStatusCounts = {
+      ALL: 0,
+      TODO: 0,
+      IN_PROGRESS: 0,
+      IN_REVIEW: 0,
+      DONE: 0,
+    };
+    for (const row of grouped) {
+      counts[row.status] = row._count._all;
+      counts.ALL += row._count._all;
+    }
+
+    return { items: items.map(toListDto), nextCursor, counts };
   },
 
   async get(actor: Actor, issueId: string): Promise<IssueDetailDto> {

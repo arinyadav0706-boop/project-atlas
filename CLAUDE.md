@@ -65,6 +65,7 @@ to this stack. Full context: `docs/00_Product/`, `docs/01_Architecture/`.
 | What's the API contract? | `docs/04_API/openapi.yaml` (Phase 2) |
 | What are this module's business rules? | `docs/02_Modules/<module>.md` (Phase 2) |
 | What's the current program phase / what's next? | `docs/10_Roadmap/01_Development_Roadmap.md` |
+| How do we keep it fast/scalable? (pagination, indexes, budgets) | `docs/01_Architecture/05_Performance_and_Scalability.md` |
 
 ## Commit style
 

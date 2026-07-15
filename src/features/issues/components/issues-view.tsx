@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { ListTodo } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
+import { Button } from "@/shared/components/ui/button";
 import { CreateIssueDialog } from "./create-issue-dialog";
 import {
   IssueTypeIcon,
@@ -13,9 +16,16 @@ import {
   StatusDot,
   statusLabel,
 } from "./issue-meta";
-import type { IssueListItemDto, IssueStatusDto } from "@/features/issues/types/issue.types";
+import type {
+  IssueListItemDto,
+  IssueListPageDto,
+  IssueStatusCounts,
+  IssueStatusDto,
+} from "@/features/issues/types/issue.types";
 
-const FILTERS: { value: "ALL" | IssueStatusDto; label: string }[] = [
+type Filter = "ALL" | IssueStatusDto;
+
+const FILTERS: { value: Filter; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "TODO", label: "To Do" },
   { value: "IN_PROGRESS", label: "In Progress" },
@@ -25,27 +35,95 @@ const FILTERS: { value: "ALL" | IssueStatusDto; label: string }[] = [
 
 export function IssuesView({
   projectId,
-  issues,
+  initialItems,
+  initialCursor,
+  counts,
   members,
   canWrite,
 }: {
   projectId: string;
-  issues: IssueListItemDto[];
+  initialItems: IssueListItemDto[];
+  initialCursor: string | null;
+  counts: IssueStatusCounts;
   members: { userId: string; name: string }[];
   canWrite: boolean;
 }) {
-  const [filter, setFilter] = useState<"ALL" | IssueStatusDto>("ALL");
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [items, setItems] = useState(initialItems);
+  const [cursor, setCursor] = useState(initialCursor);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const firstRender = useRef(true);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: issues.length };
-    for (const i of issues) c[i.status] = (c[i.status] ?? 0) + 1;
-    return c;
-  }, [issues]);
-
-  const visible = useMemo(
-    () => (filter === "ALL" ? issues : issues.filter((i) => i.status === filter)),
-    [issues, filter],
+  const query = useCallback(
+    (f: Filter, c?: string) => {
+      const params = new URLSearchParams();
+      if (f !== "ALL") params.set("status", f);
+      if (c) params.set("cursor", c);
+      const qs = params.toString();
+      return apiRequest<IssueListPageDto>(
+        `/api/projects/${projectId}/issues${qs ? `?${qs}` : ""}`,
+      );
+    },
+    [projectId],
   );
+
+  const load = useCallback(
+    async (f: Filter) => {
+      setLoading(true);
+      try {
+        const page = await query(f);
+        setItems(page.items);
+        setCursor(page.nextCursor);
+      } catch {
+        toast.error("Could not load issues.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [query],
+  );
+
+  // Re-sync with server data after a router.refresh() (create/edit/delete) —
+  // only on the ALL view, since a filtered view is fetched client-side.
+  useEffect(() => {
+    if (filter === "ALL") {
+      setItems(initialItems);
+      setCursor(initialCursor);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItems, initialCursor]);
+
+  // Server-driven filtering: refetch the first page when the filter changes.
+  // Skip the initial mount — the ALL view is already server-rendered.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    void load(filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  async function loadMore() {
+    if (!cursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await query(filter, cursor);
+      setItems((prev) => [...prev, ...page.items]);
+      setCursor(page.nextCursor);
+    } catch {
+      toast.error("Could not load more issues.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // After an inline create under an active filter, refetch that filter so the
+  // new issue appears. The ALL view is covered by router.refresh() above.
+  const reloadFiltered = useCallback(() => {
+    if (filter !== "ALL") void load(filter);
+  }, [filter, load]);
 
   return (
     <div>
@@ -72,56 +150,78 @@ export function IssuesView({
           ))}
         </div>
         {canWrite && (
-          <CreateIssueDialog projectId={projectId} members={members} withHotkey />
+          <CreateIssueDialog
+            projectId={projectId}
+            members={members}
+            withHotkey
+            onChanged={reloadFiltered}
+          />
         )}
       </div>
 
-      {issues.length === 0 ? (
+      {counts.ALL === 0 ? (
         <EmptyState canWrite={canWrite} projectId={projectId} members={members} />
-      ) : visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-surface px-6 py-12 text-center text-sm text-muted-foreground">
-          No issues in {statusLabel(filter as IssueStatusDto)}.
-        </p>
       ) : (
-        <ul className="overflow-hidden rounded-xl border border-border">
-          {visible.map((issue, index) => (
-            <motion.li
-              key={issue.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.15, delay: Math.min(index * 0.02, 0.2) }}
-              className="border-b border-border last:border-b-0"
-            >
-              <Link
-                href={`/projects/${projectId}/issues/${issue.id}`}
-                className="flex items-center gap-3 bg-background px-4 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        <>
+          <ul
+            className={cn(
+              "overflow-hidden rounded-xl border border-border transition-opacity",
+              loading && "opacity-60",
+            )}
+          >
+            {items.map((issue, index) => (
+              <motion.li
+                key={issue.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15, delay: Math.min(index * 0.02, 0.2) }}
+                className="border-b border-border last:border-b-0"
               >
-                <IssueTypeIcon type={issue.type} />
-                <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
-                  {issue.key}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {issue.title}
-                </span>
-                <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                  <StatusDot status={issue.status} />
-                  {statusLabel(issue.status)}
-                </span>
-                <PriorityIcon priority={issue.priority} />
-                {issue.assignee ? (
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={issue.assignee.avatarUrl ?? undefined} alt="" />
-                    <AvatarFallback className="text-[10px]">
-                      {initials(issue.assignee.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <span className="h-6 w-6 rounded-full border border-dashed border-border" />
-                )}
-              </Link>
-            </motion.li>
-          ))}
-        </ul>
+                <Link
+                  href={`/projects/${projectId}/issues/${issue.id}`}
+                  className="flex items-center gap-3 bg-background px-4 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                >
+                  <IssueTypeIcon type={issue.type} />
+                  <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
+                    {issue.key}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {issue.title}
+                  </span>
+                  <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                    <StatusDot status={issue.status} />
+                    {statusLabel(issue.status)}
+                  </span>
+                  <PriorityIcon priority={issue.priority} />
+                  {issue.assignee ? (
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={issue.assignee.avatarUrl ?? undefined} alt="" />
+                      <AvatarFallback className="text-[10px]">
+                        {initials(issue.assignee.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <span className="h-6 w-6 rounded-full border border-dashed border-border" />
+                  )}
+                </Link>
+              </motion.li>
+            ))}
+          </ul>
+
+          {items.length === 0 && !loading && (
+            <p className="rounded-xl border border-dashed border-border bg-surface px-6 py-12 text-center text-sm text-muted-foreground">
+              No issues in {statusLabel(filter as IssueStatusDto)}.
+            </p>
+          )}
+
+          {cursor && (
+            <div className="mt-4 flex justify-center">
+              <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

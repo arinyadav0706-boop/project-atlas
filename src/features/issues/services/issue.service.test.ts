@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Actor } from "@/shared/types/actor";
 
 vi.mock("@/features/issues/repositories/issue.repository", () => ({
+  DEFAULT_PAGE_SIZE: 50,
+  MAX_PAGE_SIZE: 100,
   IssueRepository: {
     listByProject: vi.fn(),
+    countByStatus: vi.fn(),
     findDetail: vi.fn(),
     findEpic: vi.fn(),
     createWithKey: vi.fn(),
@@ -73,6 +76,55 @@ function issueRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
+});
+
+describe("list (pagination + counts)", () => {
+  beforeEach(() => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.countByStatus.mockResolvedValue([
+      { status: "TODO", _count: { _all: 2 } },
+      { status: "DONE", _count: { _all: 1 } },
+    ] as never);
+  });
+
+  it("returns a nextCursor when the repo yields more than a page", async () => {
+    // Service asks for take+1 rows to detect a further page; simulate a full
+    // page of 2 plus one extra.
+    repo.listByProject.mockResolvedValue([
+      issueRow({ id: "a" }),
+      issueRow({ id: "b" }),
+      issueRow({ id: "c" }),
+    ] as never);
+
+    const page = await IssueService.list(actor, "proj-1", { take: 2 });
+
+    expect(page.items).toHaveLength(2);
+    expect(page.items.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(page.nextCursor).toBe("b");
+  });
+
+  it("returns nextCursor null on the last page", async () => {
+    repo.listByProject.mockResolvedValue([issueRow({ id: "a" })] as never);
+
+    const page = await IssueService.list(actor, "proj-1", { take: 2 });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("maps grouped counts into per-status totals with ALL as the sum", async () => {
+    repo.listByProject.mockResolvedValue([] as never);
+
+    const page = await IssueService.list(actor, "proj-1");
+
+    expect(page.counts).toMatchObject({
+      ALL: 3,
+      TODO: 2,
+      IN_PROGRESS: 0,
+      IN_REVIEW: 0,
+      DONE: 1,
+    });
+  });
 });
 
 describe("create", () => {
