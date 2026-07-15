@@ -58,7 +58,42 @@ async function organizationIdOf(actor: Actor): Promise<string> {
   return user.organizationId;
 }
 
+export interface ProjectContext {
+  id: string;
+  organizationId: string;
+  key: string;
+  name: string;
+  status: "ACTIVE" | "ARCHIVED";
+}
+
 export const ProjectService = {
+  // --- Cross-feature seam (other features depend on these, never on
+  // ProjectRepository directly — Feature Architecture §4). ---
+
+  // Non-deleted project context for a sibling feature (e.g. Issues) to
+  // check existence, archived state, and org scope. Returns null if absent.
+  async getContext(projectId: string): Promise<ProjectContext | null> {
+    const project = await ProjectRepository.findById(projectId);
+    if (!project) return null;
+    return {
+      id: project.id,
+      organizationId: project.organizationId,
+      key: project.key,
+      name: project.name,
+      status: project.status,
+    };
+  },
+
+  // The user's role in a project, or null if not a member. Used by sibling
+  // features for RBAC and for validating assignee membership.
+  async getMemberRole(
+    projectId: string,
+    userId: string,
+  ): Promise<ProjectRoleDto | null> {
+    const membership = await ProjectRepository.findMember(projectId, userId);
+    return membership?.role ?? null;
+  },
+
   // BR-7: all authenticated employees can view all non-deleted projects;
   // membership governs edit rights, not visibility.
   async list(actor: Actor): Promise<ProjectDto[]> {
