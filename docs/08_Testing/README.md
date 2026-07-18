@@ -1,11 +1,8 @@
-# Testing Strategy
+# 08 — Testing
 
-**Status:** Pending detail — baseline rules already defined in
+| Doc | Purpose |
+|---|---|
+| [01_Testing_Strategy.md](01_Testing_Strategy.md) | The test layers (unit · RBAC matrix · API contract · integration · E2E), how to run each, current coverage, and open findings |
+
+Baseline conventions also live in
 `docs/01_Architecture/04_Coding_Standards.md §8`.
-
-Will contain: unit testing conventions (Vitest, service-layer focus),
-integration testing (API route handlers against a test database),
-end-to-end testing (Playwright) for the golden-path flows per module, and
-the mapping from each module's Acceptance Criteria (`docs/02_Modules/*`) to
-its automated test coverage. Authored alongside Phase 3 scaffolding once the
-test tooling is wired into CI.

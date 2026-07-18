@@ -26,3 +26,8 @@ npm-debug.log*
 *.pem
 .vercel
 tsconfig.tsbuildinfo
+
+# Playwright
+/test-results/
+/playwright-report/
+/e2e/.auth/
