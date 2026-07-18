@@ -16,11 +16,14 @@ export async function GET(request: NextRequest, { params }: Params) {
     const actor = await getActor();
     if (!actor) throw new UnauthorizedError();
     const url = request.nextUrl.searchParams;
+    const takeParam = url.get("take");
     return NextResponse.json(
       await IssueService.list(actor, params.projectId, {
         status: (url.get("status") as IssueStatusDto | null) ?? undefined,
         assigneeId: url.get("assigneeId") ?? undefined,
         type: (url.get("type") as IssueTypeDto | null) ?? undefined,
+        cursor: url.get("cursor") ?? undefined,
+        take: takeParam ? Number(takeParam) : undefined,
       }),
     );
   });

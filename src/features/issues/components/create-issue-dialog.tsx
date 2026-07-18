@@ -39,10 +39,14 @@ export function CreateIssueDialog({
   projectId,
   members,
   withHotkey = false,
+  onChanged,
 }: {
   projectId: string;
   members: { userId: string; name: string }[];
   withHotkey?: boolean;
+  // Called after a successful create, in addition to the server refresh —
+  // lets a paginated list refetch its active filter (see issues-view).
+  onChanged?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -88,6 +92,7 @@ export function CreateIssueDialog({
       setOpen(false);
       form.reset();
       router.refresh();
+      onChanged?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create the issue.");
     } finally {

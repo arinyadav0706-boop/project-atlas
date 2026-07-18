@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, FolderKanban } from "lucide-react";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { getActor, getSession } from "@/features/authentication/services/actor.service";
 import { ProjectService } from "@/features/projects/services/project.service";
-import { auth } from "@/features/authentication/api/auth-config";
 import { Badge } from "@/shared/components/ui/badge";
 
 // Interim dashboard: greeting + project shortcuts. The full module
@@ -13,7 +12,10 @@ export default async function DashboardPage() {
   const actor = await getActor();
   if (!actor) redirect("/sign-in");
 
-  const [session, projects] = await Promise.all([auth(), ProjectService.list(actor)]);
+  const [session, projects] = await Promise.all([
+    getSession(),
+    ProjectService.list(actor),
+  ]);
   const firstName = (session?.user?.name ?? "there").split(" ")[0];
 
   return (
@@ -60,7 +62,7 @@ export default async function DashboardPage() {
             {projects.slice(0, 6).map((project) => (
               <Link
                 key={project.id}
-                href={`/projects/${project.id}/settings`}
+                href={`/projects/${project.id}/issues`}
                 className="rounded-xl border border-border bg-background p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md"
               >
                 <Badge variant="accent">{project.key}</Badge>

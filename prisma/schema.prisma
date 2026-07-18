@@ -259,9 +259,13 @@ model Issue {
   labels      IssueLabel[]
 
   @@unique([projectId, key])
-  @@index([projectId, status])
+  // Covers the board/list query: filter by (projectId, status) and sort by
+  // boardOrder — the status prefix still serves (projectId)-only lookups.
+  @@index([projectId, status, boardOrder])
   @@index([sprintId])
-  @@index([assigneeId])
+  // Dashboard "my open issues": filter by assignee, narrow by status. The
+  // assignee prefix still serves assignee-only lookups.
+  @@index([assigneeId, status])
   @@map("issues")
 }
 
@@ -373,5 +377,7 @@ model AuditLog {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId, createdAt])
+  // Per-entity activity timeline (e.g. one issue's history), newest first.
+  @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
 }
