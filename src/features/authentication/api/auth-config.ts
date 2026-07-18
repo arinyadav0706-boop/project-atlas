@@ -121,6 +121,7 @@ export const authConfig: NextAuthConfig = {
         if (dbUser) {
           token.userId = dbUser.id;
           token.orgRole = dbUser.orgRole;
+          token.organizationId = dbUser.organizationId;
         }
       }
       return token;
@@ -130,6 +131,7 @@ export const authConfig: NextAuthConfig = {
       if (session.user) {
         session.user.id = token.userId as string;
         session.user.orgRole = token.orgRole as string;
+        session.user.organizationId = token.organizationId as string;
       }
       return session;
     },

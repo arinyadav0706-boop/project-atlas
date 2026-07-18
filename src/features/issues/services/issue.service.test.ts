@@ -35,7 +35,7 @@ const repo = vi.mocked(IssueRepository);
 const projects = vi.mocked(ProjectService);
 const audit = vi.mocked(AuditLogService);
 
-const actor: Actor = { userId: "user-1", orgRole: "MEMBER" };
+const actor: Actor = { userId: "user-1", orgRole: "MEMBER", organizationId: "org-1" };
 
 const ctx = {
   id: "proj-1",
@@ -155,7 +155,7 @@ describe("create", () => {
     projects.getMemberRole.mockResolvedValue(null);
     await expect(
       IssueService.create(
-        { userId: "admin-1", orgRole: "ADMIN" },
+        { userId: "admin-1", orgRole: "ADMIN", organizationId: "org-1" },
         "proj-1",
         { type: "TASK", title: "x", priority: "MEDIUM" },
       ),

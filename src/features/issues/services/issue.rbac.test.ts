@@ -144,7 +144,7 @@ describe("Issues RBAC matrix (15_roles.md)", () => {
   beforeEach(() => vi.resetAllMocks());
 
   for (const row of MATRIX) {
-    const actor: Actor = { userId: "acting-user", orgRole: row.orgRole };
+    const actor: Actor = { userId: "acting-user", orgRole: row.orgRole, organizationId: "org-1" };
     describe(row.label, () => {
       for (const action of Object.keys(ACTIONS) as ActionName[]) {
         const expected = row.expect[action];
@@ -171,7 +171,7 @@ describe("Issues RBAC matrix (15_roles.md)", () => {
       repo.findDetail.mockResolvedValue({ ...otherRow(), reporterId: "acting-user" } as never);
       repo.softDelete.mockResolvedValue(otherRow() as never);
       await expect(
-        IssueService.delete({ userId: "acting-user", orgRole: "MEMBER" }, "issue-1"),
+        IssueService.delete({ userId: "acting-user", orgRole: "MEMBER", organizationId: "org-1" }, "issue-1"),
       ).resolves.not.toThrow();
     });
 
@@ -181,7 +181,7 @@ describe("Issues RBAC matrix (15_roles.md)", () => {
       repo.findDetail.mockResolvedValue({ ...otherRow(), assigneeId: "acting-user" } as never);
       repo.softDelete.mockResolvedValue(otherRow() as never);
       await expect(
-        IssueService.delete({ userId: "acting-user", orgRole: "MEMBER" }, "issue-1"),
+        IssueService.delete({ userId: "acting-user", orgRole: "MEMBER", organizationId: "org-1" }, "issue-1"),
       ).resolves.not.toThrow();
     });
   });

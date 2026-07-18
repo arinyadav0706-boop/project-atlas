@@ -93,10 +93,10 @@ separate step so `CREATE INDEX` doesn't lock writes.
   page verify the JWT once, not two–three times.
 - **Parallelize independent awaits.** Pages `Promise.all` their fetches
   (`issues/page.tsx`); the service pages issues and counts in parallel.
-- **Open follow-up (High):** `ProjectService.list` still does a
-  `user → organizationId` lookup per request. Carry `organizationId` on the
-  session JWT to drop it. Deferred because existing tokens must expire/
-  re-mint first — do it with a fallback so logged-in users don't break.
+- **Done:** `organizationId` is now on the session JWT (with a DB fallback for
+  pre-existing tokens), so `ProjectService.list`/`create` use `actor.organizationId`
+  instead of a per-request `user → organizationId` lookup. Shipped with the F-1
+  tenant-isolation fix (see `docs/08_Testing/01_Testing_Strategy.md`).
 
 ## Dashboard strategy (design before it grows)
 
@@ -168,8 +168,8 @@ Server/Client split is correct. Watch items:
 - [x] Covering indexes for issue list, "my issues", and activity timeline.
 
 ### 🟠 High
-- [ ] Carry `organizationId` on the session; drop the per-request user
-      lookup in `ProjectService.list`.
+- [x] Carry `organizationId` on the session; drop the per-request user
+      lookup in `ProjectService.list` (shipped with the F-1 fix).
 - [ ] Extend pagination to `ProjectRepository.listActiveWithMembership` and
       `listMembers` when those lists can grow large.
 - [ ] Lock the streamed, capped, parallel dashboard-widget pattern when the

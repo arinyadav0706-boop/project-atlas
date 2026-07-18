@@ -5,4 +5,8 @@
 export interface Actor {
   userId: string;
   orgRole: "ADMIN" | "MEMBER";
+  // The caller's organization. Every service scopes reads/writes to this so a
+  // caller can never reach another tenant's data by ID (docs/08_Testing
+  // finding F-1). Resolved in getActor from the session, with a DB fallback.
+  organizationId: string;
 }

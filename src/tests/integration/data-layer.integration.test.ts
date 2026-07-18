@@ -3,6 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { IssueService } from "@/features/issues/services/issue.service";
 import { ProjectService } from "@/features/projects/services/project.service";
+import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 
 // Integration tests — run against a REAL Postgres (see
@@ -39,7 +40,7 @@ afterAll(() => prisma.$disconnect());
 
 describe("keyset pagination (IssueService.list)", () => {
   it("pages through all issues with no duplicates or gaps, stable order", async () => {
-    const { user, project } = await seedOrgWithProject("pag");
+    const { org, user, project } = await seedOrgWithProject("pag");
     // 120 issues, deterministic distinct boardOrder for a total ordering.
     await prisma.issue.createMany({
       data: Array.from({ length: 120 }, (_, i) => ({
@@ -51,7 +52,7 @@ describe("keyset pagination (IssueService.list)", () => {
         boardOrder: i,
       })),
     });
-    const actor: Actor = { userId: user.id, orgRole: "MEMBER" };
+    const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
 
     const seen: string[] = [];
     let cursor: string | null = null;
@@ -73,14 +74,14 @@ describe("keyset pagination (IssueService.list)", () => {
   });
 
   it("reports accurate per-status counts independent of the page", async () => {
-    const { user, project } = await seedOrgWithProject("cnt");
+    const { org, user, project } = await seedOrgWithProject("cnt");
     await prisma.issue.createMany({
       data: [
         ...Array.from({ length: 3 }, (_, i) => ({ projectId: project.id, key: `CNT-T${i}`, type: "TASK" as const, title: "t", reporterId: user.id, status: "TODO" as const, boardOrder: i })),
         ...Array.from({ length: 2 }, (_, i) => ({ projectId: project.id, key: `CNT-D${i}`, type: "TASK" as const, title: "d", reporterId: user.id, status: "DONE" as const, boardOrder: i })),
       ],
     });
-    const actor: Actor = { userId: user.id, orgRole: "MEMBER" };
+    const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     const page = await IssueService.list(actor, project.id, { take: 2 });
     expect(page.counts).toMatchObject({ ALL: 5, TODO: 3, DONE: 2, IN_PROGRESS: 0, IN_REVIEW: 0 });
     expect(page.items).toHaveLength(2); // page is capped
@@ -129,7 +130,7 @@ describe("tenant isolation", () => {
   it("ProjectService.list only returns the caller's own organization's projects", async () => {
     const a = await seedOrgWithProject("orga");
     await seedOrgWithProject("orgb");
-    const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER" };
+    const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER", organizationId: a.org.id };
     const list = await ProjectService.list(actorA);
     expect(list.map((p) => p.id)).toEqual([a.project.id]);
   });
@@ -143,21 +144,16 @@ describe("tenant isolation", () => {
     expect(rowsA.map((r) => r.key)).toEqual(["IA-1"]);
   });
 
-  // KNOWN GAP (documented finding, see docs/08_Testing/01_Testing_Strategy.md):
-  // IssueService.get / ProjectService.get resolve by bare ID and do NOT verify
-  // the row belongs to the caller's organization. Not exploitable in V1
-  // (single org), but a cross-tenant read leak once multi-tenancy ships. This
-  // test PINS the current behavior so the fix will flip it and force review.
-  it("KNOWN GAP: cross-org get currently returns another org's issue by ID", async () => {
+  // F-1 (docs/08_Testing/01_Testing_Strategy.md): services scope reads to the
+  // caller's organization, so a row in another org is treated as absent.
+  it("F-1 fixed: cross-org get is refused — another org's issue reads as NotFound", async () => {
     const a = await seedOrgWithProject("ga");
     const b = await seedOrgWithProject("gb");
     const bIssue = await prisma.issue.create({
       data: { projectId: b.project.id, key: "GB-1", type: "TASK", title: "secret", reporterId: b.user.id },
     });
-    const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER" };
-    const result = await IssueService.get(actorA, bIssue.id);
-    // Documents the leak: today this resolves instead of throwing NotFound.
-    expect(result.id).toBe(bIssue.id);
-    expect(result.canEdit).toBe(false); // at least it's read-only for the outsider
+    const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER", organizationId: a.org.id };
+    // Tenant scope: the outsider cannot read it, and existence is not revealed.
+    await expect(IssueService.get(actorA, bIssue.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 });
