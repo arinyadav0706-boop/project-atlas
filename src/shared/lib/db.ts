@@ -8,7 +8,14 @@ import { PrismaClient } from "@prisma/client";
 // query.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+// PERF_LOG=1 emits a query event per SQL statement (opt-in, diagnostic only —
+// zero impact in production where the var is unset). Used by scripts/perf-probe
+// to count round-trips per user action. See docs/08_Testing performance report.
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient(
+    process.env.PERF_LOG ? { log: [{ emit: "event", level: "query" }] } : undefined,
+  );
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
