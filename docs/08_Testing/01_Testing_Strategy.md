@@ -29,6 +29,11 @@ export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/eagles_test?s
 export DIRECT_URL="$DATABASE_URL"
 npx prisma migrate deploy        # applies migrations, incl. perf indexes
 npm run test:integration
+
+# E2E — same test DB, seeded, plus a NextAuth secret. Boots `next dev` itself.
+npm run prisma:seed              # creates loginable users (see prisma/seed.ts)
+export NEXTAUTH_SECRET="any-non-empty-value-for-local"
+npm run test:e2e
 ```
 
 Integration tests **must** point at a disposable database — never Supabase
@@ -65,8 +70,13 @@ knows an Org B issue/project ID can **read** it (write paths remain blocked —
 - **Pinned by:** the `KNOWN GAP` test in `data-layer.integration.test.ts`,
   which documents current behavior so the fix will flip it and force review.
 
+## E2E coverage (implemented)
+`e2e/issues.spec.ts`, run against a real browser + `next dev` + seeded Postgres:
+- **LEAD** signs in with credentials, opens the demo project, creates an issue,
+  and sees it appear (full UI → API → DB round trip, with the success toast).
+- **VIEWER** sees the issues list but gets **no** create control.
+
 ## Still to add (tracked)
-- **E2E (Playwright)** — happy path (sign in → project → issue → workflow →
-  filter → load more) plus RBAC negatives (VIEWER read-only, non-member
-  blocked). Scaffold pending; needs a running app + seeded test DB.
+- E2E for the full workflow walk (TODO→…→DONE) and "Load more" at >50 issues.
 - **Concurrency on edit** — two users transitioning the same issue.
+- Fix **F-1** (carry `organizationId` on the session; add org-scope checks).
