@@ -45,7 +45,11 @@ async function resolve(
   actor: Actor,
 ): Promise<{ context: ProjectContext; role: ProjectRoleDto | null }> {
   const context = await ProjectService.getContext(projectId);
-  if (!context) throw new NotFoundError("Project not found.");
+  // Tenant scope (F-1): a project outside the caller's org is treated as
+  // absent — never reveal existence or content across organizations.
+  if (!context || context.organizationId !== actor.organizationId) {
+    throw new NotFoundError("Project not found.");
+  }
   const role = await ProjectService.getMemberRole(projectId, actor.userId);
   return { context, role };
 }
@@ -163,7 +167,8 @@ export const IssueService = {
   async get(actor: Actor, issueId: string): Promise<IssueDetailDto> {
     const row = await IssueRepository.findDetail(issueId);
     if (!row) throw new NotFoundError("Issue not found.");
-    const role = await ProjectService.getMemberRole(row.projectId, actor.userId);
+    // resolve() enforces the tenant scope (F-1) and yields the caller's role.
+    const { role } = await resolve(row.projectId, actor);
     return toDetailDto(row, actor, role);
   },
 

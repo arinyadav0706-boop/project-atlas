@@ -15,7 +15,7 @@ import { ConflictError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(ProjectService);
-const actor = { userId: "u1", orgRole: "MEMBER" as const };
+const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/projects";
 
 function jsonReq(body: unknown) {

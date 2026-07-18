@@ -39,9 +39,13 @@ function toDto(project: ProjectRecord, myRole: ProjectRoleDto | null): ProjectDt
   };
 }
 
-async function requireProject(projectId: string) {
+// Tenant scope (F-1): a project outside the caller's org is treated as absent
+// — never reveal existence or content across organizations.
+async function requireProject(projectId: string, actor: Actor) {
   const project = await ProjectRepository.findById(projectId);
-  if (!project) throw new NotFoundError("Project not found.");
+  if (!project || project.organizationId !== actor.organizationId) {
+    throw new NotFoundError("Project not found.");
+  }
   return project;
 }
 
@@ -50,12 +54,6 @@ async function requireLead(projectId: string, actor: Actor) {
   if (membership?.role !== "LEAD") {
     throw new ForbiddenError("Only a project LEAD can perform this action.");
   }
-}
-
-async function organizationIdOf(actor: Actor): Promise<string> {
-  const user = await ProjectRepository.findUserOrganizationId(actor.userId);
-  if (!user) throw new NotFoundError("User not found.");
-  return user.organizationId;
 }
 
 export interface ProjectContext {
@@ -97,7 +95,7 @@ export const ProjectService = {
   // BR-7: all authenticated employees can view all non-deleted projects;
   // membership governs edit rights, not visibility.
   async list(actor: Actor): Promise<ProjectDto[]> {
-    const organizationId = await organizationIdOf(actor);
+    const organizationId = actor.organizationId;
     const projects = await ProjectRepository.listActiveWithMembership(
       organizationId,
       actor.userId,
@@ -109,7 +107,7 @@ export const ProjectService = {
 
   // BR-1: creator becomes LEAD. BR-2: key immutable, unique per org.
   async create(actor: Actor, input: CreateProjectInput): Promise<ProjectDto> {
-    const organizationId = await organizationIdOf(actor);
+    const organizationId = actor.organizationId;
     const existing = await ProjectRepository.findByKey(organizationId, input.key);
     if (existing) {
       throw new ConflictError(`A project with key ${input.key} already exists.`);
@@ -125,7 +123,7 @@ export const ProjectService = {
   },
 
   async get(actor: Actor, projectId: string): Promise<ProjectDto> {
-    const project = await requireProject(projectId);
+    const project = await requireProject(projectId, actor);
     const membership = await ProjectRepository.findMember(projectId, actor.userId);
     return toDto(project, membership?.role ?? null);
   },
@@ -138,7 +136,7 @@ export const ProjectService = {
     projectId: string,
     input: UpdateProjectInput,
   ): Promise<ProjectDto> {
-    await requireProject(projectId);
+    await requireProject(projectId, actor);
     await requireLead(projectId, actor);
     const updated = await ProjectRepository.update(projectId, input, actor.userId);
     return toDto(updated, "LEAD");
@@ -146,7 +144,7 @@ export const ProjectService = {
 
   // BR-5: soft delete, audit-logged (Security Architecture §5).
   async delete(actor: Actor, projectId: string): Promise<void> {
-    const project = await requireProject(projectId);
+    const project = await requireProject(projectId, actor);
     await requireLead(projectId, actor);
     await ProjectRepository.softDelete(projectId, actor.userId);
     await AuditLogService.record({
@@ -160,7 +158,7 @@ export const ProjectService = {
   },
 
   async listMembers(actor: Actor, projectId: string): Promise<ProjectMemberDto[]> {
-    await requireProject(projectId);
+    await requireProject(projectId, actor);
     const members = await ProjectRepository.listMembers(projectId);
     return members.map((member) => ({
       id: member.id,
@@ -180,7 +178,7 @@ export const ProjectService = {
     projectId: string,
     input: AddProjectMemberInput,
   ): Promise<ProjectMemberDto> {
-    const project = await requireProject(projectId);
+    const project = await requireProject(projectId, actor);
     await requireLead(projectId, actor);
     if (project.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
@@ -218,7 +216,7 @@ export const ProjectService = {
     memberId: string,
     input: UpdateProjectMemberInput,
   ): Promise<void> {
-    const project = await requireProject(projectId);
+    const project = await requireProject(projectId, actor);
     await requireLead(projectId, actor);
     if (project.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
@@ -252,7 +250,7 @@ export const ProjectService = {
     projectId: string,
     memberId: string,
   ): Promise<void> {
-    const project = await requireProject(projectId);
+    const project = await requireProject(projectId, actor);
     await requireLead(projectId, actor);
     if (project.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");

@@ -3,13 +3,6 @@ import type { ProjectRole, ProjectStatus } from "@prisma/client";
 
 // Prisma is imported ONLY in *.repository.ts files (Feature Architecture §2).
 export const ProjectRepository = {
-  findUserOrganizationId(userId: string) {
-    return prisma.user.findUnique({
-      where: { id: userId },
-      select: { organizationId: true },
-    });
-  },
-
   findUserByEmail(email: string) {
     return prisma.user.findUnique({
       where: { email },

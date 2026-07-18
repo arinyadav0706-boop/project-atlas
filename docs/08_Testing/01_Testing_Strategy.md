@@ -51,27 +51,26 @@ production. They `TRUNCATE ... CASCADE` between tests.
 
 ## Open findings (from the sprint)
 
-### 🔴 F-1 — Cross-org read via bare ID (latent; decide before multi-tenancy)
-`IssueService.get`, `IssueService.list`, and `ProjectService.get` resolve a row
-by its ID and check only the caller's **project membership/role** — they do not
-verify the row belongs to the caller's **organization**. A user in Org A who
-knows an Org B issue/project ID can **read** it (write paths remain blocked —
-`canEdit`/`canDelete` are false).
+### ✅ F-1 — Cross-org read via bare ID — RESOLVED
+**Was:** `IssueService.get`/`list` and `ProjectService.get` resolved a row by ID
+and checked only project membership — not the caller's organization — so a user
+could **read** another org's issue/project by ID.
 
-- **Impact today:** none — V1 is single-org, so there is no second tenant to
-  leak to.
-- **Impact at multi-tenancy:** a cross-tenant data-read breach. Must be fixed
-  before a second organization exists.
-- **Why not fixed now:** the clean fix requires the actor to carry
-  `organizationId` (the deferred session change in
-  `docs/01_Architecture/05_Performance_and_Scalability.md`) so services can
-  assert `row.organizationId === actor.organizationId`. That touches the
-  auth/session model — a founder decision, not a silent mid-sprint change.
-- **Pinned by:** the `KNOWN GAP` test in `data-layer.integration.test.ts`,
-  which documents current behavior so the fix will flip it and force review.
+**Fix:** the `Actor` now carries `organizationId` (put on the session JWT in the
+`jwt`/`session` callbacks; `getActor` reads it, with a DB fallback so existing
+sessions aren't logged out). Every service scopes by it: `IssueService.resolve`
+and `ProjectService.requireProject` throw `NotFoundError` when a row's org ≠ the
+caller's — cross-tenant access is now **fail-closed and doesn't reveal
+existence** (NotFound, not Forbidden). This also dropped a per-request user
+lookup in `ProjectService.list`/`create` (they use `actor.organizationId`).
+
+**Proven by:** the flipped test in `data-layer.integration.test.ts` (cross-org
+`get` → NotFound) and `security.integration.test.ts` (cross-org update/delete/
+transition → NotFound, even for an org ADMIN).
 
 ## E2E coverage (implemented)
-`e2e/issues.spec.ts`, run against a real browser + `next dev` + seeded Postgres:
+`e2e/issues.spec.ts`, run against a real browser + production build + seeded
+Postgres:
 - **LEAD** signs in with credentials, opens the demo project, creates an issue,
   and sees it appear (full UI → API → DB round trip, with the success toast).
 - **VIEWER** sees the issues list but gets **no** create control.
@@ -79,4 +78,3 @@ knows an Org B issue/project ID can **read** it (write paths remain blocked —
 ## Still to add (tracked)
 - E2E for the full workflow walk (TODO→…→DONE) and "Load more" at >50 issues.
 - **Concurrency on edit** — two users transitioning the same issue.
-- Fix **F-1** (carry `organizationId` on the session; add org-scope checks).

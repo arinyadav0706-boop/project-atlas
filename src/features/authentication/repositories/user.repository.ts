@@ -7,6 +7,15 @@ export const UserRepository = {
     return prisma.user.findUnique({ where: { email } });
   },
 
+  // Fallback for sessions whose JWT predates organizationId being stored on
+  // the token (see getActor) — avoids logging existing users out.
+  findOrganizationId(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
+  },
+
   findAuthAccount(provider: AuthProvider, providerAccountId: string) {
     return prisma.authAccount.findUnique({
       where: { provider_providerAccountId: { provider, providerAccountId } },

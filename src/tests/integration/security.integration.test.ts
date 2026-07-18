@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/db";
 import { IssueService } from "@/features/issues/services/issue.service";
-import { ConflictError, ForbiddenError, ValidationError } from "@/shared/lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 
 // Tier 4 — adversarial checks against a REAL Postgres. Proves the defenses
@@ -31,10 +31,10 @@ describe("cross-tenant writes are refused", () => {
     const bIssue = await prisma.issue.create({
       data: { projectId: b.project.id, key: "WB-1", type: "TASK", title: "b", reporterId: b.user.id },
     });
-    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN" }; // even as org admin
+    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id }; // even as org admin
     await expect(
       IssueService.update(attacker, bIssue.id, { title: "hacked" }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    ).rejects.toBeInstanceOf(NotFoundError);
     // And the row is untouched.
     const row = await prisma.issue.findUnique({ where: { id: bIssue.id } });
     expect(row?.title).toBe("b");
@@ -46,8 +46,8 @@ describe("cross-tenant writes are refused", () => {
     const bIssue = await prisma.issue.create({
       data: { projectId: b.project.id, key: "DB-1", type: "TASK", title: "b", reporterId: b.user.id },
     });
-    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN" };
-    await expect(IssueService.delete(attacker, bIssue.id)).rejects.toBeInstanceOf(ForbiddenError);
+    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
+    await expect(IssueService.delete(attacker, bIssue.id)).rejects.toBeInstanceOf(NotFoundError);
     const row = await prisma.issue.findFirst({ where: { id: bIssue.id, deletedAt: null } });
     expect(row).not.toBeNull();
   });
@@ -58,20 +58,20 @@ describe("cross-tenant writes are refused", () => {
     const bIssue = await prisma.issue.create({
       data: { projectId: b.project.id, key: "TB-1", type: "TASK", title: "b", reporterId: b.user.id },
     });
-    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN" };
+    const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(
       IssueService.transition(attacker, bIssue.id, "IN_PROGRESS"),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
 describe("the fixed workflow cannot be skipped via the service", () => {
   it("TODO → DONE is rejected (must pass through the workflow)", async () => {
-    const { user, project } = await seed("wf");
+    const { org, user, project } = await seed("wf");
     const issue = await prisma.issue.create({
       data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO" },
     });
-    const actor: Actor = { userId: user.id, orgRole: "MEMBER" };
+    const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     await expect(
       IssueService.transition(actor, issue.id, "DONE"),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -82,9 +82,9 @@ describe("the fixed workflow cannot be skipped via the service", () => {
 
 describe("archived projects are read-only", () => {
   it("creating an issue in an archived project is refused", async () => {
-    const { user, project } = await seed("ar");
+    const { org, user, project } = await seed("ar");
     await prisma.project.update({ where: { id: project.id }, data: { status: "ARCHIVED" } });
-    const actor: Actor = { userId: user.id, orgRole: "MEMBER" };
+    const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     await expect(
       IssueService.create(actor, project.id, { type: "TASK", title: "nope", priority: "MEDIUM" }),
     ).rejects.toBeInstanceOf(ConflictError);

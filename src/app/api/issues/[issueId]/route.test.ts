@@ -16,7 +16,7 @@ import { NotFoundError, ForbiddenError } from "@/shared/lib/errors";
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(IssueService);
 const params = { params: { issueId: "issue-1" } };
-const actor = { userId: "u1", orgRole: "MEMBER" as const };
+const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/issues/issue-1";
 
 function jsonReq(body: unknown, method: string) {

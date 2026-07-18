@@ -5,7 +5,6 @@ import type { Actor } from "@/shared/types/actor";
 // criteria — repository and audit log are mocked (Coding Standards §8).
 vi.mock("@/features/projects/repositories/project.repository", () => ({
   ProjectRepository: {
-    findUserOrganizationId: vi.fn(),
     findUserByEmail: vi.fn(),
     listActiveWithMembership: vi.fn(),
     findById: vi.fn(),
@@ -37,8 +36,8 @@ import { ConflictError, ForbiddenError, ValidationError } from "@/shared/lib/err
 const repo = vi.mocked(ProjectRepository);
 const audit = vi.mocked(AuditLogService);
 
-const actor: Actor = { userId: "user-1", orgRole: "MEMBER" };
-const orgAdminActor: Actor = { userId: "admin-1", orgRole: "ADMIN" };
+const actor: Actor = { userId: "user-1", orgRole: "MEMBER", organizationId: "org-1" };
+const orgAdminActor: Actor = { userId: "admin-1", orgRole: "ADMIN", organizationId: "org-1" };
 
 const baseProject = {
   id: "proj-1",
@@ -73,7 +72,6 @@ beforeEach(() => {
 
 describe("ProjectService.create", () => {
   it("creates the project with the creator as LEAD (BR-1)", async () => {
-    repo.findUserOrganizationId.mockResolvedValue({ organizationId: "org-1" });
     repo.findByKey.mockResolvedValue(null);
     repo.createWithLead.mockResolvedValue(baseProject);
 
@@ -89,7 +87,6 @@ describe("ProjectService.create", () => {
   });
 
   it("rejects a duplicate key with a conflict (BR-2)", async () => {
-    repo.findUserOrganizationId.mockResolvedValue({ organizationId: "org-1" });
     repo.findByKey.mockResolvedValue(baseProject);
 
     await expect(

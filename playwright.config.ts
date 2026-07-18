@@ -20,9 +20,11 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "next dev",
+    // Production build, not `next dev` — avoids on-demand route compilation,
+    // which makes the first navigation flaky under a tight timeout.
+    command: "next build && next start -p 3000",
     url: "http://localhost:3000",
     reuseExistingServer: true,
-    timeout: 120000,
+    timeout: 180000,
   },
 });
