@@ -158,8 +158,23 @@ Items 1–3 are infrastructure and deliver the overwhelming majority of the win.
 Items 4–9 are application code that reduce round-trips and perceived latency —
 worth doing, but secondary to fixing the region.
 
+## Applied so far
+
+After the region move (Vercel → Mumbai) reads dropped to ~1–2 s, confirming
+region was the dominant read-path factor. Two further changes have been made:
+
+1. **`Server-Timing` header on every API route** (`handleRoute`). Open DevTools
+   → Network → click a request → the `Server-Timing: app;dur=<ms>` value is the
+   time spent *inside* the handler (auth + DB + logic). `total request − app`
+   ≈ cold start + network. This gives real production per-request evidence.
+2. **Create no longer triggers a full-page refresh.** The dialog hands the
+   created issue back and the list inserts it in place + bumps the counts —
+   removing the second cross-region round-trip that caused the ~2–3 s
+   "render the created task" delay. (Same-shape follow-ups available for edit,
+   transition, and delete.)
+
 ## Instrumentation
 
 Left in place (opt-in, zero prod impact): `PERF_LOG=1` enables Prisma query
 logging in `db.ts`; `scripts/perf-probe.ts` measures the floor + round-trip
-counts. Re-run any time with the command at the top of that script.
+counts. `Server-Timing` is always on (a harmless, standard diagnostic header).

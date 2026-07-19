@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -39,16 +38,15 @@ export function CreateIssueDialog({
   projectId,
   members,
   withHotkey = false,
-  onChanged,
+  onCreated,
 }: {
   projectId: string;
   members: { userId: string; name: string }[];
   withHotkey?: boolean;
-  // Called after a successful create, in addition to the server refresh —
-  // lets a paginated list refetch its active filter (see issues-view).
-  onChanged?: () => void;
+  // Hands the created issue back so the list can insert it in place — no
+  // full-page refresh, no second server round-trip (see issues-view).
+  onCreated?: (issue: IssueDetailDto) => void;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -91,8 +89,7 @@ export function CreateIssueDialog({
       toast.success(`${issue.key} created`);
       setOpen(false);
       form.reset();
-      router.refresh();
-      onChanged?.();
+      onCreated?.(issue);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create the issue.");
     } finally {
