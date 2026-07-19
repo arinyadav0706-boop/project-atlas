@@ -52,6 +52,10 @@ to this stack. Full context: `docs/00_Product/`, `docs/01_Architecture/`.
 12. **When requirements are ambiguous or a decision would be
     hard-to-reverse (schema shape, auth provider behavior, RBAC model),
     stop and ask, or write/flag an ADR — don't guess silently.**
+13. **Log every deferral.** Anything consciously left "for later" — a
+    shortcut, a known gap, a polish item, a scale concern — gets an entry in
+    `docs/10_Roadmap/02_Backlog_and_Tech_Debt.md` in the same change. Nothing
+    ships to production with an open 🚩 Go-live item there.
 
 ## Where to look first
 
@@ -65,6 +69,7 @@ to this stack. Full context: `docs/00_Product/`, `docs/01_Architecture/`.
 | What's the API contract? | `docs/04_API/openapi.yaml` (Phase 2) |
 | What are this module's business rules? | `docs/02_Modules/<module>.md` (Phase 2) |
 | What's the current program phase / what's next? | `docs/10_Roadmap/01_Development_Roadmap.md` |
+| What have we deferred / what's the go-live checklist? | `docs/10_Roadmap/02_Backlog_and_Tech_Debt.md` |
 | How do we keep it fast/scalable? (pagination, indexes, budgets) | `docs/01_Architecture/05_Performance_and_Scalability.md` |
 
 ## Commit style
