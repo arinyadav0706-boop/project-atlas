@@ -1,8 +1,14 @@
 # ADR-0007: Board Card Ordering — Float Fractional Indexing
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0009](0009-board-card-ordering-lexorank.md)
 **Date:** 2026-07-19
 **Deciders:** Founding CTO (this document), founder go-ahead on Board build
+
+> **Superseded (2026-07-19):** this chose float fractional indexing to avoid a
+> migration. That was mis-prioritised — EAGLES is built for future scale, and now
+> (near-zero data) is the cheapest time to adopt the robust scheme. See ADR-0009:
+> string fractional ranking (LexoRank-style). The reasoning below is retained for
+> the record.
 
 ## Context
 

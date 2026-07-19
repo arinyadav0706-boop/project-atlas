@@ -58,7 +58,7 @@ graph TB
   navigation just to check one issue), with a "expand to full page" escape
   hatch for deep work/permalinks.
 - **Board columns** (`TODO / IN_PROGRESS / IN_REVIEW / DONE`) support
-  drag-and-drop with the fractional `boardOrder` reordering from
+  drag-and-drop with the fractional `rank` reordering (ADR-0009) from
   `docs/04_API/openapi.yaml` `PATCH /issues/{id}/rank`, animated per
   `01_UI_Design_Principles.md §4`.
 - **Destructive actions** (delete issue, remove member, close sprint) use

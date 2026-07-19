@@ -383,7 +383,7 @@ paths:
       - $ref: "#/components/parameters/IssueIdParam"
     patch:
       tags: [board, backlog]
-      summary: Reorder an issue within its board column or the backlog (fractional-index boardOrder update)
+      summary: Reorder an issue within its board column or the backlog (string fractional rank update, ADR-0009)
       requestBody:
         content:
           application/json:
@@ -612,7 +612,7 @@ paths:
       - $ref: "#/components/parameters/ProjectIdParam"
     get:
       tags: [backlog]
-      summary: Get the ordered backlog (issues with sprintId = null), ordered by boardOrder
+      summary: Get the ordered backlog (issues with sprintId = null), ordered by rank
       responses:
         "200":
           description: OK
@@ -977,7 +977,7 @@ components:
         sprintId: { type: string, nullable: true }
         epicId: { type: string, nullable: true }
         storyPoints: { type: integer, nullable: true }
-        boardOrder: { type: number }
+        rank: { type: string }
         dueDate: { type: string, format: date-time, nullable: true }
         labelIds: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }

@@ -1,7 +1,7 @@
 # Module: Board
 
 **Status:** v2.0 (project-level + composable filters) · **Owner:** Founding CTO
-· **Last Updated:** 2026-07-19 · **Decisions:** ADR-0007 (ordering), ADR-0008 (scope/filters)
+· **Last Updated:** 2026-07-19 · **Decisions:** ADR-0009 (ordering), ADR-0008 (scope/filters)
 
 ## Overview
 
@@ -14,7 +14,7 @@ visualization**; any scoping (Sprint, Epic, Assignee, Labels, …) is an optiona
 ## Business Rules
 
 - **BR-1:** The Board shows the project's issues, grouped by `status` into the
-  four columns, each ordered by `boardOrder` (ADR-0007). With **no filter**, it
+  four columns, each ordered by `rank` (ADR-0009). With **no filter**, it
   shows all of the project's non-deleted issues.
 - **BR-2:** Scoping is a **composable `BoardFilter`** applied server-side:
   `{ sprintId?, epicId?, assigneeId?, type?, priority?, labelIds?, search? }`.
@@ -28,9 +28,9 @@ visualization**; any scoping (Sprint, Epic, Assignee, Labels, …) is an optiona
   validation** as any status change (`04_issues.md` BR-5). An illegal move
   (e.g. `To Do → Done`) is rejected server-side; the card animates back to its
   origin column.
-- **BR-4:** Reordering (within or across columns) updates `boardOrder` via
-  `PATCH /issues/{id}/rank`, computing a value **between the destination
-  neighbours** (ADR-0007). Only the moved row is written.
+- **BR-4:** Reordering (within or across columns) updates `rank` via
+  `PATCH /issues/{id}/rank`, computing a key **between the destination
+  neighbours** (ADR-0009). Only the moved row is written.
 - **BR-5:** `VIEWER` can see the Board; drag-and-drop is **disabled** for them
   (read-only, per `03_projects.md` / `15_roles.md`). Enforced server-side too.
 - **BR-6:** Empty state — if the project has no issues (under the active
@@ -43,9 +43,9 @@ visualization**; any scoping (Sprint, Epic, Assignee, Labels, …) is an optiona
 ## Database
 
 Reads `Issue` filtered by `projectId` + the `BoardFilter`, grouped by `status`,
-ordered by `boardOrder`. Writes `Issue.status` and `Issue.boardOrder`. **No new
-tables.** `boardOrder` stays `Float` (ADR-0007); index `issues(projectId, status,
-boardOrder)` already exists. See `docs/03_Database/01_Database_Design.md`.
+ordered by `rank`. Writes `Issue.status` and `Issue.rank`. **No new
+tables.** `rank` is a string fractional key (ADR-0009); index
+`issues(projectId, status, rank)`. See `docs/03_Database/01_Database_Design.md`.
 
 ## API
 
@@ -67,7 +67,8 @@ boardOrder)` already exists. See `docs/03_Database/01_Database_Design.md`.
   Server: verify `beforeId`/`afterId` (if present) are issues in the **same
   project and destination status** (validated, not trusted from the client); if
   `status` differs from current, apply the transition (BR-3 workflow check);
-  compute `boardOrder` between the neighbours; write the one row. Returns the
+  compute `rank` between the neighbours (`generateKeyBetween`, ADR-0009); write
+  the one row. Returns the
   updated `IssueDetailDto`. RBAC: MEMBER/LEAD only (VIEWER → 403).
 - Status-only moves may also use the existing `POST /issues/{id}/transition`;
   `rank` handles combined move + reorder in one call.
@@ -87,14 +88,14 @@ animates back — no full-page refresh. Card click opens the issue detail.
 ## Acceptance Criteria
 
 - Given a project with issues, when a user opens the Board, then they see those
-  issues grouped into the four columns, each in `boardOrder`.
+  issues grouped into the four columns, each ordered by `rank`.
 - Given a `BoardFilter` (e.g. `assigneeId`), when applied, then only matching
   issues show, counts reflect the filter, and the same component renders.
 - Given a `VIEWER`, when they attempt to drag, then it is disabled/no-ops with a
   tooltip; a direct `rank` API call returns 403.
 - Given a card dragged to an invalid transition target (BR-3), when dropped,
   then it animates back and no state changes.
-- Given a card dropped between two cards, when persisted, then its `boardOrder`
+- Given a card dropped between two cards, when persisted, then its `rank`
   is strictly between the neighbours and survives reload.
 
 ## Validation

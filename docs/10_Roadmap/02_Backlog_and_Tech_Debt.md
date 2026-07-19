@@ -87,8 +87,8 @@ and product decisions — that would otherwise get lost between modules.
 | ID | Item | Pri | 🚩 | Status | Notes |
 |---|---|---|---|---|---|
 | UX-1 | **Premium UI re-skin** of the whole app | P2 | No | PLANNED | Deliberately "basic UI until MVP complete", then premium pass (founder manifesto). Sign-in already premium (the one exception). Decoupled from data → no migration needed. |
-| UX-2 | Board ordering scheme | P2 | No | DECIDED (ADR-0007) | Float fractional indexing (not string LexoRank) — no migration; string LexoRank is the documented escalation. Fix `createWithKey` append + `rankBetween` in the Board build. |
-| UX-4 | Per-column **rebalance** utility for `boardOrder` | P4 | No | OPEN | Safety net when float gaps get too small (ADR-0007). |
+| UX-2 | Board ordering scheme | P2 | No | DECIDED (ADR-0009) | String fractional ranking (LexoRank-style, `rank` column via `fractional-indexing`) — adopted now while data volume is near-zero. Board build: migration `boardOrder`→`rank` + backfill, `createWithKey` append, `generateKeyBetween` on reorder. Supersedes the float decision (ADR-0007). |
+| UX-4 | ~~Per-column **rebalance** utility for `boardOrder`~~ | — | No | RETIRED | Not needed: string fractional ranking has no precision ceiling (ADR-0009 supersedes ADR-0007). |
 | UX-5 | Board per-column "load more" (very large columns) | P3 | No | OPEN | Columns are capped in V1 (ADR-0008 / Perf doc). |
 | FUT-3 | Board **Saved Filters** (stored named `BoardFilter`) | P3 | No | OPEN | Reuses the ADR-0008 filter contract; future table. |
 | UX-3 | Consistent empty / loading / error states pass | P3 | No | OPEN | |
