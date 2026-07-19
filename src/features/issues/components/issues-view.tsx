@@ -17,6 +17,7 @@ import {
   statusLabel,
 } from "./issue-meta";
 import type {
+  IssueDetailDto,
   IssueListItemDto,
   IssueListPageDto,
   IssueStatusCounts,
@@ -51,6 +52,7 @@ export function IssuesView({
   const [filter, setFilter] = useState<Filter>("ALL");
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
+  const [liveCounts, setLiveCounts] = useState(counts);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const firstRender = useRef(true);
@@ -84,8 +86,9 @@ export function IssuesView({
     [query],
   );
 
-  // Re-sync with server data after a router.refresh() (create/edit/delete) —
-  // only on the ALL view, since a filtered view is fetched client-side.
+  // Re-sync with fresh server data on navigation — only on the ALL view, since
+  // a filtered view is fetched client-side. Counts are filter-independent, so
+  // they always track the server.
   useEffect(() => {
     if (filter === "ALL") {
       setItems(initialItems);
@@ -93,6 +96,11 @@ export function IssuesView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialItems, initialCursor]);
+
+  useEffect(() => {
+    setLiveCounts(counts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counts]);
 
   // Server-driven filtering: refetch the first page when the filter changes.
   // Skip the initial mount — the ALL view is already server-rendered.
@@ -119,11 +127,34 @@ export function IssuesView({
     }
   }
 
-  // After an inline create under an active filter, refetch that filter so the
-  // new issue appears. The ALL view is covered by router.refresh() above.
-  const reloadFiltered = useCallback(() => {
-    if (filter !== "ALL") void load(filter);
-  }, [filter, load]);
+  // Insert a just-created issue in place — no full-page refresh, no second
+  // server round-trip. Bump the counts, and prepend it to the list when the
+  // current filter would show it (a new issue is always TODO). It lands in
+  // exact server order on the next navigation.
+  const onCreated = useCallback(
+    (issue: IssueDetailDto) => {
+      setLiveCounts((c) => ({
+        ...c,
+        ALL: c.ALL + 1,
+        [issue.status]: c[issue.status] + 1,
+      }));
+      if (filter === "ALL" || filter === issue.status) {
+        const listItem: IssueListItemDto = {
+          id: issue.id,
+          key: issue.key,
+          type: issue.type,
+          title: issue.title,
+          status: issue.status,
+          priority: issue.priority,
+          assignee: issue.assignee,
+          storyPoints: issue.storyPoints,
+          updatedAt: issue.updatedAt,
+        };
+        setItems((prev) => [listItem, ...prev]);
+      }
+    },
+    [filter],
+  );
 
   return (
     <div>
@@ -141,9 +172,9 @@ export function IssuesView({
               )}
             >
               {f.label}
-              {counts[f.value] ? (
+              {liveCounts[f.value] ? (
                 <span className="ml-1.5 text-xs text-muted-foreground">
-                  {counts[f.value]}
+                  {liveCounts[f.value]}
                 </span>
               ) : null}
             </button>
@@ -154,13 +185,18 @@ export function IssuesView({
             projectId={projectId}
             members={members}
             withHotkey
-            onChanged={reloadFiltered}
+            onCreated={onCreated}
           />
         )}
       </div>
 
-      {counts.ALL === 0 ? (
-        <EmptyState canWrite={canWrite} projectId={projectId} members={members} />
+      {liveCounts.ALL === 0 ? (
+        <EmptyState
+          canWrite={canWrite}
+          projectId={projectId}
+          members={members}
+          onCreated={onCreated}
+        />
       ) : (
         <>
           <ul
@@ -240,10 +276,12 @@ function EmptyState({
   canWrite,
   projectId,
   members,
+  onCreated,
 }: {
   canWrite: boolean;
   projectId: string;
   members: { userId: string; name: string }[];
+  onCreated: (issue: IssueDetailDto) => void;
 }) {
   return (
     <motion.div
@@ -263,7 +301,11 @@ function EmptyState({
       </p>
       {canWrite && (
         <div className="mt-6">
-          <CreateIssueDialog projectId={projectId} members={members} />
+          <CreateIssueDialog
+            projectId={projectId}
+            members={members}
+            onCreated={onCreated}
+          />
         </div>
       )}
     </motion.div>
