@@ -1,69 +1,113 @@
 # Module: Board
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** v2.0 (project-level + composable filters) · **Owner:** Founding CTO
+· **Last Updated:** 2026-07-19 · **Decisions:** ADR-0007 (ordering), ADR-0008 (scope/filters)
 
 ## Overview
 
-A Kanban view of a single sprint's issues, grouped into the four fixed
-status columns, with drag-and-drop reordering and status transitions.
+A Kanban view of a **project's** issues, grouped into the four fixed status
+columns (`To Do / In Progress / In Review / Done`), with drag-and-drop
+reordering and status transitions. The Board is a **project-level
+visualization**; any scoping (Sprint, Epic, Assignee, Labels, …) is an optional
+**filter** layered on top of the same board — not a separate board (ADR-0008).
 
 ## Business Rules
 
-- BR-1: The Board always shows exactly one sprint's issues — the project's
-  current `ACTIVE` sprint by default, or an explicitly selected sprint via
-  `?sprintId=`.
-- BR-2: If a project has no `ACTIVE` sprint, the Board shows an empty
-  state directing the user to the Backlog to start one — there is no
-  "board with no sprint" view (that's what Backlog is for).
-- BR-3: Dragging a card to a different column triggers the same
-  `POST /issues/{id}/transition` validation as any other status change
-  (`docs/02_Modules/04_issues.md BR-5`) — an invalid drop (were such a
-  transition attempted) is rejected and the card animates back to its
-  origin column rather than silently failing.
-- BR-4: Reordering within or across columns updates `boardOrder` via
-  `PATCH /issues/{id}/rank`, scoped to the destination column.
-- BR-5: `VIEWER` project role can see the Board but drag-and-drop is
-  disabled for them (read-only, per `03_projects.md` role model).
+- **BR-1:** The Board shows the project's issues, grouped by `status` into the
+  four columns, each ordered by `boardOrder` (ADR-0007). With **no filter**, it
+  shows all of the project's non-deleted issues.
+- **BR-2:** Scoping is a **composable `BoardFilter`** applied server-side:
+  `{ sprintId?, epicId?, assigneeId?, type?, priority?, labelIds?, search? }`.
+  Filters combine (AND). Any subset may be empty. Adding a new filter later
+  reuses this contract — no board redesign.
+  - V1 activates the filters whose data exists today: **assignee, type,
+    priority**. `sprintId`/`epicId`/`labelIds` are accepted by the contract and
+    activate as those features ship (Sprint = Phase 5). **Saved Filters** (a
+    stored, named `BoardFilter`) is a future item.
+- **BR-3:** Dragging a card to a different column runs the **same workflow
+  validation** as any status change (`04_issues.md` BR-5). An illegal move
+  (e.g. `To Do → Done`) is rejected server-side; the card animates back to its
+  origin column.
+- **BR-4:** Reordering (within or across columns) updates `boardOrder` via
+  `PATCH /issues/{id}/rank`, computing a value **between the destination
+  neighbours** (ADR-0007). Only the moved row is written.
+- **BR-5:** `VIEWER` can see the Board; drag-and-drop is **disabled** for them
+  (read-only, per `03_projects.md` / `15_roles.md`). Enforced server-side too.
+- **BR-6:** Empty state — if the project has no issues (under the active
+  filter), show an empty state inviting issue creation (Kanban-first); there is
+  **no** "start a sprint" requirement.
+- **BR-7 (filtered reorder):** When a filter is active, a reorder positions the
+  card relative to its **visible** neighbours; a hidden card between them keeps
+  its own rank (ADR-0008, accepted trade-off).
 
 ## Database
 
-Reads `Issue` filtered by `sprintId` + groups by `status`; writes
-`Issue.status`, `Issue.boardOrder` — no new tables. See
-`docs/03_Database/01_Database_Design.md §2.7`.
+Reads `Issue` filtered by `projectId` + the `BoardFilter`, grouped by `status`,
+ordered by `boardOrder`. Writes `Issue.status` and `Issue.boardOrder`. **No new
+tables.** `boardOrder` stays `Float` (ADR-0007); index `issues(projectId, status,
+boardOrder)` already exists. See `docs/03_Database/01_Database_Design.md`.
 
 ## API
 
-`GET /projects/{projectId}/board`, `PATCH /issues/{issueId}/rank`,
-`POST /issues/{issueId}/transition` — `docs/04_API/openapi.yaml`.
+- **`GET /api/projects/{projectId}/board`** — query params are the `BoardFilter`
+  fields. Returns:
+  ```
+  BoardDto {
+    columns: { status: IssueStatusDto; items: IssueListItemDto[] }[]  // 4, ordered
+    counts: IssueStatusCounts                                          // per status + ALL
+    appliedFilter: BoardFilter                                        // echoed
+  }
+  ```
+  Each column is **bounded** (capped per column; per-column "load more" is a
+  future enhancement — Performance doc). Reuses the existing `IssueListItemDto`.
+- **`PATCH /api/issues/{issueId}/rank`** — body:
+  ```
+  { status?: IssueStatusDto; beforeId?: string | null; afterId?: string | null }
+  ```
+  Server: verify `beforeId`/`afterId` (if present) are issues in the **same
+  project and destination status** (validated, not trusted from the client); if
+  `status` differs from current, apply the transition (BR-3 workflow check);
+  compute `boardOrder` between the neighbours; write the one row. Returns the
+  updated `IssueDetailDto`. RBAC: MEMBER/LEAD only (VIEWER → 403).
+- Status-only moves may also use the existing `POST /issues/{id}/transition`;
+  `rank` handles combined move + reorder in one call.
+
+See `docs/04_API/openapi.yaml`.
 
 ## UI
 
 Screen #6 in `docs/05_UI/02_Screens_and_Information_Architecture.md`. Four
-columns (`To Do / In Progress / In Review / Done`), drag-and-drop animated
-per Design Principles §4 (fluid reordering, not a jump-cut), card click
-opens the issue detail panel without leaving the board.
+columns; drag-and-drop via **dnd-kit**, animated (Design Principles §4 — fluid,
+not a jump-cut). A filter-agnostic `<Board columns filter onFilterChange
+canWrite />` component with a `<BoardFilterBar>` rendering the currently-available
+filters. **Instant-feel:** an optimistic move updates the columns immediately and
+calls `rank`; on server rejection (illegal transition / lost race) the card
+animates back — no full-page refresh. Card click opens the issue detail.
 
 ## Acceptance Criteria
 
-- Given a project with an `ACTIVE` sprint, when a user opens the Board,
-  then they see that sprint's issues grouped into the four columns.
-- Given a project with no `ACTIVE` sprint, when a user opens the Board,
-  then they see the empty state pointing to Backlog, not an error or a
-  blank board.
-- Given a `VIEWER`, when they attempt to drag a card, then the drag is
-  disabled/no-ops, with a tooltip explaining why.
-- Given a card is dragged to a column that isn't a valid transition target
-  (BR-3), when dropped, then it animates back and no state changes.
+- Given a project with issues, when a user opens the Board, then they see those
+  issues grouped into the four columns, each in `boardOrder`.
+- Given a `BoardFilter` (e.g. `assigneeId`), when applied, then only matching
+  issues show, counts reflect the filter, and the same component renders.
+- Given a `VIEWER`, when they attempt to drag, then it is disabled/no-ops with a
+  tooltip; a direct `rank` API call returns 403.
+- Given a card dragged to an invalid transition target (BR-3), when dropped,
+  then it animates back and no state changes.
+- Given a card dropped between two cards, when persisted, then its `boardOrder`
+  is strictly between the neighbours and survives reload.
 
 ## Validation
 
-`PATCH /issues/{id}/rank` input: `beforeIssueId`/`afterIssueId` must
-reference issues in the same destination column (or both null for an
-empty column) — validated server-side, not just inferred from client
-drag state.
+`PATCH /issues/{id}/rank`: `beforeId`/`afterId` must reference non-deleted issues
+in the **same project** and the **destination status** (or be null for column
+ends) — validated server-side. `status` must be a legal transition from the
+card's current status.
 
 ## Future Scope
 
-- Swimlanes (by assignee or epic).
-- WIP limits per column.
-- Configurable columns (today: the one fixed workflow's four statuses).
+- **Sprint filter** (Phase 5), **Epic filter**, **Label filter**, **Saved
+  Filters** (stored named `BoardFilter`) — all reuse the `BoardFilter` contract
+  and the same board component (ADR-0008).
+- Per-column "load more" for very large columns.
+- Swimlanes (by assignee/epic), WIP limits, configurable columns.

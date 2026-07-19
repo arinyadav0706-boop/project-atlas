@@ -42,7 +42,9 @@ and Sprint are all views over `Issue`.
 - BR-7 (ordering): `boardOrder` is a float; inserting between two issues
   computes the midpoint; if the gap becomes too small (rebalancing
   threshold, e.g. difference `< 1e-6`), the service re-normalizes all
-  `boardOrder` values for that column/backlog in one transaction.
+  `boardOrder` values for that column/backlog in one transaction. This is the
+  ordering scheme ratified in **ADR-0007**; new issues **append** to the end of
+  their column (not `Date.now()`).
 
 ## Database
 
