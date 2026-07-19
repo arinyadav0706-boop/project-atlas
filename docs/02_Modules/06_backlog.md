@@ -9,8 +9,9 @@ The ordered list of issues not yet scheduled into a sprint
 
 ## Business Rules
 
-- BR-1: Backlog issues are ordered by `boardOrder` within the project
-  (independent ordering space from any sprint's board columns).
+- BR-1: Backlog issues are ordered by `rank` (string fractional key,
+  ADR-0009) within the project (independent ordering space from any sprint's
+  board columns).
 - BR-2: Assigning an issue to a sprint (`sprintId` set) removes it from the
   Backlog view and it now appears on that sprint's Board once the sprint
   is `ACTIVE`.
@@ -21,7 +22,7 @@ The ordered list of issues not yet scheduled into a sprint
 
 ## Database
 
-Reads/writes `Issue` (`sprintId`, `boardOrder`) — no new tables. See
+Reads/writes `Issue` (`sprintId`, `rank`) — no new tables. See
 `docs/03_Database/01_Database_Design.md §2.7`.
 
 ## API
@@ -40,7 +41,7 @@ motion.
 ## Acceptance Criteria
 
 - Given three unscheduled issues, when a user reorders them via drag, then
-  `boardOrder` reflects the new order and persists across reload.
+  `rank` reflects the new order and persists across reload.
 - Given an issue is dragged into the Sprint section, when dropped, then
   its `sprintId` is set and it disappears from the Backlog list.
 - Given a `VIEWER`, when they attempt to reorder or reassign, then the

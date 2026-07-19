@@ -39,12 +39,13 @@ and Sprint are all views over `Issue`.
 - BR-6: every status transition is additionally written to `AuditLog`
   (`action: ISSUE_STATUS_CHANGED`) — this is the dual-purpose audit entry
   that powers the cycle-time report (`docs/03_Database/01_Database_Design.md §2.13`).
-- BR-7 (ordering): `boardOrder` is a float; inserting between two issues
-  computes the midpoint; if the gap becomes too small (rebalancing
-  threshold, e.g. difference `< 1e-6`), the service re-normalizes all
-  `boardOrder` values for that column/backlog in one transaction. This is the
-  ordering scheme ratified in **ADR-0007**; new issues **append** to the end of
-  their column (not `Date.now()`).
+- BR-7 (ordering): `rank` is a string fractional key (LexoRank-style);
+  inserting between two issues generates a new key strictly between their
+  neighbours' keys (`generateKeyBetween`). There is **no precision ceiling and
+  no rebalance job** — a key can always be generated between two keys. This is
+  the ordering scheme ratified in **ADR-0009** (supersedes the float scheme of
+  ADR-0007); new issues **append** to the end of their column
+  (`generateKeyBetween(lastRank, null)`, not `Date.now()`).
 
 ## Database
 
@@ -74,9 +75,9 @@ truth: `POST /issues/{id}/transition`).
   through In Progress / In Review).
 - Given an assignee who is not a member of the issue's project, when an
   update tries to set them as assignee, then the request is rejected.
-- Given two issues with `boardOrder` 1.0 and 1.0000001, when a third issue
-  is inserted between them, then the column is rebalanced in one
-  transaction rather than producing an unusable float gap.
+- Given two issues with adjacent `rank` keys, when a third issue is inserted
+  between them, then a new key strictly between the two is generated and the
+  row is written without any column rebalance.
 
 ## Validation
 

@@ -30,7 +30,7 @@ One query contract and one UI component serve every filter combination:
   → the board repository translates it to a single Prisma `where`. Adding a new
   filter = adding a field here + a control in the filter bar; **no board rewrite.**
 - **`GET /projects/{projectId}/board?<filters>`** returns the four columns, each
-  ordered by `boardOrder` (ADR-0007), plus per-status counts.
+  ordered by `rank` (ADR-0009), plus per-status counts.
 - **UI**: a filter-agnostic `<Board columns filter onFilterChange canWrite />`
   component, with a `<BoardFilterBar>` that renders whichever filters are
   currently available.

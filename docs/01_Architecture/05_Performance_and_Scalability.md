@@ -76,7 +76,7 @@ migration `20260715000000_perf_indexes`):
 
 | Query | Index |
 |---|---|
-| Issue list/board: `WHERE projectId,status ORDER BY boardOrder` | `issues(projectId, status, boardOrder)` |
+| Issue list/board: `WHERE projectId,status ORDER BY rank` | `issues(projectId, status, rank)` (ADR-0009; renamed from `boardOrder` in the Board migration) |
 | "My open issues" (dashboard): `WHERE assigneeId, status` | `issues(assigneeId, status)` |
 | Per-entity activity timeline: `WHERE entityType,entityId ORDER BY createdAt` | `audit_logs(entityType, entityId, createdAt)` |
 | Org activity feed | `audit_logs(organizationId, createdAt)` |
@@ -152,10 +152,10 @@ Server/Client split is correct. Watch items:
 
 - **Search** — no full-text index exists. The Search module needs Postgres
   `tsvector`/`pg_trgm` or a dedicated engine. Decide before building it.
-- **`boardOrder`** — decided in ADR-0007: float fractional indexing (midpoint
-  between neighbours), with a per-column rebalance safety net. The Board build
-  fixes `createWithKey` to append instead of `Date.now()`. Board columns are
-  bounded (capped per column; per-column "load more" is future — UX-5).
+- **Card ordering** — decided in ADR-0009: string fractional ranking
+  (LexoRank-style, `rank` column) — no precision ceiling, no rebalance job.
+  The Board build renames `boardOrder`→`rank`, fixes `createWithKey` to append,
+  and bounds each board column (per-column "load more" is future — UX-5).
 - **Unbounded tables** — `audit_logs` and `notifications` grow forever;
   plan retention/partitioning before they are large.
 - **Read replicas** — at ~6,000 concurrent, route read-only queries to a

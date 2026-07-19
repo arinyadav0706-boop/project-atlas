@@ -89,7 +89,7 @@ erDiagram
         string reporterId FK
         string sprintId FK
         string epicId FK
-        float boardOrder
+        string rank
     }
     LABEL {
         string id PK
