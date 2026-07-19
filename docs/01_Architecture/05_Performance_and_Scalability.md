@@ -152,8 +152,10 @@ Server/Client split is correct. Watch items:
 
 - **Search** — no full-text index exists. The Search module needs Postgres
   `tsvector`/`pg_trgm` or a dedicated engine. Decide before building it.
-- **`boardOrder`** is currently `Date.now()` (`issue.repository.ts`); the
-  Board module needs true fractional ranking (LexoRank-style) for reorders.
+- **`boardOrder`** — decided in ADR-0007: float fractional indexing (midpoint
+  between neighbours), with a per-column rebalance safety net. The Board build
+  fixes `createWithKey` to append instead of `Date.now()`. Board columns are
+  bounded (capped per column; per-column "load more" is future — UX-5).
 - **Unbounded tables** — `audit_logs` and `notifications` grow forever;
   plan retention/partitioning before they are large.
 - **Read replicas** — at ~6,000 concurrent, route read-only queries to a
