@@ -266,9 +266,11 @@ model Issue {
   labels      IssueLabel[]
 
   @@unique([projectId, key])
-  // Covers the board/list query: filter by (projectId, status) and sort by
-  // rank — the status prefix still serves (projectId)-only lookups (ADR-0009).
-  @@index([projectId, status, rank])
+  // Covers the board/list query (filter by projectId[,status] + sort by rank)
+  // AND enforces collision-free ordering: ranks are unique per (project,status)
+  // column (ADR-0010). Duplicates are already impossible by construction (each
+  // key carries a random suffix — see rank.ts); this is the loud backstop.
+  @@unique([projectId, status, rank])
   @@index([sprintId])
   // Dashboard "my open issues": filter by assignee, narrow by status. The
   // assignee prefix still serves assignee-only lookups.

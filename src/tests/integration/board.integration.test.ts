@@ -157,6 +157,28 @@ describe("rank column collation (ADR-0009 / portability)", () => {
     expect(row?.collation_name).toBe("C");
   });
 
+  it("two cards moved into the SAME gap get distinct ranks (ADR-0010, unique index holds)", async () => {
+    const { actor, project } = await seed("cc");
+    const [a, b, c, d] = await createTodo(actor, project.id, ["A", "B", "C", "D"]);
+    // Both C and D dropped between A and B — the collision case. Suffix keys keep
+    // them distinct, so the unique index accepts both and order stays total.
+    await IssueService.reorder(actor, c!.id, { beforeId: a!.id, afterId: b!.id });
+    await IssueService.reorder(actor, d!.id, { beforeId: a!.id, afterId: b!.id });
+
+    const rows = await prisma.issue.findMany({
+      where: { projectId: project.id, status: "TODO" },
+      select: { id: true, rank: true },
+    });
+    const ranks = rows.map((r) => r.rank);
+    expect(new Set(ranks).size).toBe(ranks.length); // no duplicate ranks
+    const board = await BoardService.getBoard(actor, project.id, {});
+    const order = column(board, "TODO").items.map((i) => i.id);
+    // A first, B last; C and D land between them (order among the two is stable).
+    expect(order[0]).toBe(a!.id);
+    expect(order[order.length - 1]).toBe(b!.id);
+    expect(order.slice(1, 3).sort()).toEqual([c!.id, d!.id].sort());
+  });
+
   it("sorts a prepended 'Z…' key before an 'a…' key (byte order)", async () => {
     const { actor, project } = await seed("col");
     const [a] = await createTodo(actor, project.id, ["A"]);

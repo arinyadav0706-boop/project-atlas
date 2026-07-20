@@ -80,3 +80,6 @@ Adopt it **now** via a schema migration + a trivial backfill of existing issues.
   5. Retire the ADR-0007 rebalance item (UX-4) — not needed with string keys.
   6. Pin `rank` to `COLLATE "C"` (migration `20260720000000_rank_collation`) and
      guard it with an integration test asserting the column's collation is `C`.
+  7. Concurrent reordering (the equal-key collision) is addressed by **ADR-0010**
+     (collision-free suffix keys + a unique index) — a later extension of this
+     scheme, not a change to it.
