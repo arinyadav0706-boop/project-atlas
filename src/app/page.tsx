@@ -13,5 +13,5 @@ export default async function RootPage() {
   } catch {
     session = null;
   }
-  redirect(session ? "/dashboard" : "/sign-in");
+  redirect(session ? "/home" : "/sign-in");
 }

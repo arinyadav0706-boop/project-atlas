@@ -148,16 +148,31 @@ paths:
                   data: { type: array, items: { $ref: "#/components/schemas/AuditLogEntry" } }
                   pagination: { $ref: "#/components/schemas/Pagination" }
 
-  /dashboard:
+  /home:
     get:
-      tags: [dashboard]
-      summary: Personal dashboard — assigned issues, recent activity, project shortcuts
+      tags: [home]
+      summary: Personal Home — My Work, attention inbox, continue working, due soon, projects (ADR-0012)
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/DashboardResponse" }
+              schema: { $ref: "#/components/schemas/HomeResponse" }
+
+  /projects/{projectId}/star:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [home]
+      summary: Star a project for the Home strip
+      responses:
+        "200": { description: Starred }
+        "404": { description: Project not found / not visible }
+    delete:
+      tags: [home]
+      summary: Unstar a project
+      responses:
+        "200": { description: Unstarred }
 
   /projects:
     get:
@@ -1058,18 +1073,44 @@ components:
                 type: array
                 items: { $ref: "#/components/schemas/Issue" }
 
-    DashboardResponse:
+    HomeResponse:
       type: object
+      description: >
+        The composed Home payload (ADR-0012, docs/02_Modules/02_home.md). A FIXED
+        set of sections; future modules feed these (esp. `attention`), never
+        adding new ones.
       properties:
-        assignedIssues:
+        myWork:
           type: array
           items: { $ref: "#/components/schemas/Issue" }
-        recentActivity:
+        attention:
           type: array
-          items: { $ref: "#/components/schemas/AuditLogEntry" }
-        projectShortcuts:
+          items: { $ref: "#/components/schemas/AttentionItem" }
+        continueWorking:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+        dueSoon:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+        starredProjects:
           type: array
           items: { $ref: "#/components/schemas/Project" }
+        recentProjects:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+
+    AttentionItem:
+      type: object
+      description: One item in the unified attention inbox, from any AttentionSource.
+      properties:
+        id: { type: string }
+        kind:
+          type: string
+          enum: [ASSIGNED, UPDATED, MENTION, REVIEW_REQUEST, APPROVAL]
+        title: { type: string }
+        href: { type: string }
+        actorId: { type: string, nullable: true }
+        occurredAt: { type: string, format: date-time }
 
     SearchResponse:
       type: object

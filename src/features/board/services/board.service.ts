@@ -21,6 +21,7 @@ type CardRow = Awaited<
 function toCardDto(row: CardRow): IssueListItemDto {
   return {
     id: row.id,
+    projectId: row.projectId,
     key: row.key,
     type: row.type,
     title: row.title,

@@ -95,6 +95,28 @@ enum NotificationEntityType {
   SPRINT
 }
 
+// Home personalization (ADR-0012). Generic entity-type enums so RecentItem /
+// Favorite extend to new entities without a schema change to the consumer.
+enum RecentEntityType {
+  ISSUE
+  PROJECT
+}
+
+enum FavoriteEntityType {
+  PROJECT
+}
+
+// Engagement weighting for the "Continue working" ranking (02_home.md BR-3):
+// active work (EDITED/COMMENTED/TRANSITIONED) outranks passive VIEWED.
+enum InteractionType {
+  VIEWED
+  ASSIGNED
+  MENTIONED
+  COMMENTED
+  TRANSITIONED
+  EDITED
+}
+
 // ---------- Entities (Database Design §2) ----------
 
 model Organization {
@@ -142,6 +164,8 @@ model User {
   comments           Comment[]
   attachments        Attachment[]
   notifications      Notification[]
+  recentItems        RecentItem[]
+  favorites          Favorite[]
 
   @@index([organizationId])
   @@map("users")
@@ -373,6 +397,44 @@ model Notification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+// Home personalization tables (ADR-0012, 02_home.md). Personal signals, not
+// audited domain entities — like Notification they are an intentional exception
+// to the audit-field convention (Database Design §1). Unstarring hard-deletes a
+// Favorite (a preference row, not domain data), also an allowed exception.
+
+// Implicit engagement signal powering "Continue working" and "recent projects".
+// One row per (user, entity), upserted on interaction. Distinct from AuditLog:
+// AuditLog is the immutable compliance record of *changes*; this is a mutable
+// personal *navigation* signal (views included) — kept separate so views never
+// bloat the audit log.
+model RecentItem {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  entityType      RecentEntityType
+  entityId        String
+  interactionType InteractionType
+  lastInteractedAt DateTime        @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId, lastInteractedAt(sort: Desc)])
+  @@map("recent_items")
+}
+
+// Explicit user pin (starred projects now; extensible via entityType).
+model Favorite {
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id])
+  entityType FavoriteEntityType
+  entityId   String
+  createdAt  DateTime           @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId, entityType])
+  @@map("favorites")
 }
 
 // Explicit exception to the audit-field convention: immutable, append-only

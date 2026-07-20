@@ -12,7 +12,7 @@
 | 1 | Foundational Documentation | Product Vision, PRD, BRD, Architecture, Feature Architecture, Tech Stack, Coding Standards, Security overview, Infra overview, Roadmap, ADRs, CLAUDE.md, Cursor rules | Founders review/approve Assumptions (Vision §8, Security §2) |
 | 2 | Detailed Design | Database Design + ER diagram, OpenAPI spec, UI spec, 10 per-module docs | Design docs reviewed against PRD acceptance criteria |
 | 3 | Scaffolding | Next.js app skeleton, Prisma schema, Docker Compose, GitHub Actions CI, shadcn/ui setup, Auth.js wired to Google + Entra ID | `docker compose up` runs; CI green on an empty app |
-| 4 | MVP Build — Core | Authentication, Dashboard, Projects, Issues, Board modules | Each module's acceptance criteria pass |
+| 4 | MVP Build — Core | Authentication, Home (was Dashboard), Projects, Issues, Board modules | Each module's acceptance criteria pass |
 | 5 | MVP Build — Planning | Backlog, Sprint, Comments, Attachments modules | Each module's acceptance criteria pass |
 | 6 | MVP Build — Operate | Notifications, Reports, Search, Admin, User Management, Roles, Profile | Each module's acceptance criteria pass |
 | 7 | Hardening | Security review, load test to 60 concurrent users, accessibility pass, cost validation | NFRs in PRD §4 met |
@@ -26,7 +26,7 @@
 2. **Projects** — issues, board, backlog, sprint all belong to a project.
 3. **Issues** — the core entity; board/backlog/sprint are views over issues.
 4. **Board** — first usable end-to-end workflow (create issue → move status).
-5. **Dashboard** — becomes meaningful once issues/projects exist.
+5. **Home** (was Dashboard) — the personal action launchpad; becomes meaningful once issues/projects exist (ADR-0012).
 6. **Backlog & Sprint** — sprint planning workflow.
 7. **Comments & Attachments** — collaboration on existing issues.
 8. **Notifications** — depends on events from issues/comments/sprints.

@@ -35,6 +35,7 @@ const ctx = {
 function card(id: string, status: string) {
   return {
     id,
+    projectId: "proj-1",
     key: `ENG-${id}`,
     type: "TASK",
     title: id,

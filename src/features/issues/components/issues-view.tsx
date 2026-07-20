@@ -141,6 +141,7 @@ export function IssuesView({
       if (filter === "ALL" || filter === issue.status) {
         const listItem: IssueListItemDto = {
           id: issue.id,
+          projectId: issue.projectId,
           key: issue.key,
           type: issue.type,
           title: issue.title,

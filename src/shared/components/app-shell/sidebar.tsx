@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderKanban, ShieldCheck } from "lucide-react";
+import { House, FolderKanban, ShieldCheck } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LogoMark } from "@/shared/components/brand/logo";
 
@@ -11,7 +11,7 @@ import { LogoMark } from "@/shared/components/brand/logo";
 // boundary is server-side in the admin module's services (Coding
 // Standards §7).
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/home", label: "Home", icon: House },
   { href: "/projects", label: "Projects", icon: FolderKanban },
 ];
 

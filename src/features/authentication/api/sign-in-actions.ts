@@ -21,11 +21,11 @@ async function run(fn: () => Promise<void>) {
 }
 
 export async function signInWithGoogle() {
-  await run(() => signIn("google", { redirectTo: "/dashboard" }));
+  await run(() => signIn("google", { redirectTo: "/home" }));
 }
 
 export async function signInWithMicrosoft() {
-  await run(() => signIn("microsoft-entra-id", { redirectTo: "/dashboard" }));
+  await run(() => signIn("microsoft-entra-id", { redirectTo: "/home" }));
 }
 
 export async function signInWithCredentials(formData: FormData) {
@@ -33,7 +33,7 @@ export async function signInWithCredentials(formData: FormData) {
     signIn("credentials", {
       email: formData.get("email"),
       password: formData.get("password"),
-      redirectTo: "/dashboard",
+      redirectTo: "/home",
     }),
   );
 }

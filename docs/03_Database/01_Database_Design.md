@@ -205,6 +205,43 @@ report can compute time-in-status without a separate history table.
 No `update`/`delete` service method is ever exposed for this table
 (Security Architecture §5).
 
+### 2.14 RecentItem
+**Home personalization** (ADR-0012, `docs/02_Modules/02_home.md`). Implicit
+per-user engagement signal powering "Continue working" and "recent projects".
+**Intentional exception to the audit-field convention** (§1) — a mutable
+personal *navigation* signal, not an audited domain entity (like Notification).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| userId | String (FK → User) | |
+| entityType | Enum `RecentEntityType` | `ISSUE` \| `PROJECT` (generic — extends to future entities) |
+| entityId | String | soft reference (polymorphic by `entityType`), like `Notification.entityId` |
+| interactionType | Enum `InteractionType` | latest interaction; weights the ranking (BR-3) |
+| lastInteractedAt | DateTime | upserted on each interaction |
+
+Unique `(userId, entityType, entityId)`; index `(userId, lastInteractedAt DESC)`.
+**Distinct from `AuditLog`**: AuditLog is the immutable compliance record of
+*changes*; RecentItem is a mutable personal signal (views included) — kept
+separate so views never bloat the audit trail. Upserted on interaction; may move
+off the request hot path at scale.
+
+### 2.15 Favorite
+**Home personalization** (ADR-0012). Explicit per-user pin (starred projects now;
+generic `entityType` extends it later). Same documented audit-field exception;
+unstarring **hard-deletes** the row (a preference row, not domain data — an
+allowed exception to §1's no-hard-delete rule).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| userId | String (FK → User) | |
+| entityType | Enum `FavoriteEntityType` | `PROJECT` (extensible) |
+| entityId | String | soft reference (polymorphic by `entityType`) |
+| createdAt | DateTime | |
+
+Unique `(userId, entityType, entityId)`; index `(userId, entityType)`.
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`
@@ -217,6 +254,15 @@ No `update`/`delete` service method is ever exposed for this table
 `VIEWER` — read-only.
 
 > These two enums are the A5 assumption flagged in `docs/07_Security/01_Security_Architecture.md §2` — confirmed as the V1 baseline by proceeding into Phase 2; still revisit if founder feedback differs before Phase 3 generates the Prisma schema.
+
+### 3.3 `RecentEntityType` / `FavoriteEntityType` (Home, ADR-0012)
+`RecentEntityType`: `ISSUE` \| `PROJECT`. `FavoriteEntityType`: `PROJECT`. Kept
+as small explicit enums (not free-text) so a new personalizable entity is a
+one-line, reviewed addition.
+
+### 3.4 `InteractionType` (Home "Continue working", BR-3)
+`VIEWED` \| `ASSIGNED` \| `MENTIONED` \| `COMMENTED` \| `TRANSITIONED` \|
+`EDITED` — ordered by engagement weight (active work outranks a passive view).
 
 ## 4. Relationships Overview
 
