@@ -336,7 +336,7 @@ export const IssueService = {
 
     let rank: string;
     try {
-      rank = rankBetween(before?.rank ?? null, after?.rank ?? null);
+      rank = rankBetween(before?.rank ?? null, after?.rank ?? null, actor.userId);
     } catch {
       // Neighbours out of order (stale client view / lost race).
       throw new ConflictError("The board changed — refresh and try the move again.");

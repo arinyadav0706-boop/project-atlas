@@ -42,9 +42,14 @@ rank = <fractionalKey> <SEP> <randomSuffix>      e.g.  a0V#7bQ2mК9x
   character (`'0'` = `0x30`), so a bare fractional key always sorts before its
   longer extensions (e.g. `a2` before `a2V`). Under `COLLATE "C"` (ADR-0009)
   ordering is pure byte comparison, so this is exact.
-- **Suffix** = 8 random base-62 chars (~2.2e14 space). Two truly-concurrent
-  inserts into one gap get different suffixes → different keys that both order
-  between the same neighbours. No coordination, no lock, no retry.
+- **Suffix** = a short per-actor discriminator (last 4 base-62 chars of the
+  actor id) + 8 random base-62 chars. The actor part means two *different*
+  actors can never produce the same key even if the random parts coincided; the
+  random part covers a single actor's own concurrent inserts (~2.2e14 space).
+  Two truly-concurrent inserts into one gap get different suffixes → different
+  keys that both order between the same neighbours. No coordination, no lock, no
+  retry. The actor id is optional to the key module, so seed/backfill/tests use
+  random-only.
 - **Reorder** strips suffixes before bisecting (`generateKeyBetween` on the
   fractional parts) and appends a fresh suffix — see `src/shared/lib/rank.ts`.
 - **Backward compatible:** bare backfilled keys (`a0`, `a1`, …) have no
@@ -54,10 +59,11 @@ rank = <fractionalKey> <SEP> <randomSuffix>      e.g.  a0V#7bQ2mК9x
   migration) makes the astronomically-rare suffix collision a loud error, never
   a silent duplicate. It also covers the `ORDER BY rank` query.
 
-A random suffix ("jitter") is chosen over literally embedding the actor id: it
-gives the same collision-free guarantee with far less coupling (the pure key
-module needs no actor context) and shorter keys. Actor-derived suffixes were
-considered and rejected as unnecessary.
+The suffix combines **actor id + random jitter** rather than either alone:
+random jitter provides the core guarantee, and the actor discriminator makes
+cross-actor collisions impossible by construction (the "actor-suffix" the
+founder asked for). The actor id is threaded as an optional argument so the key
+module stays pure and usable without actor context.
 
 ## Alternatives Considered
 
@@ -66,7 +72,7 @@ considered and rejected as unnecessary.
 | **`id` tiebreaker only** (status quo) | Display stays consistent, but tied cards create a "dead gap" you can't insert between; not correct. |
 | **Unique index + regenerate-on-conflict retry** | Works, but adds a retry loop and, under real contention, retry storms on the hot gap. Suffix keys avoid collisions entirely, so retries are never needed. |
 | **Full CRDT sequence** (site-id interleaved, Yjs/Fugue-style) | Correct and powerful, but real complexity we don't need for per-column board contention; revisit only if/when live multiplayer boards are built. |
-| **Actor-id suffix** | Equivalent guarantee to random jitter but couples key generation to actor context and lengthens keys. |
+| **Random-only suffix** (no actor part) | Equivalent in practice, but adding the actor discriminator makes cross-actor collisions impossible by construction for negligible cost, and matches the intended design. |
 
 ## Consequences
 

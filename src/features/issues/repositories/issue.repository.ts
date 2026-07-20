@@ -133,7 +133,7 @@ export const IssueRepository = {
           epicId: input.epicId,
           storyPoints: input.storyPoints,
           dueDate: input.dueDate,
-          rank: rankAppend(last?.rank ?? null),
+          rank: rankAppend(last?.rank ?? null, input.creatorId),
           createdBy: input.creatorId,
         },
         include: { assignee: assigneeSelect, reporter: assigneeSelect },
