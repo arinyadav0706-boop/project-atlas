@@ -28,6 +28,7 @@ function toCardDto(row: CardRow): IssueListItemDto {
     priority: row.priority,
     storyPoints: row.storyPoints,
     updatedAt: row.updatedAt.toISOString(),
+    version: row.version,
     assignee: row.assignee,
   };
 }

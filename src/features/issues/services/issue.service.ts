@@ -65,6 +65,7 @@ function toListDto(row: {
   priority: IssuePriorityDto;
   storyPoints: number | null;
   updatedAt: Date;
+  version: number;
   assignee: { id: string; name: string; avatarUrl: string | null } | null;
 }): IssueListItemDto {
   return {
@@ -76,6 +77,7 @@ function toListDto(row: {
     priority: row.priority,
     storyPoints: row.storyPoints,
     updatedAt: row.updatedAt.toISOString(),
+    version: row.version,
     assignee: row.assignee,
   };
 }
@@ -336,17 +338,25 @@ export const IssueService = {
 
     let rank: string;
     try {
-      rank = rankBetween(before?.rank ?? null, after?.rank ?? null);
+      rank = rankBetween(before?.rank ?? null, after?.rank ?? null, actor.userId);
     } catch {
       // Neighbours out of order (stale client view / lost race).
       throw new ConflictError("The board changed — refresh and try the move again.");
     }
 
-    const row = await IssueRepository.setRankAndStatus(
+    // Optimistic concurrency (ADR-0011): applies only if the card is still at
+    // the version the client dragged from; otherwise it's a lost update.
+    const row = await IssueRepository.reorderWithVersion(
       issueId,
+      input.expectedVersion,
       { rank, status: statusChanged ? destStatus : undefined },
       actor.userId,
     );
+    if (!row) {
+      throw new ConflictError(
+        "This card was changed by someone else — refresh the board and try the move again.",
+      );
+    }
     if (statusChanged) {
       await AuditLogService.record({
         organizationId: context.organizationId,

@@ -85,3 +85,43 @@ describe("fuzz: heavy random insertion preserves order and uniqueness", () => {
     }
   });
 });
+
+// ADR-0010: collision-free concurrency. The suffix must make every generated
+// key unique — even for many inserts into the SAME gap at the SAME instant —
+// without breaking byte order.
+describe("collision-free suffix (ADR-0010)", () => {
+  it("carries a suffix and still sorts between its neighbours", () => {
+    const a = rankBetween(null, null);
+    const b = rankAppend(a);
+    const mid = rankBetween(a, b);
+    expect(mid).toContain("#");
+    expect(a < mid && mid < b).toBe(true);
+  });
+
+  it("interoperates with bare (backfilled) keys, preserving order", () => {
+    // Existing rows from the backfill have no suffix ('a0','a1'); a new key
+    // between them must still order strictly between as full strings.
+    const mid = rankBetween("a0", "a1");
+    expect("a0" < mid && mid < "a1").toBe(true);
+  });
+
+  it("1000 concurrent inserts into the SAME gap are all unique and in-range", () => {
+    // The Level-3 guarantee: simulate 1000 clients dropping into one gap at once
+    // (each computes from the same unchanged neighbours). No duplicates.
+    const a = rankBetween(null, null);
+    const b = rankAppend(a);
+    const keys = Array.from({ length: 1000 }, () => rankBetween(a, b));
+    expect(new Set(keys).size).toBe(1000); // zero collisions
+    for (const k of keys) expect(a < k && k < b).toBe(true);
+  });
+
+  it("does not throw when neighbours share a fractional key (post-collision)", () => {
+    // Two cards that collided earlier share a fractional part, differ by suffix.
+    const a = rankBetween(null, null); // e.g. a0#...
+    const frac = a.slice(0, a.indexOf("#"));
+    const twin = `${frac}#zzzzzzzz`;
+    // Inserting "between" them must not throw; it lands in that cluster.
+    const between = rankBetween(a, twin);
+    expect(between.startsWith(`${frac}#`)).toBe(true);
+  });
+});

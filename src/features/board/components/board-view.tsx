@@ -162,10 +162,27 @@ export function BoardView({
       }
 
       try {
-        await apiRequest(`/api/issues/${activeId}/rank`, {
-          method: "PATCH",
-          body: { ...(from !== to ? { status: to } : {}), beforeId, afterId },
-        });
+        // Optimistic concurrency (ADR-0011): send the version we dragged from;
+        // the server rejects the move if the card changed since.
+        const updated = await apiRequest<{ version: number }>(
+          `/api/issues/${activeId}/rank`,
+          {
+            method: "PATCH",
+            body: {
+              ...(from !== to ? { status: to } : {}),
+              beforeId,
+              afterId,
+              expectedVersion: moved.version,
+            },
+          },
+        );
+        // Refresh the moved card's version so a subsequent drag isn't stale.
+        setColumns((prev) => ({
+          ...prev,
+          [to]: prev[to].map((i) =>
+            i.id === activeId ? { ...i, version: updated.version } : i,
+          ),
+        }));
       } catch (error) {
         // Server rejected (illegal transition / stale neighbour / lost race):
         // restore the previous layout and counts exactly.

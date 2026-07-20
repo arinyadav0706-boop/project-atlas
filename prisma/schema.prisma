@@ -248,7 +248,16 @@ model Issue {
   // String fractional rank (LexoRank-style, base-62) for board/backlog order.
   // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
   // (ADR-0009). Ordering space is per (projectId, status) column.
+  // The column is pinned to `COLLATE "C"` (byte ordering) by migration
+  // 20260720000000_rank_collation — the base-62 keys only sort correctly under
+  // byte order. Prisma can't express collation in-schema, so it lives in that
+  // migration and Prisma leaves it untouched. See 06_Portability_Boundary.md.
   rank        String
+  // Optimistic concurrency control (ADR-0011). Every mutation increments this;
+  // a conditional write (WHERE version = expected) detects a lost update — two
+  // people changing the same card — and rejects the stale one instead of
+  // silently overwriting. O(1) per write, no locks; scales to any user count.
+  version     Int           @default(0)
   dueDate     DateTime?
 
   createdAt DateTime  @default(now())
@@ -262,9 +271,11 @@ model Issue {
   labels      IssueLabel[]
 
   @@unique([projectId, key])
-  // Covers the board/list query: filter by (projectId, status) and sort by
-  // rank — the status prefix still serves (projectId)-only lookups (ADR-0009).
-  @@index([projectId, status, rank])
+  // Covers the board/list query (filter by projectId[,status] + sort by rank)
+  // AND enforces collision-free ordering: ranks are unique per (project,status)
+  // column (ADR-0010). Duplicates are already impossible by construction (each
+  // key carries a random suffix — see rank.ts); this is the loud backstop.
+  @@unique([projectId, status, rank])
   @@index([sprintId])
   // Dashboard "my open issues": filter by assignee, narrow by status. The
   // assignee prefix still serves assignee-only lookups.

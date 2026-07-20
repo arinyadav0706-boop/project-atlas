@@ -41,6 +41,9 @@ export const reorderIssueSchema = z.object({
   status: issueStatus.optional(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
+  // Optimistic concurrency (ADR-0011): the card version the client based this
+  // move on. The move applies only if the card is still at that version.
+  expectedVersion: z.number().int().min(0),
 });
 
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;

@@ -26,6 +26,9 @@ export interface IssueListItemDto {
   assignee: IssueAssigneeDto | null;
   storyPoints: number | null;
   updatedAt: string;
+  // Optimistic-concurrency token (ADR-0011). The client sends this back on a
+  // reorder; a stale value is rejected instead of silently overwriting.
+  version: number;
 }
 
 // Per-status totals for the filter chips (ALL = sum). Always present so the
