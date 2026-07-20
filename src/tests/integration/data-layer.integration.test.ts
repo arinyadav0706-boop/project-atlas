@@ -4,6 +4,7 @@ import { IssueRepository } from "@/features/issues/repositories/issue.repository
 import { IssueService } from "@/features/issues/services/issue.service";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
+import { ranksBetween } from "@/shared/lib/rank";
 import type { Actor } from "@/shared/types/actor";
 
 // Integration tests — run against a REAL Postgres (see
@@ -41,15 +42,15 @@ afterAll(() => prisma.$disconnect());
 describe("keyset pagination (IssueService.list)", () => {
   it("pages through all issues with no duplicates or gaps, stable order", async () => {
     const { org, user, project } = await seedOrgWithProject("pag");
-    // 120 issues, deterministic distinct boardOrder for a total ordering.
+    // 120 issues, deterministic distinct ranks for a total ordering.
     await prisma.issue.createMany({
-      data: Array.from({ length: 120 }, (_, i) => ({
+      data: ranksBetween(null, null, 120).map((rank, i) => ({
         projectId: project.id,
         key: `PAG-${i + 1}`,
         type: "TASK" as const,
         title: `Issue ${i + 1}`,
         reporterId: user.id,
-        boardOrder: i,
+        rank,
       })),
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
@@ -77,8 +78,8 @@ describe("keyset pagination (IssueService.list)", () => {
     const { org, user, project } = await seedOrgWithProject("cnt");
     await prisma.issue.createMany({
       data: [
-        ...Array.from({ length: 3 }, (_, i) => ({ projectId: project.id, key: `CNT-T${i}`, type: "TASK" as const, title: "t", reporterId: user.id, status: "TODO" as const, boardOrder: i })),
-        ...Array.from({ length: 2 }, (_, i) => ({ projectId: project.id, key: `CNT-D${i}`, type: "TASK" as const, title: "d", reporterId: user.id, status: "DONE" as const, boardOrder: i })),
+        ...ranksBetween(null, null, 3).map((rank, i) => ({ projectId: project.id, key: `CNT-T${i}`, type: "TASK" as const, title: "t", reporterId: user.id, status: "TODO" as const, rank })),
+        ...ranksBetween(null, null, 2).map((rank, i) => ({ projectId: project.id, key: `CNT-D${i}`, type: "TASK" as const, title: "d", reporterId: user.id, status: "DONE" as const, rank })),
       ],
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
@@ -138,8 +139,8 @@ describe("tenant isolation", () => {
   it("IssueRepository.listByProject is scoped to the given project only", async () => {
     const a = await seedOrgWithProject("ia");
     const b = await seedOrgWithProject("ib");
-    await prisma.issue.create({ data: { projectId: a.project.id, key: "IA-1", type: "TASK", title: "a", reporterId: a.user.id } });
-    await prisma.issue.create({ data: { projectId: b.project.id, key: "IB-1", type: "TASK", title: "b", reporterId: b.user.id } });
+    await prisma.issue.create({ data: { projectId: a.project.id, key: "IA-1", type: "TASK", title: "a", reporterId: a.user.id, rank: "a0" } });
+    await prisma.issue.create({ data: { projectId: b.project.id, key: "IB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" } });
     const rowsA = await IssueRepository.listByProject(a.project.id, {}, { take: 50 });
     expect(rowsA.map((r) => r.key)).toEqual(["IA-1"]);
   });
@@ -150,7 +151,7 @@ describe("tenant isolation", () => {
     const a = await seedOrgWithProject("ga");
     const b = await seedOrgWithProject("gb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "GB-1", type: "TASK", title: "secret", reporterId: b.user.id },
+      data: { projectId: b.project.id, key: "GB-1", type: "TASK", title: "secret", reporterId: b.user.id, rank: "a0" },
     });
     const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER", organizationId: a.org.id };
     // Tenant scope: the outsider cannot read it, and existence is not revealed.

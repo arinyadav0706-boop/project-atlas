@@ -33,6 +33,17 @@ export const transitionIssueSchema = z.object({
   status: issueStatus,
 });
 
+// Board/Backlog reorder (ADR-0009). The card is placed between two visible
+// neighbours (either may be null for a column end); an optional `status`
+// combines a column move with the reorder in one call. Neighbour ids are
+// validated server-side — never trusted from the client.
+export const reorderIssueSchema = z.object({
+  status: issueStatus.optional(),
+  beforeId: z.string().nullable().optional(),
+  afterId: z.string().nullable().optional(),
+});
+
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;
 export type UpdateIssueInput = z.infer<typeof updateIssueSchema>;
 export type TransitionIssueInput = z.infer<typeof transitionIssueSchema>;
+export type ReorderIssueInput = z.infer<typeof reorderIssueSchema>;

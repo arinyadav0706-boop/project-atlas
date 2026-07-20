@@ -25,7 +25,7 @@ and product decisions — that would otherwise get lost between modules.
 | GL-1 | **Remove or rotate the seeded known-password accounts** (`arin…` + 5 teammates) | P1 | OPEN | Known passwords in prod (`prisma/seed.ts`). Must be gone/rotated before real users. |
 | GL-2 | **Security review** of the whole surface (Phase 7) | P1 | OPEN | Roadmap Phase 7. Run `/security-review` + manual pass. |
 | GL-3 | **Rate limiting** on auth + mutation endpoints | P2 | OPEN | No limiter today; brute-force/abuse exposure. |
-| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`) | P1 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. |
+| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`, `board_rank`) | P1 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. Note: `20260719000000_board_rank` backfills `rank` in SQL for ≤62 issues per (project,status) column and **fails loudly** above that — if a prod column is larger, backfill via `generateNKeysBetween` before deploying. |
 | GL-5 | **Confirm `DATABASE_URL` = `?pgbouncer=true&connection_limit=1`** | P2 | PARTIAL | `pgbouncer=true` confirmed; add `&connection_limit=1`. |
 | GL-6 | **SSO credentials** (Google + Microsoft OAuth apps) if launching with SSO | P2 | OPEN | Config, not code. Credentials login works today. |
 | GL-7 | **Load test to ~60 concurrent** (Phase 7 NFR) | P2 | OPEN | Validate the scale targets in `05_Performance_and_Scalability.md`. |
@@ -81,6 +81,7 @@ and product decisions — that would otherwise get lost between modules.
 | TEST-1 | E2E: full workflow walk (TODO→…→DONE) + "Load more" >50 | P3 | No | OPEN | |
 | TEST-2 | Concurrency-on-edit test (two users transition same issue) | P3 | No | OPEN | |
 | TEST-3 | Keep the RBAC matrix complete as each new module lands | P2 | No | ONGOING | Per-module acceptance criterion (`15_roles.md`). |
+| TEST-4 | Board **E2E** (Playwright): drag reorder persists across reload; cross-column move runs the workflow; VIEWER drag disabled | P3 | No | OPEN | Reorder data path is covered by `board.integration.test.ts` + `board.service.test.ts` + the `rank` route test; the dnd-kit UI wiring (neighbour computation on drop) has no browser test yet. |
 
 ## UX / UI
 
@@ -89,8 +90,10 @@ and product decisions — that would otherwise get lost between modules.
 | UX-1 | **Premium UI re-skin** of the whole app | P2 | No | PLANNED | Deliberately "basic UI until MVP complete", then premium pass (founder manifesto). Sign-in already premium (the one exception). Decoupled from data → no migration needed. |
 | UX-2 | Board ordering scheme | P2 | No | DECIDED (ADR-0009) | String fractional ranking (LexoRank-style, `rank` column via `fractional-indexing`) — adopted now while data volume is near-zero. Board build: migration `boardOrder`→`rank` + backfill, `createWithKey` append, `generateKeyBetween` on reorder. Supersedes the float decision (ADR-0007). |
 | UX-4 | ~~Per-column **rebalance** utility for `boardOrder`~~ | — | No | RETIRED | Not needed: string fractional ranking has no precision ceiling (ADR-0009 supersedes ADR-0007). |
-| UX-5 | Board per-column "load more" (very large columns) | P3 | No | OPEN | Columns are capped in V1 (ADR-0008 / Perf doc). |
+| UX-5 | Board per-column "load more" (very large columns) | P3 | No | OPEN | Columns are capped at `BOARD_COLUMN_LIMIT`=100 in V1 (ADR-0008 / Perf doc). At the cap the lowest-ranked tail is omitted; add per-column keyset "load more". |
+| UX-6 | Board **live cross-column drag preview** (dnd-kit `onDragOver`) | P3 | No | OPEN | V1 re-lays columns optimistically on **drop** (`onDragEnd`) only — the drag itself doesn't show the card crossing columns live. Fine for "basic UI"; polish with the premium pass (UX-1). |
 | FUT-3 | Board **Saved Filters** (stored named `BoardFilter`) | P3 | No | OPEN | Reuses the ADR-0008 filter contract; future table. |
+| FUT-4 | Board filters not yet activated: **Sprint, Epic, Label** | P3 | No | OPEN | The `BoardFilter` contract + server `where` already accept them (ADR-0008); V1 filter bar exposes only assignee/type/priority (data that exists). Add controls as those modules ship — no board redesign. |
 | UX-3 | Consistent empty / loading / error states pass | P3 | No | OPEN | |
 
 ## Groundwork for future modules

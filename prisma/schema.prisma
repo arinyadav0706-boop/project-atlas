@@ -245,7 +245,10 @@ model Issue {
   epic        Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
   children    Issue[]       @relation("EpicChildren")
   storyPoints Int?
-  boardOrder  Float         @default(0)
+  // String fractional rank (LexoRank-style, base-62) for board/backlog order.
+  // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
+  // (ADR-0009). Ordering space is per (projectId, status) column.
+  rank        String
   dueDate     DateTime?
 
   createdAt DateTime  @default(now())
@@ -260,8 +263,8 @@ model Issue {
 
   @@unique([projectId, key])
   // Covers the board/list query: filter by (projectId, status) and sort by
-  // boardOrder — the status prefix still serves (projectId)-only lookups.
-  @@index([projectId, status, boardOrder])
+  // rank — the status prefix still serves (projectId)-only lookups (ADR-0009).
+  @@index([projectId, status, rank])
   @@index([sprintId])
   // Dashboard "my open issues": filter by assignee, narrow by status. The
   // assignee prefix still serves assignee-only lookups.
