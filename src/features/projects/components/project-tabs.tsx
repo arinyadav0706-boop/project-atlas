@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/lib/utils";
 
-// Project-scoped sub-navigation. Backlog/sprint tabs arrive with their
-// modules; for now, Issues (primary), Board, and Settings.
+// Project-scoped sub-navigation. Sprint tab arrives with its module; for now,
+// Issues (primary), Board, Backlog, and Settings.
 export function ProjectTabs({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const tabs = [
     { href: `/projects/${projectId}/issues`, label: "Issues" },
     { href: `/projects/${projectId}/board`, label: "Board" },
+    { href: `/projects/${projectId}/backlog`, label: "Backlog" },
     { href: `/projects/${projectId}/settings`, label: "Settings" },
   ];
 

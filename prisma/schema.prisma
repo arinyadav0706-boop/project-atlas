@@ -300,6 +300,8 @@ model Issue {
   // column (ADR-0010). Duplicates are already impossible by construction (each
   // key carries a random suffix — see rank.ts); this is the loud backstop.
   @@unique([projectId, status, rank])
+  // Backlog query: WHERE projectId, sprintId IS NULL ORDER BY rank (ADR-0013).
+  @@index([projectId, sprintId, rank])
   @@index([sprintId])
   // Dashboard "my open issues": filter by assignee, narrow by status. The
   // assignee prefix still serves assignee-only lookups.

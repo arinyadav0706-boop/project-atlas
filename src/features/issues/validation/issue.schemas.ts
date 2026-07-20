@@ -44,6 +44,9 @@ export const transitionIssueSchema = z.object({
 // combines a column move with the reorder in one call. Neighbour ids are
 // validated server-side — never trusted from the client.
 export const reorderIssueSchema = z.object({
+  // Which view's neighbours to validate against (ADR-0013). Defaults to board,
+  // so existing board callers are unaffected.
+  scope: z.enum(["board", "backlog"]).default("board"),
   status: issueStatus.optional(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
@@ -53,4 +56,7 @@ export const reorderIssueSchema = z.object({
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;
 export type UpdateIssueInput = z.infer<typeof updateIssueSchema>;
 export type TransitionIssueInput = z.infer<typeof transitionIssueSchema>;
-export type ReorderIssueInput = z.infer<typeof reorderIssueSchema>;
+// Input-side type: `scope` carries a default, so callers (and the Board, which
+// predates scoping) may omit it — the service treats a missing scope as "board"
+// (ADR-0013). The route always parses first, producing a value with scope set.
+export type ReorderIssueInput = z.input<typeof reorderIssueSchema>;

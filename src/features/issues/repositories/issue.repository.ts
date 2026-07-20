@@ -185,6 +185,17 @@ export const IssueRepository = {
     });
   },
 
+  // Backlog reorder neighbour lookup (ADR-0013): the rank of a card that must
+  // live in the same project and be unscheduled (`sprintId = null`). The backlog
+  // is a single flat list across statuses, so — unlike the board — status is not
+  // part of the scope. Returns null for a stale/invalid neighbour.
+  findRankInBacklog(id: string, projectId: string) {
+    return prisma.issue.findFirst({
+      where: { id, projectId, sprintId: null, deletedAt: null },
+      select: { id: true, rank: true },
+    });
+  },
+
   // Single-row reorder write (ADR-0009) guarded by optimistic concurrency
   // (ADR-0011): applies only if the row is still at `expectedVersion`. Returns
   // the updated detail row, or null if the version no longer matches (a lost

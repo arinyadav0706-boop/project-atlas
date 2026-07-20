@@ -13,6 +13,7 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     updateWithVersion: vi.fn(),
     setStatusWithVersion: vi.fn(),
     findRankInColumn: vi.fn(),
+    findRankInBacklog: vi.fn(),
     reorderWithVersion: vi.fn(),
     softDelete: vi.fn(),
   },
@@ -25,6 +26,11 @@ vi.mock("@/features/projects/services/project.service", () => ({
 }));
 vi.mock("@/features/admin/services/audit-log.service", () => ({
   AuditLogService: { record: vi.fn() },
+}));
+// Personalization is a best-effort side-signal (ADR-0012); stub it so these
+// unit tests don't reach the recent-items DB.
+vi.mock("@/features/home/services/recent-item.service", () => ({
+  RecentItemService: { record: vi.fn() },
 }));
 
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
@@ -387,6 +393,86 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
         expectedVersion: 0,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  // Backlog scope (ADR-0013): neighbours validated against the backlog, never a
+  // status column; status is never changed by a backlog drag.
+  describe("scope=backlog", () => {
+    it("validates neighbours as unscheduled and writes rank only (no status)", async () => {
+      projects.getMemberRole.mockResolvedValue("MEMBER");
+      repo.findDetail.mockResolvedValue(
+        issueRow({ status: "IN_PROGRESS", sprintId: null, rank: "a5" }) as never,
+      );
+      repo.findRankInBacklog.mockImplementation(((id: string) =>
+        Promise.resolve(
+          id === "before-1"
+            ? { id: "before-1", rank: "a1" }
+            : id === "after-1"
+              ? { id: "after-1", rank: "a3" }
+              : null,
+        )) as never);
+      repo.reorderWithVersion.mockResolvedValue(issueRow({ rank: "a2" }) as never);
+
+      await IssueService.reorder(actor, "issue-1", {
+        scope: "backlog",
+        beforeId: "before-1",
+        afterId: "after-1",
+        expectedVersion: 0,
+      });
+
+      // Neighbours checked against the backlog, not a column.
+      expect(repo.findRankInBacklog).toHaveBeenCalledWith("before-1", "proj-1");
+      expect(repo.findRankInColumn).not.toHaveBeenCalled();
+      const [, , data] = repo.reorderWithVersion.mock.calls[0]!;
+      expect(data.rank > "a1" && data.rank < "a3").toBe(true);
+      expect(data.status).toBeUndefined(); // a backlog drag never changes status
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it("rejects a backlog reorder of an issue already in a sprint", async () => {
+      projects.getMemberRole.mockResolvedValue("MEMBER");
+      repo.findDetail.mockResolvedValue(
+        issueRow({ sprintId: "sprint-1" }) as never,
+      );
+      await expect(
+        IssueService.reorder(actor, "issue-1", {
+          scope: "backlog",
+          beforeId: null,
+          afterId: null,
+          expectedVersion: 0,
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(repo.reorderWithVersion).not.toHaveBeenCalled();
+    });
+
+    it("rejects a status change requested under scope=backlog", async () => {
+      projects.getMemberRole.mockResolvedValue("MEMBER");
+      repo.findDetail.mockResolvedValue(
+        issueRow({ status: "TODO", sprintId: null }) as never,
+      );
+      await expect(
+        IssueService.reorder(actor, "issue-1", {
+          scope: "backlog",
+          status: "IN_PROGRESS",
+          expectedVersion: 0,
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      expect(repo.reorderWithVersion).not.toHaveBeenCalled();
+    });
+
+    it("rejects a neighbour that is no longer in the backlog (stale client)", async () => {
+      projects.getMemberRole.mockResolvedValue("MEMBER");
+      repo.findDetail.mockResolvedValue(issueRow({ sprintId: null }) as never);
+      repo.findRankInBacklog.mockResolvedValue(null); // beforeId not unscheduled
+      await expect(
+        IssueService.reorder(actor, "issue-1", {
+          scope: "backlog",
+          beforeId: "ghost",
+          expectedVersion: 0,
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(repo.reorderWithVersion).not.toHaveBeenCalled();
+    });
   });
 });
 

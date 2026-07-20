@@ -398,16 +398,27 @@ paths:
       - $ref: "#/components/parameters/IssueIdParam"
     patch:
       tags: [board, backlog]
-      summary: Reorder an issue within its board column or the backlog (string fractional rank update, ADR-0009)
+      summary: Reorder an issue within its board column or the backlog (string fractional rank, ADR-0009/0013; OCC, ADR-0011)
       requestBody:
         content:
           application/json:
             schema:
               type: object
-              required: [beforeIssueId, afterIssueId]
+              required: [expectedVersion]
               properties:
-                beforeIssueId: { type: string, nullable: true }
-                afterIssueId: { type: string, nullable: true }
+                scope:
+                  type: string
+                  enum: [board, backlog]
+                  default: board
+                  description: Which view's neighbours to validate against (ADR-0013)
+                status:
+                  type: string
+                  description: Board-scope only — a column move; runs the workflow check
+                beforeId: { type: string, nullable: true, description: neighbour with the smaller rank (null = list/column start) }
+                afterId: { type: string, nullable: true, description: neighbour with the larger rank (null = list/column end) }
+                expectedVersion:
+                  type: integer
+                  description: Optimistic-concurrency token (ADR-0011)
       responses:
         "200":
           description: Reordered
@@ -627,15 +638,22 @@ paths:
       - $ref: "#/components/parameters/ProjectIdParam"
     get:
       tags: [backlog]
-      summary: Get the ordered backlog (issues with sprintId = null), ordered by rank
+      summary: Get the ordered backlog (issues with sprintId = null), ordered by rank; keyset-paginated
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Opaque keyset cursor (the last item's id from the previous page)
+        - name: take
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
+          description: Page size (capped at 100)
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/Issue" }
+              schema: { $ref: "#/components/schemas/BacklogResponse" }
 
   /projects/{projectId}/board:
     parameters:
@@ -1072,6 +1090,23 @@ components:
               issues:
                 type: array
                 items: { $ref: "#/components/schemas/Issue" }
+
+    BacklogResponse:
+      type: object
+      description: >
+        One keyset-paginated page of the project's unscheduled issues
+        (sprintId = null), ordered by the shared rank (ADR-0013).
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor for the next page; null on the last page
+        canWrite:
+          type: boolean
+          description: Whether the viewer may drag to reorder (MEMBER/LEAD)
 
     HomeResponse:
       type: object

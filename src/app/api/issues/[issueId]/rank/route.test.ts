@@ -57,6 +57,9 @@ it("200 on a valid reorder", async () => {
   const res = await PATCH(jsonReq({ beforeId: "b", afterId: "c", expectedVersion: 0 }), params);
   expect(res.status).toBe(200);
   expect(svc.reorder).toHaveBeenCalledWith(actor, "issue-1", {
+    // The schema defaults scope to "board" so existing callers are unaffected
+    // (ADR-0013); the parsed body the route forwards carries it.
+    scope: "board",
     beforeId: "b",
     afterId: "c",
     expectedVersion: 0,
