@@ -196,6 +196,38 @@ export const IssueRepository = {
     });
   },
 
+  // Sprint move neighbour lookup (ADR-0014): the rank of a card that must live in
+  // the same project and the given sprint. Returns null for a stale/invalid
+  // neighbour (never trusted from the client).
+  findRankInSprint(id: string, projectId: string, sprintId: string) {
+    return prisma.issue.findFirst({
+      where: { id, projectId, sprintId, deletedAt: null },
+      select: { id: true, rank: true },
+    });
+  },
+
+  // Sprint membership move (ADR-0014) guarded by optimistic concurrency
+  // (ADR-0011): sets `sprintId` (a sprint, or null for the backlog) AND the
+  // destination `rank` in one row write. Null if the version no longer matches.
+  async moveToSprintWithVersion(
+    id: string,
+    expectedVersion: number,
+    data: { sprintId: string | null; rank: string },
+    actorId: string,
+  ) {
+    const result = await prisma.issue.updateMany({
+      where: { id, version: expectedVersion, deletedAt: null },
+      data: {
+        sprintId: data.sprintId,
+        rank: data.rank,
+        version: { increment: 1 },
+        updatedBy: actorId,
+      },
+    });
+    if (result.count === 0) return null;
+    return IssueRepository.findDetail(id);
+  },
+
   // Single-row reorder write (ADR-0009) guarded by optimistic concurrency
   // (ADR-0011): applies only if the row is still at `expectedVersion`. Returns
   // the updated detail row, or null if the version no longer matches (a lost

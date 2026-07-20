@@ -1,71 +1,119 @@
 # Module: Sprint
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** v2.0 (MVP spec ratified) · **Owner:** Founding CTO · **Last Updated:** 2026-07-20
+· **Decisions:** ADR-0009 (rank), ADR-0011 (OCC), ADR-0013 (unified rank + scoped reorder), ADR-0014 (sprint assignment + backlog-page section)
 
 ## Overview
 
-A time-boxed scope of work for a project, cycling through
-`PLANNED → ACTIVE → COMPLETED`. Board and Backlog are views keyed off a
-sprint's lifecycle state.
+A **Sprint** is a time-boxed set of a project's issues, cycling
+`PLANNED → ACTIVE → COMPLETED`. Sprints are the second half of Scrum planning: the
+Backlog (ADR-0013) is the groomable queue of unscheduled issues (`sprintId = null`);
+a sprint holds the issues committed for one cycle (`sprintId = X`). Both are views
+over the same `Issue` entity ordered by the shared `rank` — **no new tables**.
+
+The sprint is **not a separate screen**: it appears as a droppable section above the
+Backlog list on the Backlog page (ADR-0014), carrying its lifecycle controls, goal,
+and progress. Dragging an issue between the section and the Backlog moves it in/out
+of the sprint.
+
+## MVP scope
+
+Create sprint · Backlog ↔ Sprint drag-and-drop · Start sprint · Complete sprint ·
+Sprint goal (free text) · basic progress (done vs. total, story points). Everything
+else (multi-sprint planning, follow-up-sprint at close, burndown/velocity) is
+**deferred** — see Future Scope and the tech-debt ledger.
 
 ## Business Rules
 
-- BR-1 (PRD FR-4.1): only one `ACTIVE` sprint per project at a time —
-  enforced with a transactional check when starting a sprint (`409` if
-  another is already active).
-- BR-2 (PRD FR-4.2): starting a sprint (`PLANNED → ACTIVE`) requires
-  `name`, `startDate`, and `endDate` to already be set; `endDate` must be
-  after `startDate`.
-- BR-3 (PRD FR-4.3): closing a sprint (`ACTIVE → COMPLETED`) moves any
-  issue not in `DONE` status either back to the Backlog (`sprintId = null`,
-  default) or into a specified follow-up sprint
-  (`moveIncompleteIssuesToSprintId`), chosen at close time.
-- BR-4: only `LEAD` can create, start, or close a sprint; `MEMBER` can
-  view sprint details.
-- BR-5: a `COMPLETED` sprint is immutable (no further issue reassignment
-  into/out of it) — its issue set at close time is the historical record
-  used by the velocity report (`11_reports.md`).
+- **BR-1 (one active per project, PRD FR-4.1):** at most one `ACTIVE` sprint per
+  project. Starting a sprint is a transactional check → `409` if another is already
+  active.
+- **BR-2 (start prerequisites, FR-4.2):** starting (`PLANNED → ACTIVE`) requires
+  `name`, `startDate`, and `endDate`, with `endDate > startDate` (cross-field check
+  in the service, not just per-field Zod).
+- **BR-3 (complete, FR-4.3):** completing (`ACTIVE → COMPLETED`) returns every issue
+  not in `DONE` status to the Backlog (`sprintId = null`), keeping its existing
+  `rank`. (MVP always returns to the Backlog; a follow-up-sprint target is deferred.)
+- **BR-4 (RBAC):** only `LEAD` can create, edit, start, or complete a sprint, and
+  only `MEMBER`/`LEAD` can move issues in/out of a sprint. `VIEWER` and non-members
+  get a read-only view (they still *see* the sprint — projects are org-visible).
+- **BR-5 (immutability):** a `COMPLETED` sprint is frozen — no issue may be moved
+  into or out of it. Its issue set at completion is the historical record for the
+  future velocity report (`11_reports.md`).
+- **BR-6 (assignment, ADR-0014):** moving an issue between Backlog and a sprint (or
+  repositioning it within a sprint) is one atomic `sprintId` + `rank` write, guarded
+  by optimistic concurrency (ADR-0011); the target sprint must be in the same
+  project and not `COMPLETED`. Neighbours are validated server-side, never trusted.
+- **BR-7 (progress is derived, ADR-0014):** a sprint's progress is computed at read
+  time (`GROUP BY status` over its issues) — no stored counters.
 
 ## Database
 
-`Sprint` — `docs/03_Database/01_Database_Design.md §2.6`.
+Reads/writes `Sprint` (existing) and `Issue` (`sprintId`, `rank`, `version`) —
+**no new tables, no schema change**. The sprint issue list query
+(`WHERE projectId, sprintId = X ORDER BY rank`) is covered by the existing
+`issues(projectId, sprintId, rank)` index (ADR-0013); `Sprint` has
+`@@index([projectId, status])` for the active/planned lookup. See
+`docs/03_Database/01_Database_Design.md`.
 
 ## API
 
-`GET/POST /projects/{projectId}/sprints`, `PATCH /sprints/{sprintId}`,
-`POST /sprints/{sprintId}/start`, `POST /sprints/{sprintId}/close` —
-`docs/04_API/openapi.yaml`.
+- **`GET /api/projects/{projectId}/sprints`** — sprints for a project, each with
+  derived progress (`SprintWithProgressDto`).
+- **`POST /api/projects/{projectId}/sprints`** — create a `PLANNED` sprint (LEAD).
+- **`PATCH /api/sprints/{sprintId}`** — edit `name`/`goal`/`startDate`/`endDate` (LEAD).
+- **`POST /api/sprints/{sprintId}/start`** — `PLANNED → ACTIVE` (BR-1, BR-2; LEAD).
+- **`POST /api/sprints/{sprintId}/complete`** — `ACTIVE → COMPLETED`, incomplete
+  issues → Backlog (BR-3; LEAD).
+- **`PATCH /api/issues/{issueId}/sprint`** — move an issue to a sprint or back to the
+  Backlog, positioned between neighbours (ADR-0014, BR-6). Body:
+  `{ sprintId: string | null, beforeId, afterId, expectedVersion }`.
+
+See `docs/04_API/openapi.yaml`.
 
 ## UI
 
-Sprint lifecycle controls surface as a header bar above Backlog/Board
-(no standalone sprint screen — see IA doc §2, row 8): "Start Sprint" opens
-a modal requiring the dates (BR-2); "Close Sprint" opens a modal showing
-incomplete issue count and the move-to choice (BR-3), using the toast+Undo
-pattern is not applicable here since closing a sprint has a modal
-confirmation already (an irreversible-feeling action gets an explicit
-step, not a silent toast).
+Backlog page (`/projects/{id}/backlog`) gains a **Sprint section** above the Backlog
+list (ADR-0014):
+- Shows the project's current sprint — the `ACTIVE` one, else the next `PLANNED`.
+  If none, a "Create sprint" affordance (LEAD).
+- Header: name, goal, dates, a basic **progress bar** (done/total), and the
+  lifecycle button — **Start** on a `PLANNED` sprint (opens a modal for the required
+  dates, BR-2), **Complete** on an `ACTIVE` one (modal showing the incomplete count
+  that will return to the Backlog, BR-3). An irreversible-feeling action gets an
+  explicit modal step, not a silent toast+Undo.
+- Drag issues between the Sprint section and the Backlog (dnd-kit, same motion as the
+  Board/Backlog): optimistic move + animate-back on server rejection (illegal / lost
+  race / `COMPLETED`), OCC. `VIEWER` sees a read-only view.
 
 ## Acceptance Criteria
 
-- Given a project with an `ACTIVE` sprint, when a user attempts to start
-  another sprint, then the API returns `409` and the UI explains only one
-  sprint can be active.
-- Given a sprint with 3 incomplete issues at close time, when the user
-  closes it without choosing a follow-up sprint, then all 3 return to the
-  Backlog with `sprintId = null`.
-- Given a `COMPLETED` sprint, when any client attempts to reassign an
-  issue into or out of it, then the request is rejected.
+- Given a project with an `ACTIVE` sprint, when a user starts another, then the API
+  returns `409` and the UI explains only one sprint can be active (BR-1).
+- Given a `PLANNED` sprint without dates, when a user starts it, then it is rejected
+  until `startDate`/`endDate` are set with `endDate > startDate` (BR-2).
+- Given a sprint with 3 incomplete issues at completion, when the user completes it,
+  then all 3 return to the Backlog with `sprintId = null` and their ranks intact (BR-3).
+- Given a `COMPLETED` sprint, when any client moves an issue into or out of it, then
+  the request is rejected (BR-5).
+- Given a `MEMBER` drags an issue from the Backlog into the sprint, then `sprintId`
+  is set and its rank places it between its dropped neighbours, in one write (BR-6).
+- Given a `VIEWER`, when they attempt any sprint action or drag, then it is disabled;
+  a direct API call returns `403`.
+- Given a sprint with 5 issues (2 DONE), when it is read, then progress shows 2/5 (BR-7).
 
 ## Validation
 
-`CreateSprintInput`: `name` (1–100 chars, required). `UpdateSprintInput`:
-`startDate`/`endDate` (ISO date-time, `endDate > startDate` cross-field
-check in the service layer, not just Zod's per-field validation).
+`CreateSprintInput`: `name` (1–100, required), `goal` (≤2000, optional).
+`UpdateSprintInput`: `name`/`goal`/`startDate`/`endDate` optional; `endDate >
+startDate` enforced in the service. `MoveIssueToSprintInput`: `sprintId` (string or
+null), `beforeId`/`afterId` (nullable), `expectedVersion` (required, OCC).
 
 ## Future Scope
 
-- Sprint templates / recurring cadence auto-creation.
-- Burndown chart (ties into `11_reports.md`, currently scoped as
-  velocity/status/cycle-time only).
-- Sprint-level goals tracked as a checklist, not just free text `goal`.
+- **Follow-up sprint at completion** (`moveIncompleteIssuesToSprintId`) instead of
+  always returning to the Backlog.
+- **Multi-sprint planning** — several `PLANNED` sprints visible/orderable at once.
+- **Reports** — velocity (completed story points per closed sprint) and burndown,
+  consuming the `COMPLETED` record (`11_reports.md`).
+- Sprint templates / recurring cadence; sprint-level goals as a checklist.

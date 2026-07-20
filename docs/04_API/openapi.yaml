@@ -555,7 +555,7 @@ paths:
       - $ref: "#/components/parameters/ProjectIdParam"
     get:
       tags: [sprints]
-      summary: List sprints for a project
+      summary: List sprints for a project, each with derived progress
       responses:
         "200":
           description: OK
@@ -563,7 +563,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Sprint" }
+                items: { $ref: "#/components/schemas/SprintWithProgress" }
     post:
       tags: [sprints]
       summary: Create a sprint (PLANNED status; LEAD only)
@@ -610,28 +610,46 @@ paths:
         "409":
           description: Another sprint is already ACTIVE for this project
 
-  /sprints/{sprintId}/close:
+  /sprints/{sprintId}/complete:
     parameters:
       - $ref: "#/components/parameters/SprintIdParam"
     post:
       tags: [sprints]
-      summary: Close a sprint; incomplete issues move to the backlog or a specified follow-up sprint
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                moveIncompleteIssuesToSprintId:
-                  type: string
-                  nullable: true
-                  description: If omitted, incomplete issues return to the backlog
+      summary: >
+        Complete a sprint (ACTIVE → COMPLETED); incomplete issues (status != DONE)
+        return to the backlog with their ranks intact (LEAD only). MVP always
+        returns to the backlog; a follow-up-sprint target is deferred (ADR-0014).
       responses:
         "200":
-          description: Closed
+          description: Completed
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Sprint" }
+              schema: { $ref: "#/components/schemas/SprintWithProgress" }
+        "409":
+          description: Sprint is not ACTIVE
+
+  /issues/{issueId}/sprint:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    patch:
+      tags: [sprints, issues]
+      summary: >
+        Move an issue to a sprint or back to the backlog, positioned between two
+        neighbours — one atomic sprintId + rank write, OCC-guarded (ADR-0014).
+        MEMBER/LEAD only; target sprint must be same-project and not COMPLETED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MoveIssueToSprintInput" }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+        "403": { description: Caller lacks write access (VIEWER/non-member) }
+        "409": { description: Stale version, out-of-order neighbours, or a COMPLETED sprint }
 
   /projects/{projectId}/backlog:
     parameters:
@@ -993,6 +1011,39 @@ components:
         goal: { type: string }
         startDate: { type: string, format: date-time }
         endDate: { type: string, format: date-time }
+
+    SprintProgress:
+      type: object
+      description: Derived at read time (GROUP BY status); never stored (ADR-0014).
+      properties:
+        totalIssues: { type: integer }
+        doneIssues: { type: integer }
+        totalStoryPoints: { type: integer }
+        doneStoryPoints: { type: integer }
+
+    SprintWithProgress:
+      allOf:
+        - $ref: "#/components/schemas/Sprint"
+        - type: object
+          properties:
+            progress: { $ref: "#/components/schemas/SprintProgress" }
+            canManage:
+              type: boolean
+              description: Whether the viewer may create/start/complete/edit (LEAD)
+
+    MoveIssueToSprintInput:
+      type: object
+      required: [expectedVersion]
+      properties:
+        sprintId:
+          type: string
+          nullable: true
+          description: Target sprint id, or null to return the issue to the backlog
+        beforeId: { type: string, nullable: true }
+        afterId: { type: string, nullable: true }
+        expectedVersion:
+          type: integer
+          description: Optimistic-concurrency token (ADR-0011)
 
     Issue:
       type: object

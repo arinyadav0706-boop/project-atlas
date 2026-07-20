@@ -87,6 +87,7 @@ and product decisions — that would otherwise get lost between modules.
 | TEST-3 | Keep the RBAC matrix complete as each new module lands | P2 | No | ONGOING | Per-module acceptance criterion (`15_roles.md`). |
 | TEST-4 | Board **E2E** (Playwright): drag reorder persists across reload; cross-column move runs the workflow; VIEWER drag disabled | P3 | No | OPEN | Reorder data path is covered by `board.integration.test.ts` + `board.service.test.ts` + the `rank` route test; the dnd-kit UI wiring (neighbour computation on drop) has no browser test yet. |
 | TEST-5 | Backlog **E2E** (Playwright): drag reorder persists across reload; VIEWER drag disabled; "Load more" pages | P3 | No | OPEN | Data path covered by `backlog.integration.test.ts` + `backlog.service.test.ts` + the shared `rank` route test (scope=backlog); the dnd-kit single-list UI wiring has no browser test yet (same gap as TEST-4). |
+| TEST-6 | Sprint **E2E** (Playwright): drag Backlog↔Sprint assigns/clears sprintId; Start/Complete flow; VIEWER read-only | P3 | No | OPEN | Data path covered by `sprint.integration.test.ts` + `sprint.service.test.ts` + the `sprint` move route test; the two-list dnd-kit wiring (SprintPlanningView) has no browser test yet (same gap as TEST-4/5). |
 
 ## UX / UI
 
@@ -107,10 +108,18 @@ and product decisions — that would otherwise get lost between modules.
 |---|---|---|---|---|---|
 | FUT-1 | Search: full-text strategy (`tsvector`/`pg_trgm` vs engine) | P3 | No | OPEN | Decide before the Search module. |
 | FUT-2 | Attachments: implement a `StorageAdapter` (S3/Supabase/Azure/local) | P3 | No | OPEN | When Attachments is built (ADR-0004). |
-| TD-1 | Consolidate the 4 issue-list-item mappers into one shared fn | P4 | No | OPEN | `issue.service.toListDto`, `board.service.toCardDto`, `home.service.toCard`, `backlog.service.toCardDto` are near-identical `IssueListItemDto` mappers; extract one `toIssueListItemDto` when convenient (kept per-feature for now, consistent with existing pattern). |
+| FUT-5 | Sprint: **follow-up-sprint target at completion** (`moveIncompleteIssuesToSprintId`) | P3 | No | OPEN | MVP `complete` always returns incomplete issues to the backlog (ADR-0014). Add a "move to next sprint" option at completion when multi-sprint planning lands (FUT-6). |
+| FUT-6 | Sprint: **multi-sprint planning** (several `PLANNED` sprints at once) | P3 | No | OPEN | MVP shows one current sprint (ACTIVE, else next PLANNED) on the Backlog page (ADR-0014). Backlog↔Sprint drag + one-active rule already generalise; the UI would grow a sprint picker/multiple sections. |
+| FUT-7 | Sprint: **velocity / burndown reports** | P3 | No | OPEN | The `COMPLETED` sprint's issue set is the immutable record (BR-5); story-point totals already computed in progress. Consumed by the Reports module (`11_reports.md`). |
+| TD-1 | Consolidate the 5 issue-list-item mappers into one shared fn | P4 | No | OPEN | `issue.service.toListDto`, `board.service.toCardDto`, `home.service.toCard`, `backlog.service.toCardDto`, `sprint.service.toCardDto` are near-identical `IssueListItemDto` mappers; extract one `toIssueListItemDto` when convenient (kept per-feature for now, consistent with existing pattern). |
 
 ## Remaining V1 modules
 Tracked in `01_Development_Roadmap.md §2`. Core (Phase 4) complete: Auth, Projects,
-Issues, Board, **Home**. Next (Phase 5): **Backlog & Sprint**, then Comments,
-Attachments; then Notifications, Reports, Search, Admin / User Management / Roles /
-Profile. Not duplicated here to avoid drift.
+Issues, Board, **Home**. Phase 5: **Backlog** ✅ + **Sprint** ✅ (MVP) done. Next:
+Comments, Attachments; then Notifications, Reports, Search, Admin / User Management /
+Roles / Profile. Not duplicated here to avoid drift.
+
+**Sprint adds no schema change or migration** — it reuses the existing `Sprint`
+table, `Issue.sprintId`/`rank`/`version`, and the `issues(projectId, sprintId, rank)`
+index (ADR-0014). Prod just needs the `sprints` table to exist (part of the manual
+baseline reconciliation, GL-4/DB-2).
