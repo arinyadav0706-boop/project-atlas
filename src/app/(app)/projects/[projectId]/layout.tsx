@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getActor } from "@/features/authentication/services/actor.service";
 import { ProjectService } from "@/features/projects/services/project.service";
+import { RecentItemService } from "@/features/home/services/recent-item.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { Badge } from "@/shared/components/ui/badge";
 import { ProjectTabs } from "@/features/projects/components/project-tabs";
@@ -27,6 +28,11 @@ export default async function ProjectLayout({
     if (error instanceof NotFoundError) notFound();
     throw error;
   }
+
+  // Best-effort engagement signal for Home's "recent projects" (ADR-0012).
+  // Recorded at the layer that already resolved the project, so ProjectService
+  // stays free of a home dependency.
+  await RecentItemService.record(actor, "PROJECT", params.projectId, "VIEWED");
 
   return (
     <div className="mx-auto max-w-5xl">

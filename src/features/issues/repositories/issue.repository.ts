@@ -12,6 +12,7 @@ const assigneeSelect = {
 
 const listSelect = {
   id: true,
+  projectId: true,
   key: true,
   type: true,
   title: true,

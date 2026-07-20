@@ -18,6 +18,9 @@ export interface IssueAssigneeDto {
 // Lean shape for the list view.
 export interface IssueListItemDto {
   id: string;
+  // The owning project — needed to link an issue from cross-project surfaces
+  // (Home). Within-project views already know it but carrying it is harmless.
+  projectId: string;
   key: string;
   type: IssueTypeDto;
   title: string;

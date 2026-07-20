@@ -25,7 +25,7 @@ and product decisions — that would otherwise get lost between modules.
 | GL-1 | **Remove or rotate the seeded known-password accounts** (`arin…` + 5 teammates) | P1 | OPEN | Known passwords in prod (`prisma/seed.ts`). Must be gone/rotated before real users. |
 | GL-2 | **Security review** of the whole surface (Phase 7) | P1 | OPEN | Roadmap Phase 7. Run `/security-review` + manual pass. |
 | GL-3 | **Rate limiting** on auth + mutation endpoints | P2 | OPEN | No limiter today; brute-force/abuse exposure. |
-| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`, `board_rank`, `rank_collation`, `rank_unique`, `issue_version`) | P1 | 🚩 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. `20260719000000_board_rank` backfills `rank` in SQL for ≤62 issues per (project,status) column and **fails loudly** above that — if a prod column is larger, backfill via `generateNKeysBetween` first. `20260720000000_rank_collation` pins `rank` to `COLLATE "C"`. `20260720100000_rank_unique` adds the unique `(projectId,status,rank)` index — **check for pre-existing duplicates first** (query in the migration). **Interim:** `board_rank` + `rank_collation` were applied to prod as standalone hotfix SQL on 2026-07-20 (see incident, DB-2); the baseline must reconcile migration history with that manual state (and the unique index still needs applying). |
+| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`, `board_rank`, `rank_collation`, `rank_unique`, `issue_version`, `home_personalization`) | P1 | 🚩 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. `20260719000000_board_rank` backfills `rank` in SQL for ≤62 issues per (project,status) column and **fails loudly** above that — if a prod column is larger, backfill via `generateNKeysBetween` first. `20260720000000_rank_collation` pins `rank` to `COLLATE "C"`. `20260720100000_rank_unique` adds the unique `(projectId,status,rank)` index — **check for pre-existing duplicates first** (query in the migration). **Interim:** `board_rank` + `rank_collation` were applied to prod as standalone hotfix SQL on 2026-07-20 (see incident, DB-2); the baseline must reconcile migration history with that manual state (and the unique index still needs applying). |
 | GL-5 | **Confirm `DATABASE_URL` = `?pgbouncer=true&connection_limit=1`** | P2 | PARTIAL | `pgbouncer=true` confirmed; add `&connection_limit=1`. |
 | GL-6 | **SSO credentials** (Google + Microsoft OAuth apps) if launching with SSO | P2 | OPEN | Config, not code. Credentials login works today. |
 | GL-7 | **Load test to ~60 concurrent** (Phase 7 NFR) | P2 | OPEN | Validate the scale targets in `05_Performance_and_Scalability.md`. |
@@ -46,8 +46,9 @@ and product decisions — that would otherwise get lost between modules.
 | PERF-8 | Virtualize long lists (`@tanstack/react-virtual`) | P3 | No | OPEN | When page sizes climb. |
 | PERF-9 | Structured logging + observability | P2 | No | OPEN | Only `console.error` today. |
 | PERF-10 | Move audit-log writes off the request hot path (queue) | P3 | No | OPEN | At volume. |
-| PERF-11 | Dashboard: streamed `<Suspense>` widgets, capped + parallel | P2 | No | OPEN | Lock in when the Dashboard module is built. |
+| PERF-11 | Home: streamed `<Suspense>` widgets, capped + parallel | P2 | — | ✅ DONE | Home module — each section its own streamed Suspense, bounded, one membership query per request (ADR-0012). |
 | PERF-12 | Read replicas for read-heavy endpoints | P4 | No | OPEN | Large scale. |
+| PERF-13 | Move `RecentItem` upserts off the request hot path (queue) | P3 | No | OPEN | Home engagement signal is recorded synchronously (best-effort, guarded) on issue view/edit; queue it at volume — same treatment as audit (PERF-10). |
 
 ## Database & infrastructure
 
@@ -105,8 +106,10 @@ and product decisions — that would otherwise get lost between modules.
 |---|---|---|---|---|---|
 | FUT-1 | Search: full-text strategy (`tsvector`/`pg_trgm` vs engine) | P3 | No | OPEN | Decide before the Search module. |
 | FUT-2 | Attachments: implement a `StorageAdapter` (S3/Supabase/Azure/local) | P3 | No | OPEN | When Attachments is built (ADR-0004). |
+| TD-1 | Consolidate the 3 issue-list-item mappers into one shared fn | P4 | No | OPEN | `issue.service.toListDto`, `board.service.toCardDto`, `home.service.toCard` are near-identical `IssueListItemDto` mappers; extract one `toIssueListItemDto` when convenient (kept per-feature for now, consistent with existing pattern). |
 
 ## Remaining V1 modules
-Tracked in `01_Development_Roadmap.md §2` — next: **Board**, then Backlog & Sprint,
-Comments, Attachments, Notifications, Dashboard (full), Reports, Search, Admin /
-User Management / Roles / Profile. Not duplicated here to avoid drift.
+Tracked in `01_Development_Roadmap.md §2`. Core (Phase 4) complete: Auth, Projects,
+Issues, Board, **Home**. Next (Phase 5): **Backlog & Sprint**, then Comments,
+Attachments; then Notifications, Reports, Search, Admin / User Management / Roles /
+Profile. Not duplicated here to avoid drift.

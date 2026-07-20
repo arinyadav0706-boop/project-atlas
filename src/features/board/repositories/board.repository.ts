@@ -12,6 +12,7 @@ export const BOARD_COLUMN_LIMIT = 100;
 
 const cardSelect = {
   id: true,
+  projectId: true,
   key: true,
   type: true,
   title: true,

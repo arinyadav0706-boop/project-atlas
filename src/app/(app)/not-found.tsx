@@ -13,7 +13,7 @@ export default function AppNotFound() {
         This page doesn&apos;t exist, or the item was deleted.
       </p>
       <Button variant="outline" size="sm" className="mt-6" asChild>
-        <Link href="/dashboard">Back to dashboard</Link>
+        <Link href="/home">Back to home</Link>
       </Button>
     </div>
   );

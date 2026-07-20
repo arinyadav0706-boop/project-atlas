@@ -10,6 +10,7 @@ import {
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { allowedTransitions, canTransition } from "@/features/issues/services/issue-workflow";
 import { rankBetween } from "@/shared/lib/rank";
+import { RecentItemService } from "@/features/home/services/recent-item.service";
 import {
   ConflictError,
   ForbiddenError,
@@ -58,6 +59,7 @@ async function resolve(
 
 function toListDto(row: {
   id: string;
+  projectId: string;
   key: string;
   type: IssueTypeDto;
   title: string;
@@ -70,6 +72,7 @@ function toListDto(row: {
 }): IssueListItemDto {
   return {
     id: row.id,
+    projectId: row.projectId,
     key: row.key,
     type: row.type,
     title: row.title,
@@ -173,6 +176,8 @@ export const IssueService = {
     if (!row) throw new NotFoundError("Issue not found.");
     // resolve() enforces the tenant scope (F-1) and yields the caller's role.
     const { role } = await resolve(row.projectId, actor);
+    // Best-effort engagement signal for Home's "Continue working" (ADR-0012).
+    await RecentItemService.record(actor, "ISSUE", issueId, "VIEWED");
     return toDetailDto(row, actor, role);
   },
 
@@ -204,6 +209,7 @@ export const IssueService = {
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       creatorId: actor.userId,
     });
+    await RecentItemService.record(actor, "ISSUE", row.id, "EDITED");
     return toDetailDto(row, actor, role);
   },
 
@@ -253,6 +259,7 @@ export const IssueService = {
         "This issue was changed by someone else — refresh to see the latest, then reapply your edit.",
       );
     }
+    await RecentItemService.record(actor, "ISSUE", issueId, "EDITED");
     return toDetailDto(row, actor, role);
   },
 
@@ -293,6 +300,7 @@ export const IssueService = {
         "This issue was changed by someone else — refresh and try the status change again.",
       );
     }
+    await RecentItemService.record(actor, "ISSUE", issueId, "TRANSITIONED");
     await AuditLogService.record({
       organizationId: context.organizationId,
       actorId: actor.userId,
