@@ -7,7 +7,7 @@ Acceptance Criteria, Validation, Future Scope — see
 | # | Module | Doc |
 |---|---|---|
 | 1 | Authentication | [01_authentication.md](01_authentication.md) |
-| 2 | Dashboard | [02_dashboard.md](02_dashboard.md) |
+| 2 | Home (was Dashboard) | [02_home.md](02_home.md) |
 | 3 | Projects | [03_projects.md](03_projects.md) |
 | 4 | Issues | [04_issues.md](04_issues.md) |
 | 5 | Board | [05_board.md](05_board.md) |

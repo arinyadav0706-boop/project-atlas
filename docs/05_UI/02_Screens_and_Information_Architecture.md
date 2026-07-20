@@ -18,7 +18,7 @@ graph TB
     Shell --> TopBar["Top Bar: global search, notifications bell, profile menu"]
     Shell --> Content["Main Content Area (routed per screen)"]
 
-    Sidebar --> S1["Dashboard"]
+    Sidebar --> S1["Home"]
     Sidebar --> S2["Projects (list, expandable per-project: Board / Backlog / Sprints / Settings)"]
     Sidebar --> S3["Admin (visible only to ADMIN org role)"]
 ```
@@ -34,7 +34,7 @@ graph TB
 | # | Screen | Route (indicative) | Primary module doc |
 |---|---|---|---|
 | 1 | Sign in | `/sign-in` | `01_authentication.md` |
-| 2 | Dashboard | `/dashboard` | `02_dashboard.md` |
+| 2 | Home | `/home` | `02_home.md` |
 | 3 | Project list | `/projects` | `03_projects.md` |
 | 4 | Project settings | `/projects/:id/settings` | `03_projects.md` |
 | 5 | Issue detail (panel or full page) | `/projects/:id/issues/:issueKey` | `04_issues.md` |
