@@ -13,7 +13,7 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     update: vi.fn(),
     setStatus: vi.fn(),
     findRankInColumn: vi.fn(),
-    setRankAndStatus: vi.fn(),
+    reorderWithVersion: vi.fn(),
     softDelete: vi.fn(),
   },
 }));
@@ -63,6 +63,7 @@ function issueRow(overrides: Record<string, unknown> = {}) {
     epicId: null,
     storyPoints: null,
     rank: "a0",
+    version: 0,
     dueDate: null,
     createdAt: new Date("2026-07-14T00:00:00Z"),
     updatedAt: new Date("2026-07-14T00:00:00Z"),
@@ -243,14 +244,16 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
             ? { id: "after-1", rank: "a3" }
             : null,
       )) as never);
-    repo.setRankAndStatus.mockResolvedValue(issueRow({ rank: "a2" }) as never);
+    repo.reorderWithVersion.mockResolvedValue(issueRow({ rank: "a2" }) as never);
 
     await IssueService.reorder(actor, "issue-1", {
       beforeId: "before-1",
       afterId: "after-1",
+      expectedVersion: 0,
     });
 
-    const [, data] = repo.setRankAndStatus.mock.calls[0]!;
+    const [, expectedVersion, data] = repo.reorderWithVersion.mock.calls[0]!;
+    expect(expectedVersion).toBe(0); // the version the client dragged from
     expect(data.rank > "a1" && data.rank < "a3").toBe(true);
     expect(data.status).toBeUndefined(); // same-column reorder: no status write
     expect(audit.record).not.toHaveBeenCalled();
@@ -259,13 +262,16 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
   it("applies the workflow check and audits when the column changes (BR-3)", async () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO", rank: "a0" }) as never);
     repo.findRankInColumn.mockResolvedValue(null); // dropped at an empty column end
-    repo.setRankAndStatus.mockResolvedValue(
+    repo.reorderWithVersion.mockResolvedValue(
       issueRow({ status: "IN_PROGRESS" }) as never,
     );
 
-    await IssueService.reorder(actor, "issue-1", { status: "IN_PROGRESS" });
+    await IssueService.reorder(actor, "issue-1", {
+      status: "IN_PROGRESS",
+      expectedVersion: 0,
+    });
 
-    const [, data] = repo.setRankAndStatus.mock.calls[0]!;
+    const [, , data] = repo.reorderWithVersion.mock.calls[0]!;
     expect(data.status).toBe("IN_PROGRESS");
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -275,19 +281,38 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
     );
   });
 
+  it("rejects a stale version (lost update) with a conflict and no audit (ADR-0011)", async () => {
+    repo.findDetail.mockResolvedValue(issueRow({ status: "TODO", rank: "a0" }) as never);
+    repo.findRankInColumn.mockResolvedValue(null);
+    // The conditional write matched no row → the card changed since the client read it.
+    repo.reorderWithVersion.mockResolvedValue(null as never);
+
+    await expect(
+      IssueService.reorder(actor, "issue-1", {
+        status: "IN_PROGRESS",
+        expectedVersion: 0,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
   it("rejects an illegal column move (TODO → DONE) before any write", async () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
     await expect(
-      IssueService.reorder(actor, "issue-1", { status: "DONE" }),
+      IssueService.reorder(actor, "issue-1", { status: "DONE", expectedVersion: 0 }),
     ).rejects.toBeInstanceOf(ValidationError);
-    expect(repo.setRankAndStatus).not.toHaveBeenCalled();
+    expect(repo.reorderWithVersion).not.toHaveBeenCalled();
   });
 
   it("forbids a VIEWER from reordering (BR-5)", async () => {
     repo.findDetail.mockResolvedValue(issueRow() as never);
     projects.getMemberRole.mockResolvedValue("VIEWER");
     await expect(
-      IssueService.reorder(actor, "issue-1", { beforeId: null, afterId: null }),
+      IssueService.reorder(actor, "issue-1", {
+        beforeId: null,
+        afterId: null,
+        expectedVersion: 0,
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -295,15 +320,15 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
     repo.findRankInColumn.mockResolvedValue(null); // beforeId not found in column
     await expect(
-      IssueService.reorder(actor, "issue-1", { beforeId: "ghost" }),
+      IssueService.reorder(actor, "issue-1", { beforeId: "ghost", expectedVersion: 0 }),
     ).rejects.toBeInstanceOf(ConflictError);
-    expect(repo.setRankAndStatus).not.toHaveBeenCalled();
+    expect(repo.reorderWithVersion).not.toHaveBeenCalled();
   });
 
   it("rejects positioning a card relative to itself", async () => {
     repo.findDetail.mockResolvedValue(issueRow() as never);
     await expect(
-      IssueService.reorder(actor, "issue-1", { beforeId: "issue-1" }),
+      IssueService.reorder(actor, "issue-1", { beforeId: "issue-1", expectedVersion: 0 }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -311,7 +336,11 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
     projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED" });
     repo.findDetail.mockResolvedValue(issueRow() as never);
     await expect(
-      IssueService.reorder(actor, "issue-1", { beforeId: null, afterId: null }),
+      IssueService.reorder(actor, "issue-1", {
+        beforeId: null,
+        afterId: null,
+        expectedVersion: 0,
+      }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });

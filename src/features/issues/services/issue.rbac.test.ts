@@ -62,6 +62,7 @@ function otherRow() {
     epicId: null,
     storyPoints: null,
     rank: "a0",
+    version: 0,
     dueDate: null,
     createdAt: new Date("2026-07-14T00:00:00Z"),
     updatedAt: new Date("2026-07-14T00:00:00Z"),

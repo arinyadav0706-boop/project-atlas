@@ -31,35 +31,50 @@ beforeEach(() => vi.resetAllMocks());
 
 it("401 when unauthenticated", async () => {
   actorMock.mockResolvedValue(null);
-  expect((await PATCH(jsonReq({ beforeId: null, afterId: null }), params)).status).toBe(401);
+  expect(
+    (await PATCH(jsonReq({ beforeId: null, afterId: null, expectedVersion: 0 }), params))
+      .status,
+  ).toBe(401);
 });
 
 it("422 on an invalid status enum in the body", async () => {
   actorMock.mockResolvedValue(actor);
-  const res = await PATCH(jsonReq({ status: "SHIPPED" }), params);
+  const res = await PATCH(jsonReq({ status: "SHIPPED", expectedVersion: 0 }), params);
+  expect(res.status).toBe(422);
+  expect(svc.reorder).not.toHaveBeenCalled();
+});
+
+it("422 when expectedVersion is missing (OCC token required, ADR-0011)", async () => {
+  actorMock.mockResolvedValue(actor);
+  const res = await PATCH(jsonReq({ beforeId: "b", afterId: "c" }), params);
   expect(res.status).toBe(422);
   expect(svc.reorder).not.toHaveBeenCalled();
 });
 
 it("200 on a valid reorder", async () => {
   actorMock.mockResolvedValue(actor);
-  svc.reorder.mockResolvedValue({ id: "issue-1", status: "TODO" } as never);
-  const res = await PATCH(jsonReq({ beforeId: "b", afterId: "c" }), params);
+  svc.reorder.mockResolvedValue({ id: "issue-1", status: "TODO", version: 1 } as never);
+  const res = await PATCH(jsonReq({ beforeId: "b", afterId: "c", expectedVersion: 0 }), params);
   expect(res.status).toBe(200);
   expect(svc.reorder).toHaveBeenCalledWith(actor, "issue-1", {
     beforeId: "b",
     afterId: "c",
+    expectedVersion: 0,
   });
 });
 
 it("maps a VIEWER reorder (ForbiddenError) → 403", async () => {
   actorMock.mockResolvedValue(actor);
   svc.reorder.mockRejectedValue(new ForbiddenError("nope"));
-  expect((await PATCH(jsonReq({ afterId: "c" }), params)).status).toBe(403);
+  expect(
+    (await PATCH(jsonReq({ afterId: "c", expectedVersion: 0 }), params)).status,
+  ).toBe(403);
 });
 
 it("maps a stale-neighbour reorder (ConflictError) → 409", async () => {
   actorMock.mockResolvedValue(actor);
   svc.reorder.mockRejectedValue(new ConflictError("board changed"));
-  expect((await PATCH(jsonReq({ beforeId: "ghost" }), params)).status).toBe(409);
+  expect(
+    (await PATCH(jsonReq({ beforeId: "ghost", expectedVersion: 0 }), params)).status,
+  ).toBe(409);
 });

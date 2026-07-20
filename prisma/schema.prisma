@@ -253,6 +253,11 @@ model Issue {
   // byte order. Prisma can't express collation in-schema, so it lives in that
   // migration and Prisma leaves it untouched. See 06_Portability_Boundary.md.
   rank        String
+  // Optimistic concurrency control (ADR-0011). Every mutation increments this;
+  // a conditional write (WHERE version = expected) detects a lost update — two
+  // people changing the same card — and rejects the stale one instead of
+  // silently overwriting. O(1) per write, no locks; scales to any user count.
+  version     Int           @default(0)
   dueDate     DateTime?
 
   createdAt DateTime  @default(now())

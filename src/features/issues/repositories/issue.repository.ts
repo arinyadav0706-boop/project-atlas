@@ -19,6 +19,7 @@ const listSelect = {
   priority: true,
   storyPoints: true,
   updatedAt: true,
+  version: true,
   assignee: assigneeSelect,
 } as const;
 
@@ -146,9 +147,11 @@ export const IssueRepository = {
     data: Prisma.IssueUpdateInput,
     actorId: string,
   ) {
+    // Every mutation bumps version so any concurrent change is detectable by a
+    // version-checked write elsewhere (ADR-0011).
     return prisma.issue.update({
       where: { id },
-      data: { ...data, updatedBy: actorId },
+      data: { ...data, version: { increment: 1 }, updatedBy: actorId },
       include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
   },
@@ -156,7 +159,7 @@ export const IssueRepository = {
   setStatus(id: string, status: IssueStatus, actorId: string) {
     return prisma.issue.update({
       where: { id },
-      data: { status, updatedBy: actorId },
+      data: { status, version: { increment: 1 }, updatedBy: actorId },
       include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
   },
@@ -171,28 +174,33 @@ export const IssueRepository = {
     });
   },
 
-  // Single-row reorder write (ADR-0009): the computed rank, optionally with a
-  // column move, in one update. No other rows are touched.
-  setRankAndStatus(
+  // Single-row reorder write (ADR-0009) guarded by optimistic concurrency
+  // (ADR-0011): applies only if the row is still at `expectedVersion`. Returns
+  // the updated detail row, or null if the version no longer matches (a lost
+  // update — someone else changed the card since the client read it).
+  async reorderWithVersion(
     id: string,
+    expectedVersion: number,
     data: { rank: string; status?: IssueStatus },
     actorId: string,
   ) {
-    return prisma.issue.update({
-      where: { id },
+    const result = await prisma.issue.updateMany({
+      where: { id, version: expectedVersion, deletedAt: null },
       data: {
         rank: data.rank,
         ...(data.status ? { status: data.status } : {}),
+        version: { increment: 1 },
         updatedBy: actorId,
       },
-      include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
+    if (result.count === 0) return null;
+    return IssueRepository.findDetail(id);
   },
 
   softDelete(id: string, actorId: string) {
     return prisma.issue.update({
       where: { id },
-      data: { deletedAt: new Date(), updatedBy: actorId },
+      data: { deletedAt: new Date(), version: { increment: 1 }, updatedBy: actorId },
     });
   },
 };

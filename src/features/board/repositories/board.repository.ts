@@ -19,6 +19,7 @@ const cardSelect = {
   priority: true,
   storyPoints: true,
   updatedAt: true,
+  version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
 } as const;
 

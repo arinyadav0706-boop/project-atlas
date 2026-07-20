@@ -149,6 +149,7 @@ export function IssuesView({
           assignee: issue.assignee,
           storyPoints: issue.storyPoints,
           updatedAt: issue.updatedAt,
+          version: issue.version,
         };
         setItems((prev) => [listItem, ...prev]);
       }
