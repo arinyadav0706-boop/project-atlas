@@ -19,3 +19,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0010](0010-board-rank-collision-free-keys.md) | Board Rank — Collision-Free Keys for Concurrent Reordering | Accepted |
 | [0011](0011-optimistic-concurrency-issue-mutations.md) | Optimistic Concurrency Control for Issue Mutations | Accepted |
 | [0012](0012-home-unified-attention-model.md) | Home — Unified Attention Model (not per-module gadgets) | Accepted |
+| [0013](0013-unified-rank-scoped-reorder.md) | One Rank, Many Views — Scoped Reorder for Board & Backlog | Accepted |

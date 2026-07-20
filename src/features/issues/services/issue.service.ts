@@ -313,9 +313,10 @@ export const IssueService = {
     return toDetailDto(row, actor, role);
   },
 
-  // Board/Backlog reorder (05_board.md BR-3/BR-4, ADR-0009). Places a card
-  // between two visible neighbours, optionally moving it to another column, in
-  // a single-row write. Shared by the Board and the Backlog.
+  // Board/Backlog reorder (05_board.md BR-3/BR-4, 06_backlog.md, ADR-0009,
+  // ADR-0013). One `rank` per issue; the `scope` selects which view's neighbours
+  // to validate against, so the same endpoint serves both without a rank column
+  // per view. A single-row write, guarded by optimistic concurrency.
   async reorder(
     actor: Actor,
     issueId: string,
@@ -335,6 +336,20 @@ export const IssueService = {
       throw new ValidationError("A card cannot be positioned relative to itself.");
     }
 
+    return input.scope === "backlog"
+      ? this.reorderInBacklog(actor, existing, role, input)
+      : this.reorderOnBoard(actor, context, existing, role, input);
+  },
+
+  // Board reorder: neighbours must share the DESTINATION column; an optional
+  // `status` combines a column move with the reorder (BR-3/BR-4, ADR-0009).
+  async reorderOnBoard(
+    actor: Actor,
+    context: ProjectContext,
+    existing: IssueRow,
+    role: ProjectRoleDto | null,
+    input: ReorderIssueInput,
+  ): Promise<IssueDetailDto> {
     const destStatus = input.status ?? existing.status;
     const statusChanged = destStatus !== existing.status;
     // A column move runs the same workflow check as any transition (BR-3).
@@ -361,18 +376,12 @@ export const IssueService = {
       throw new ConflictError("The card you dropped before is no longer in that column — refresh and retry.");
     }
 
-    let rank: string;
-    try {
-      rank = rankBetween(before?.rank ?? null, after?.rank ?? null, actor.userId);
-    } catch {
-      // Neighbours out of order (stale client view / lost race).
-      throw new ConflictError("The board changed — refresh and try the move again.");
-    }
+    const rank = this.rankOrConflict(before?.rank ?? null, after?.rank ?? null, actor.userId);
 
     // Optimistic concurrency (ADR-0011): applies only if the card is still at
     // the version the client dragged from; otherwise it's a lost update.
     const row = await IssueRepository.reorderWithVersion(
-      issueId,
+      existing.id,
       input.expectedVersion,
       { rank, status: statusChanged ? destStatus : undefined },
       actor.userId,
@@ -388,12 +397,71 @@ export const IssueService = {
         actorId: actor.userId,
         action: "ISSUE_STATUS_CHANGED",
         entityType: "Issue",
-        entityId: issueId,
+        entityId: existing.id,
         beforeData: { status: existing.status },
         afterData: { status: destStatus },
       });
     }
     return toDetailDto(row, actor, role);
+  },
+
+  // Backlog reorder (ADR-0013): a single flat list of unscheduled issues across
+  // all statuses. Neighbours are validated against the backlog, not a column;
+  // status is never changed here (a backlog drag only reprioritises).
+  async reorderInBacklog(
+    actor: Actor,
+    existing: IssueRow,
+    role: ProjectRoleDto | null,
+    input: ReorderIssueInput,
+  ): Promise<IssueDetailDto> {
+    if (input.status && input.status !== existing.status) {
+      throw new ValidationError("Backlog reordering cannot change an issue's status.");
+    }
+    // The issue itself must be in the backlog to be reordered within it.
+    if (existing.sprintId !== null) {
+      throw new ConflictError("This issue is in a sprint, not the backlog — refresh and retry.");
+    }
+
+    // Neighbours must be non-deleted, unscheduled issues in the SAME project.
+    const [before, after] = await Promise.all([
+      input.beforeId
+        ? IssueRepository.findRankInBacklog(input.beforeId, existing.projectId)
+        : Promise.resolve(null),
+      input.afterId
+        ? IssueRepository.findRankInBacklog(input.afterId, existing.projectId)
+        : Promise.resolve(null),
+    ]);
+    if (input.beforeId && !before) {
+      throw new ConflictError("The item you dropped after is no longer in the backlog — refresh and retry.");
+    }
+    if (input.afterId && !after) {
+      throw new ConflictError("The item you dropped before is no longer in the backlog — refresh and retry.");
+    }
+
+    const rank = this.rankOrConflict(before?.rank ?? null, after?.rank ?? null, actor.userId);
+
+    const row = await IssueRepository.reorderWithVersion(
+      existing.id,
+      input.expectedVersion,
+      { rank },
+      actor.userId,
+    );
+    if (!row) {
+      throw new ConflictError(
+        "This item was changed by someone else — refresh the backlog and try the move again.",
+      );
+    }
+    return toDetailDto(row, actor, role);
+  },
+
+  // Rank between two neighbours, or a ConflictError if they're out of order
+  // (a stale client view / lost race) — shared by both reorder scopes.
+  rankOrConflict(before: string | null, after: string | null, actorId: string): string {
+    try {
+      return rankBetween(before, after, actorId);
+    } catch {
+      throw new ConflictError("The list changed — refresh and try the move again.");
+    }
   },
 
   // BR-2: LEAD, or the issue's reporter/assignee, may delete.

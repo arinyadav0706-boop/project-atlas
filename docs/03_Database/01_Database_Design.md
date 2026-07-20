@@ -283,7 +283,7 @@ Full visual: `02_ER_Diagram.md`.
 | `User` | unique `email` | login lookup |
 | `Project` | unique `(organizationId, key)` | key uniqueness + org-scoped listing |
 | `ProjectMember` | unique `(projectId, userId)`; index `userId` | membership checks, "my projects" queries |
-| `Issue` | unique `(projectId, key)`; index `(projectId, status)`; index `(sprintId)`; index `(assigneeId)` | board/backlog queries, "my issues" dashboard queries |
+| `Issue` | unique `(projectId, key)`; unique `(projectId, status, rank)` (ADR-0010, `COLLATE "C"`); index `(projectId, sprintId, rank)` (backlog, ADR-0013); index `(sprintId)`; index `(assigneeId, status)` | board (per-status, rank order), backlog (unscheduled, rank order), "my issues" |
 | `Comment` | index `issueId` | issue detail view |
 | `Notification` | index `(userId, isRead)` | notification bell query |
 | `AuditLog` | index `(organizationId, createdAt)` | audit review, newest-first |

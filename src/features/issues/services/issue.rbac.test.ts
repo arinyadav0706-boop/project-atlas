@@ -19,6 +19,7 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     updateWithVersion: vi.fn(),
     setStatusWithVersion: vi.fn(),
     findRankInColumn: vi.fn(),
+    findRankInBacklog: vi.fn(),
     reorderWithVersion: vi.fn(),
     softDelete: vi.fn(),
   },
@@ -28,6 +29,11 @@ vi.mock("@/features/projects/services/project.service", () => ({
 }));
 vi.mock("@/features/admin/services/audit-log.service", () => ({
   AuditLogService: { record: vi.fn() },
+}));
+// Best-effort personalization signal (ADR-0012); stub so the RBAC matrix stays
+// a pure service-layer unit test with no recent-items DB dependency.
+vi.mock("@/features/home/services/recent-item.service", () => ({
+  RecentItemService: { record: vi.fn() },
 }));
 
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
