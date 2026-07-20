@@ -61,7 +61,7 @@ function otherRow() {
     sprintId: null,
     epicId: null,
     storyPoints: null,
-    boardOrder: 1,
+    rank: "a0",
     dueDate: null,
     createdAt: new Date("2026-07-14T00:00:00Z"),
     updatedAt: new Date("2026-07-14T00:00:00Z"),

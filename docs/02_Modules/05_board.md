@@ -1,7 +1,15 @@
 # Module: Board
 
-**Status:** v2.0 (project-level + composable filters) · **Owner:** Founding CTO
-· **Last Updated:** 2026-07-19 · **Decisions:** ADR-0009 (ordering), ADR-0008 (scope/filters)
+**Status:** v2.0 — Implemented (V1: assignee/type/priority filters active) · **Owner:** Founding CTO
+· **Last Updated:** 2026-07-20 · **Decisions:** ADR-0009 (ordering), ADR-0008 (scope/filters)
+
+> **Implementation (2026-07-20):** `src/features/board/` (repository → service → DTO)
+> + `IssueService.reorder` (the shared `PATCH /issues/{id}/rank` write, also used by
+> Backlog); UI in `src/features/board/components/` (dnd-kit; filter-agnostic
+> `BoardView` + `BoardFilterBar`, optimistic move with animate-back, VIEWER
+> read-only). Ordering by string `rank` (ADR-0009). Deferrals logged: UX-5 (load
+> more), UX-6 (live cross-column drag preview), FUT-4 (sprint/epic/label filters),
+> TEST-4 (board E2E).
 
 ## Overview
 

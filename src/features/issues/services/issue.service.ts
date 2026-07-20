@@ -9,6 +9,7 @@ import {
 } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { allowedTransitions, canTransition } from "@/features/issues/services/issue-workflow";
+import { rankBetween } from "@/shared/lib/rank";
 import {
   ConflictError,
   ForbiddenError,
@@ -27,6 +28,7 @@ import type {
 } from "@/features/issues/types/issue.types";
 import type {
   CreateIssueInput,
+  ReorderIssueInput,
   UpdateIssueInput,
 } from "@/features/issues/validation/issue.schemas";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
@@ -281,6 +283,81 @@ export const IssueService = {
       beforeData: { status: existing.status },
       afterData: { status: to },
     });
+    return toDetailDto(row, actor, role);
+  },
+
+  // Board/Backlog reorder (05_board.md BR-3/BR-4, ADR-0009). Places a card
+  // between two visible neighbours, optionally moving it to another column, in
+  // a single-row write. Shared by the Board and the Backlog.
+  async reorder(
+    actor: Actor,
+    issueId: string,
+    input: ReorderIssueInput,
+  ): Promise<IssueDetailDto> {
+    const existing = await IssueRepository.findDetail(issueId);
+    if (!existing) throw new NotFoundError("Issue not found.");
+    const { context, role } = await resolve(existing.projectId, actor);
+    if (!canWrite(role)) {
+      throw new ForbiddenError("You need to be a project member to reorder issues.");
+    }
+    if (context.status === "ARCHIVED") {
+      throw new ConflictError("Archived projects are read-only.");
+    }
+    // A card cannot be positioned relative to itself.
+    if (input.beforeId === issueId || input.afterId === issueId) {
+      throw new ValidationError("A card cannot be positioned relative to itself.");
+    }
+
+    const destStatus = input.status ?? existing.status;
+    const statusChanged = destStatus !== existing.status;
+    // A column move runs the same workflow check as any transition (BR-3).
+    if (statusChanged && !canTransition(existing.status, destStatus)) {
+      throw new ValidationError(
+        `Cannot move from ${existing.status} to ${destStatus} — it must pass through the workflow in order.`,
+      );
+    }
+
+    // Neighbours must be non-deleted issues in the SAME project and the
+    // DESTINATION column — validated here, never trusted from the client (BR-4).
+    const [before, after] = await Promise.all([
+      input.beforeId
+        ? IssueRepository.findRankInColumn(input.beforeId, existing.projectId, destStatus)
+        : Promise.resolve(null),
+      input.afterId
+        ? IssueRepository.findRankInColumn(input.afterId, existing.projectId, destStatus)
+        : Promise.resolve(null),
+    ]);
+    if (input.beforeId && !before) {
+      throw new ConflictError("The card you dropped after is no longer in that column — refresh and retry.");
+    }
+    if (input.afterId && !after) {
+      throw new ConflictError("The card you dropped before is no longer in that column — refresh and retry.");
+    }
+
+    let rank: string;
+    try {
+      rank = rankBetween(before?.rank ?? null, after?.rank ?? null);
+    } catch {
+      // Neighbours out of order (stale client view / lost race).
+      throw new ConflictError("The board changed — refresh and try the move again.");
+    }
+
+    const row = await IssueRepository.setRankAndStatus(
+      issueId,
+      { rank, status: statusChanged ? destStatus : undefined },
+      actor.userId,
+    );
+    if (statusChanged) {
+      await AuditLogService.record({
+        organizationId: context.organizationId,
+        actorId: actor.userId,
+        action: "ISSUE_STATUS_CHANGED",
+        entityType: "Issue",
+        entityId: issueId,
+        beforeData: { status: existing.status },
+        afterData: { status: destStatus },
+      });
+    }
     return toDetailDto(row, actor, role);
   },
 

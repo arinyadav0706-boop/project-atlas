@@ -29,7 +29,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("wa");
     const b = await seed("wb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "WB-1", type: "TASK", title: "b", reporterId: b.user.id },
+      data: { projectId: b.project.id, key: "WB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id }; // even as org admin
     await expect(
@@ -44,7 +44,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("da");
     const b = await seed("db");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "DB-1", type: "TASK", title: "b", reporterId: b.user.id },
+      data: { projectId: b.project.id, key: "DB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(IssueService.delete(attacker, bIssue.id)).rejects.toBeInstanceOf(NotFoundError);
@@ -56,7 +56,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("ta");
     const b = await seed("tb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "TB-1", type: "TASK", title: "b", reporterId: b.user.id },
+      data: { projectId: b.project.id, key: "TB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(
@@ -69,7 +69,7 @@ describe("the fixed workflow cannot be skipped via the service", () => {
   it("TODO → DONE is rejected (must pass through the workflow)", async () => {
     const { org, user, project } = await seed("wf");
     const issue = await prisma.issue.create({
-      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO" },
+      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO", rank: "a0" },
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     await expect(

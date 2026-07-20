@@ -1,4 +1,5 @@
 import { prisma } from "@/shared/lib/db";
+import { rankAppend } from "@/shared/lib/rank";
 import type { Prisma, IssueStatus, IssueType } from "@prisma/client";
 
 // Prisma is imported ONLY in *.repository.ts files. Key generation reads
@@ -51,7 +52,7 @@ export const IssueRepository = {
       select: listSelect,
       orderBy: [
         { status: "asc" },
-        { boardOrder: "asc" },
+        { rank: "asc" },
         { createdAt: "desc" },
         { id: "asc" },
       ],
@@ -111,6 +112,14 @@ export const IssueRepository = {
         select: { key: true, issueKeyCounter: true },
       });
       const key = `${project.key}-${project.issueKeyCounter}`;
+      // New issues land in the TODO column (the schema default). Append after
+      // its current last card by generating a rank between that last key and
+      // the open end — one row, no rebalance (ADR-0009).
+      const last = await tx.issue.findFirst({
+        where: { projectId: input.projectId, status: "TODO", deletedAt: null },
+        orderBy: { rank: "desc" },
+        select: { rank: true },
+      });
       return tx.issue.create({
         data: {
           projectId: input.projectId,
@@ -124,9 +133,7 @@ export const IssueRepository = {
           epicId: input.epicId,
           storyPoints: input.storyPoints,
           dueDate: input.dueDate,
-          // Append to the end of its (new) status column; the Board module
-          // owns fine-grained fractional re-ranking.
-          boardOrder: Date.now(),
+          rank: rankAppend(last?.rank ?? null),
           createdBy: input.creatorId,
         },
         include: { assignee: assigneeSelect, reporter: assigneeSelect },
@@ -150,6 +157,34 @@ export const IssueRepository = {
     return prisma.issue.update({
       where: { id },
       data: { status, updatedBy: actorId },
+      include: { assignee: assigneeSelect, reporter: assigneeSelect },
+    });
+  },
+
+  // Reorder neighbour lookup: the rank of a card that must live in the given
+  // project + status column (non-deleted). Returns null if it doesn't — the
+  // service treats that as an invalid/stale neighbour (never trust the client).
+  findRankInColumn(id: string, projectId: string, status: IssueStatus) {
+    return prisma.issue.findFirst({
+      where: { id, projectId, status, deletedAt: null },
+      select: { id: true, rank: true },
+    });
+  },
+
+  // Single-row reorder write (ADR-0009): the computed rank, optionally with a
+  // column move, in one update. No other rows are touched.
+  setRankAndStatus(
+    id: string,
+    data: { rank: string; status?: IssueStatus },
+    actorId: string,
+  ) {
+    return prisma.issue.update({
+      where: { id },
+      data: {
+        rank: data.rank,
+        ...(data.status ? { status: data.status } : {}),
+        updatedBy: actorId,
+      },
       include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
   },
