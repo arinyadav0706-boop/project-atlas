@@ -144,3 +144,37 @@ describe("Board reorder (rank) integration", () => {
     expect(rank(b!.id)).toBe(bRankBefore);
   });
 });
+
+describe("rank column collation (ADR-0009 / portability)", () => {
+  it("is pinned to C (byte order) so base-62 keys sort correctly on any locale", async () => {
+    // The strong regression guard: if a future migration drops the collation,
+    // the column falls back to the DB default (possibly a locale) and mixed-case
+    // LexoRank keys mis-sort. `collation_name` is 'C' only when set explicitly.
+    const [row] = await prisma.$queryRawUnsafe<{ collation_name: string | null }[]>(
+      `SELECT collation_name FROM information_schema.columns
+       WHERE table_name = 'issues' AND column_name = 'rank'`,
+    );
+    expect(row?.collation_name).toBe("C");
+  });
+
+  it("sorts a prepended 'Z…' key before an 'a…' key (byte order)", async () => {
+    const { actor, project } = await seed("col");
+    const [a] = await createTodo(actor, project.id, ["A"]);
+    // Reorder to the very top → generates a negative-magnitude 'Z…' key, which
+    // a locale collation would sort last. Under C it must come first.
+    await IssueService.reorder(actor, a!.id, { beforeId: null, afterId: null });
+    const [b] = await createTodo(actor, project.id, ["B"]); // appends after → 'a…'
+    // Put A above B explicitly.
+    await IssueService.reorder(actor, a!.id, { beforeId: null, afterId: b!.id });
+
+    const board = await BoardService.getBoard(actor, project.id, {});
+    const titles = column(board, "TODO").items.map((i) => i.title);
+    expect(titles).toEqual(["A", "B"]);
+    const ranks = await prisma.issue.findMany({
+      where: { projectId: project.id },
+      select: { title: true, rank: true },
+      orderBy: { rank: "asc" },
+    });
+    expect(ranks.map((r) => r.title)).toEqual(["A", "B"]);
+  });
+});

@@ -56,6 +56,18 @@ Adopt it **now** via a schema migration + a trivial backfill of existing issues.
   at current volume); one small, portable dependency (`fractional-indexing`),
   justified because it's a pure-algorithm, zero-dependency library (no vendor
   lock-in, satisfies rule #8).
+- **Environment dependency — the `rank` column MUST use `COLLATE "C"` (byte
+  ordering).** The base-62 keys mix upper and lower case; under a locale
+  collation (e.g. `en_US.UTF-8` or an ICU collation) they mis-sort — a card
+  dragged to the top gets a negative-magnitude `Z…` key that a locale collation
+  sorts to the *bottom*, silently breaking board order (proven; the failure is
+  invisible under a `C`/`C.UTF-8` test DB, which is how it initially slipped
+  past testing). Pinning the column to `COLLATE "C"` makes ordering identical on
+  every Postgres host regardless of the server default locale — this is what
+  keeps the scheme portable across all hosting options (ADR-0004). This is a
+  **Postgres-specific** assumption; see `docs/01_Architecture/06_Portability_Boundary.md`.
+  If EAGLES ever supports a non-Postgres SQL engine (not a current goal), the
+  byte-ordering requirement must be re-established for that engine.
 - **Follow-up actions (implementation phase):**
   1. Migration: add `rank String`, backfill per `(project, status)` column
      ordered by `createdAt` via `generateNKeysBetween`, drop `boardOrder`,
@@ -66,3 +78,5 @@ Adopt it **now** via a schema migration + a trivial backfill of existing issues.
   4. Tests: unit (key ordering, boundaries) + a **fuzz test** (thousands of
      random inserts → order preserved, keys unique) + integration reorder tests.
   5. Retire the ADR-0007 rebalance item (UX-4) — not needed with string keys.
+  6. Pin `rank` to `COLLATE "C"` (migration `20260720000000_rank_collation`) and
+     guard it with an integration test asserting the column's collation is `C`.

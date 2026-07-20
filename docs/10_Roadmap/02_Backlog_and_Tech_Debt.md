@@ -25,7 +25,7 @@ and product decisions — that would otherwise get lost between modules.
 | GL-1 | **Remove or rotate the seeded known-password accounts** (`arin…` + 5 teammates) | P1 | OPEN | Known passwords in prod (`prisma/seed.ts`). Must be gone/rotated before real users. |
 | GL-2 | **Security review** of the whole surface (Phase 7) | P1 | OPEN | Roadmap Phase 7. Run `/security-review` + manual pass. |
 | GL-3 | **Rate limiting** on auth + mutation endpoints | P2 | OPEN | No limiter today; brute-force/abuse exposure. |
-| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`, `board_rank`) | P1 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. Note: `20260719000000_board_rank` backfills `rank` in SQL for ≤62 issues per (project,status) column and **fails loudly** above that — if a prod column is larger, backfill via `generateNKeysBetween` before deploying. |
+| GL-4 | **Apply DB migrations to production Supabase** (incl. `perf_indexes`, `board_rank`, `rank_collation`) | P1 | 🚩 | OPEN | Prod schema was created manually → no migration history. Baseline via `prisma migrate resolve --applied`, then `migrate deploy`. Indexes are **not live in prod** yet. `20260719000000_board_rank` backfills `rank` in SQL for ≤62 issues per (project,status) column and **fails loudly** above that — if a prod column is larger, backfill via `generateNKeysBetween` first. `20260720000000_rank_collation` pins `rank` to `COLLATE "C"`. **Interim:** the `board_rank` + `rank_collation` changes were applied to prod as standalone hotfix SQL on 2026-07-20 (see incident, DB-2); the baseline must reconcile migration history with that manual state. |
 | GL-5 | **Confirm `DATABASE_URL` = `?pgbouncer=true&connection_limit=1`** | P2 | PARTIAL | `pgbouncer=true` confirmed; add `&connection_limit=1`. |
 | GL-6 | **SSO credentials** (Google + Microsoft OAuth apps) if launching with SSO | P2 | OPEN | Config, not code. Credentials login works today. |
 | GL-7 | **Load test to ~60 concurrent** (Phase 7 NFR) | P2 | OPEN | Validate the scale targets in `05_Performance_and_Scalability.md`. |
@@ -54,10 +54,12 @@ and product decisions — that would otherwise get lost between modules.
 | ID | Item | Pri | 🚩 | Status | Notes |
 |---|---|---|---|---|---|
 | DB-1 | Covering indexes (issue list, my-issues, activity) | P2 | — | ✅ DONE (in code) | Migration `20260715000000_perf_indexes`; **apply to prod = GL-4**. |
-| DB-2 | Real migration workflow (CI `migrate deploy` + baseline) | P2 | No | OPEN | Prod was hand-created; formalize. |
+| DB-2 | Real migration workflow (`migrate deploy` on deploy + baseline) | P1 | 🚩 | OPEN | **Root cause of the 2026-07-20 prod outage:** deploy runs only `next build`, so merging the Board shipped code that queried `rank` while prod still had `boardOrder` → Issues/Board 500'd. Prod was hand-created (no migration history). Must: baseline via `prisma migrate resolve --applied`, then run `migrate deploy` as part of deploy so code and schema never drift again. Until then, every schema-touching merge must be paired with a manual prod migration. |
+| DB-6 | `rank` column pinned to `COLLATE "C"` (byte order) | P1 | — | ✅ DONE (in code) | Migration `20260720000000_rank_collation` + collation integration guard. LexoRank keys only sort correctly under byte order (ADR-0009); a locale collation silently breaks board order. **Apply to prod = part of GL-4** (or the standalone hotfix SQL already run). |
 | DB-3 | Partial index `WHERE deletedAt IS NULL` on issues | P3 | No | OPEN | Not expressible in Prisma schema; raw SQL migration. |
 | DB-4 | `CREATE INDEX CONCURRENTLY` at scale | P4 | No | OPEN | Ops runbook for large tables. |
 | DB-5 | `audit_logs` / `notifications` retention & partitioning | P4 | No | OPEN | Unbounded-growth tables. |
+| DB-7 | Multi-engine SQL support (MySQL/SQL Server/Oracle) | P4 | No | PARKED (V2/V3) | **Not a current goal** — EAGLES is PostgreSQL-only by design (ADR-0002/0004). Accommodatable in this repo (repository pattern shields app code), not a rewrite, but a scoped initiative: rewrite raw-SQL migrations per engine, replace Postgres-only features (enums, FTS, `pg_trgm`, RLS, `COLLATE "C"`), add a per-engine CI matrix. Requires its own ADR + cost estimate first. Surface catalogued in `docs/01_Architecture/06_Portability_Boundary.md`. |
 
 ## Security & tenancy (source: `docs/07_Security/`, `docs/08_Testing/01_Testing_Strategy.md`)
 

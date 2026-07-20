@@ -24,6 +24,13 @@ feature-code change. The application connects to Postgres via the standard
 Postgres wire protocol/connection string, never a Supabase-specific SDK, so
 `Organization`/data can be migrated with standard `pg_dump`/`pg_restore`.
 
+**Scope of "portable":** this means **PostgreSQL on any host** (Supabase, Azure
+Database for PostgreSQL, AWS RDS, self-hosted Postgres container) — *not* other
+SQL engines. EAGLES depends on Postgres-specific features by design (ADR-0002);
+MySQL/SQL Server/Oracle are explicitly out of scope. The exact Postgres-specific
+surface, and what a hypothetical future multi-engine port would entail, is
+catalogued in `docs/01_Architecture/06_Portability_Boundary.md`.
+
 ## Alternatives Considered
 
 | Option | Rejected because |

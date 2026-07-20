@@ -248,6 +248,10 @@ model Issue {
   // String fractional rank (LexoRank-style, base-62) for board/backlog order.
   // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
   // (ADR-0009). Ordering space is per (projectId, status) column.
+  // The column is pinned to `COLLATE "C"` (byte ordering) by migration
+  // 20260720000000_rank_collation — the base-62 keys only sort correctly under
+  // byte order. Prisma can't express collation in-schema, so it lives in that
+  // migration and Prisma leaves it untouched. See 06_Portability_Boundary.md.
   rank        String
   dueDate     DateTime?
 
