@@ -16,8 +16,10 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     findDetail: vi.fn(),
     findEpic: vi.fn(),
     createWithKey: vi.fn(),
-    update: vi.fn(),
-    setStatus: vi.fn(),
+    updateWithVersion: vi.fn(),
+    setStatusWithVersion: vi.fn(),
+    findRankInColumn: vi.fn(),
+    reorderWithVersion: vi.fn(),
     softDelete: vi.fn(),
   },
 }));
@@ -82,8 +84,10 @@ function arrange(role: ProjectRoleDto | null) {
   repo.listByProject.mockResolvedValue([] as never);
   repo.countByStatus.mockResolvedValue([] as never);
   repo.createWithKey.mockResolvedValue(otherRow() as never);
-  repo.update.mockResolvedValue(otherRow() as never);
-  repo.setStatus.mockResolvedValue({ ...otherRow(), status: "IN_PROGRESS" } as never);
+  repo.updateWithVersion.mockResolvedValue(otherRow() as never);
+  repo.setStatusWithVersion.mockResolvedValue(
+    { ...otherRow(), status: "IN_PROGRESS" } as never,
+  );
   repo.softDelete.mockResolvedValue(otherRow() as never);
 }
 
@@ -94,8 +98,8 @@ const ACTIONS: Record<ActionName, (actor: Actor) => Promise<unknown>> = {
   list: (a) => IssueService.list(a, "proj-1"),
   create: (a) =>
     IssueService.create(a, "proj-1", { type: "TASK", title: "x", priority: "MEDIUM" }),
-  update: (a) => IssueService.update(a, "issue-1", { title: "y" }),
-  transition: (a) => IssueService.transition(a, "issue-1", "IN_PROGRESS"),
+  update: (a) => IssueService.update(a, "issue-1", { title: "y", expectedVersion: 0 }),
+  transition: (a) => IssueService.transition(a, "issue-1", "IN_PROGRESS", 0),
   delete: (a) => IssueService.delete(a, "issue-1"),
 };
 

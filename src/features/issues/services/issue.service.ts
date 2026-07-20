@@ -228,19 +228,19 @@ export const IssueService = {
       await validateEpic(existing.projectId, input.epicId);
     }
 
-    const row = await IssueRepository.update(
+    // Optimistic concurrency (ADR-0011): scalar FKs (assigneeId/epicId) are set
+    // directly rather than via relation connect/disconnect, because the
+    // version-checked write uses updateMany (which sets only scalar columns).
+    const row = await IssueRepository.updateWithVersion(
       issueId,
+      input.expectedVersion,
       {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.priority !== undefined ? { priority: input.priority } : {}),
-        ...(input.assigneeId !== undefined
-          ? { assignee: input.assigneeId ? { connect: { id: input.assigneeId } } : { disconnect: true } }
-          : {}),
-        ...(input.epicId !== undefined
-          ? { epic: input.epicId ? { connect: { id: input.epicId } } : { disconnect: true } }
-          : {}),
+        ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
+        ...(input.epicId !== undefined ? { epicId: input.epicId } : {}),
         ...(input.storyPoints !== undefined ? { storyPoints: input.storyPoints } : {}),
         ...(input.dueDate !== undefined
           ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
@@ -248,6 +248,11 @@ export const IssueService = {
       },
       actor.userId,
     );
+    if (!row) {
+      throw new ConflictError(
+        "This issue was changed by someone else — refresh to see the latest, then reapply your edit.",
+      );
+    }
     return toDetailDto(row, actor, role);
   },
 
@@ -256,6 +261,7 @@ export const IssueService = {
     actor: Actor,
     issueId: string,
     to: IssueStatusDto,
+    expectedVersion: number,
   ): Promise<IssueDetailDto> {
     const existing = await IssueRepository.findDetail(issueId);
     if (!existing) throw new NotFoundError("Issue not found.");
@@ -275,7 +281,18 @@ export const IssueService = {
       return toDetailDto(existing, actor, role);
     }
 
-    const row = await IssueRepository.setStatus(issueId, to, actor.userId);
+    // Optimistic concurrency (ADR-0011): reject if the issue changed since read.
+    const row = await IssueRepository.setStatusWithVersion(
+      issueId,
+      expectedVersion,
+      to,
+      actor.userId,
+    );
+    if (!row) {
+      throw new ConflictError(
+        "This issue was changed by someone else — refresh and try the status change again.",
+      );
+    }
     await AuditLogService.record({
       organizationId: context.organizationId,
       actorId: actor.userId,

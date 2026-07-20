@@ -10,8 +10,8 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     findDetail: vi.fn(),
     findEpic: vi.fn(),
     createWithKey: vi.fn(),
-    update: vi.fn(),
-    setStatus: vi.fn(),
+    updateWithVersion: vi.fn(),
+    setStatusWithVersion: vi.fn(),
     findRankInColumn: vi.fn(),
     reorderWithVersion: vi.fn(),
     softDelete: vi.fn(),
@@ -206,18 +206,25 @@ describe("transition", () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
     projects.getMemberRole.mockResolvedValue("MEMBER");
     await expect(
-      IssueService.transition(actor, "issue-1", "DONE"),
+      IssueService.transition(actor, "issue-1", "DONE", 0),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("performs a legal transition and audit-logs it (BR-6)", async () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
     projects.getMemberRole.mockResolvedValue("MEMBER");
-    repo.setStatus.mockResolvedValue(issueRow({ status: "IN_PROGRESS" }) as never);
+    repo.setStatusWithVersion.mockResolvedValue(
+      issueRow({ status: "IN_PROGRESS" }) as never,
+    );
 
-    await IssueService.transition(actor, "issue-1", "IN_PROGRESS");
+    await IssueService.transition(actor, "issue-1", "IN_PROGRESS", 0);
 
-    expect(repo.setStatus).toHaveBeenCalledWith("issue-1", "IN_PROGRESS", "user-1");
+    expect(repo.setStatusWithVersion).toHaveBeenCalledWith(
+      "issue-1",
+      0,
+      "IN_PROGRESS",
+      "user-1",
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "ISSUE_STATUS_CHANGED",
@@ -225,6 +232,44 @@ describe("transition", () => {
         afterData: { status: "IN_PROGRESS" },
       }),
     );
+  });
+
+  it("rejects a stale version (lost update) with a conflict, no audit (ADR-0011)", async () => {
+    repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.setStatusWithVersion.mockResolvedValue(null as never); // version moved on
+
+    await expect(
+      IssueService.transition(actor, "issue-1", "IN_PROGRESS", 0),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe("update (edit)", () => {
+  beforeEach(() => projects.getMemberRole.mockResolvedValue("MEMBER"));
+
+  it("applies an edit at the expected version", async () => {
+    repo.findDetail.mockResolvedValue(issueRow() as never);
+    repo.updateWithVersion.mockResolvedValue(issueRow({ title: "New" }) as never);
+
+    const dto = await IssueService.update(actor, "issue-1", {
+      title: "New",
+      expectedVersion: 3,
+    });
+
+    const [, expectedVersion] = repo.updateWithVersion.mock.calls[0]!;
+    expect(expectedVersion).toBe(3);
+    expect(dto.title).toBe("New");
+  });
+
+  it("rejects a stale edit (lost update) with a conflict (ADR-0011)", async () => {
+    repo.findDetail.mockResolvedValue(issueRow() as never);
+    repo.updateWithVersion.mockResolvedValue(null as never);
+
+    await expect(
+      IssueService.update(actor, "issue-1", { title: "New", expectedVersion: 0 }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

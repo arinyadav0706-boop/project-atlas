@@ -6,9 +6,11 @@ import {
   DragOverlay,
   PointerSensor,
   KeyboardSensor,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -27,6 +29,15 @@ import type {
 } from "@/features/issues/types/issue.types";
 
 type Columns = Record<IssueStatusDto, IssueListItemDto[]>;
+
+// The drop target is whatever the CURSOR is over, not the dragged card's
+// nearest corner (closestCorners) — a wide card near a column boundary
+// mis-targets the adjacent column, so dropping onto an empty column could land
+// in the next one. Pointer-first, with a rect fallback for keyboard drags.
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const pointer = pointerWithin(args);
+  return pointer.length > 0 ? pointer : rectIntersection(args);
+};
 
 function toColumns(board: BoardDto): Columns {
   const cols = emptyColumns();
@@ -201,7 +212,7 @@ export function BoardView({
       <BoardFilterBar members={members} filter={filter} onChange={setFilter} />
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={boardCollisionDetection}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >

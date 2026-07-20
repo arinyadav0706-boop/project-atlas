@@ -49,7 +49,7 @@ describe("GET /issues/:id", () => {
 describe("PATCH /issues/:id", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await PATCH(jsonReq({ title: "y" }, "PATCH"), params)).status).toBe(401);
+    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(401);
   });
   it("422 on invalid body (title too long)", async () => {
     actorMock.mockResolvedValue(actor);
@@ -60,12 +60,12 @@ describe("PATCH /issues/:id", () => {
   it("200 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.update.mockResolvedValue({ id: "issue-1" } as never);
-    expect((await PATCH(jsonReq({ title: "y" }, "PATCH"), params)).status).toBe(200);
+    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(200);
   });
   it("maps ForbiddenError → 403", async () => {
     actorMock.mockResolvedValue(actor);
     svc.update.mockRejectedValue(new ForbiddenError());
-    expect((await PATCH(jsonReq({ title: "y" }, "PATCH"), params)).status).toBe(403);
+    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(403);
   });
 });
 

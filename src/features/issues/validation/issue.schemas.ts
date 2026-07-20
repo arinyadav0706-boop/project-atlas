@@ -18,6 +18,10 @@ export const createIssueSchema = z.object({
   dueDate: z.string().datetime().nullable().optional(),
 });
 
+// Optimistic concurrency (ADR-0011): the card version the client is editing
+// from. The write applies only if the issue is still at that version, else 409.
+const expectedVersion = z.number().int().min(0);
+
 export const updateIssueSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(20000).nullable().optional(),
@@ -27,10 +31,12 @@ export const updateIssueSchema = z.object({
   epicId: z.string().nullable().optional(),
   storyPoints: z.number().int().min(0).max(100).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  expectedVersion,
 });
 
 export const transitionIssueSchema = z.object({
   status: issueStatus,
+  expectedVersion,
 });
 
 // Board/Backlog reorder (ADR-0009). The card is placed between two visible
@@ -41,9 +47,7 @@ export const reorderIssueSchema = z.object({
   status: issueStatus.optional(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
-  // Optimistic concurrency (ADR-0011): the card version the client based this
-  // move on. The move applies only if the card is still at that version.
-  expectedVersion: z.number().int().min(0),
+  expectedVersion,
 });
 
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;

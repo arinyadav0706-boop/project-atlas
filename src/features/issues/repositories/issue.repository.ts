@@ -142,26 +142,36 @@ export const IssueRepository = {
     });
   },
 
-  update(
+  // Version-checked edit (ADR-0011): applies only if the issue is still at
+  // `expectedVersion`; returns the updated detail row, or null on a lost update
+  // (someone else changed it since the client loaded the form).
+  async updateWithVersion(
     id: string,
-    data: Prisma.IssueUpdateInput,
+    expectedVersion: number,
+    data: Prisma.IssueUncheckedUpdateInput,
     actorId: string,
   ) {
-    // Every mutation bumps version so any concurrent change is detectable by a
-    // version-checked write elsewhere (ADR-0011).
-    return prisma.issue.update({
-      where: { id },
+    const result = await prisma.issue.updateMany({
+      where: { id, version: expectedVersion, deletedAt: null },
       data: { ...data, version: { increment: 1 }, updatedBy: actorId },
-      include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
+    if (result.count === 0) return null;
+    return IssueRepository.findDetail(id);
   },
 
-  setStatus(id: string, status: IssueStatus, actorId: string) {
-    return prisma.issue.update({
-      where: { id },
+  // Version-checked status transition (ADR-0011). Null on a lost update.
+  async setStatusWithVersion(
+    id: string,
+    expectedVersion: number,
+    status: IssueStatus,
+    actorId: string,
+  ) {
+    const result = await prisma.issue.updateMany({
+      where: { id, version: expectedVersion, deletedAt: null },
       data: { status, version: { increment: 1 }, updatedBy: actorId },
-      include: { assignee: assigneeSelect, reporter: assigneeSelect },
     });
+    if (result.count === 0) return null;
+    return IssueRepository.findDetail(id);
   },
 
   // Reorder neighbour lookup: the rank of a card that must live in the given

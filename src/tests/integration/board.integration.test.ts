@@ -135,7 +135,10 @@ describe("Board reorder (rank) integration", () => {
     // Column order A, B, C, D. B is assigned to `other` (hidden when we filter
     // by the lead), A/C/D are unassigned/visible.
     const [a, b, c, d] = await createTodo(actor, project.id, ["A", "B", "C", "D"]);
-    await IssueService.update(actor, b!.id, { assigneeId: other.id });
+    await IssueService.update(actor, b!.id, {
+      assigneeId: other.id,
+      expectedVersion: b!.version,
+    });
 
     const bRankBefore = (
       await prisma.issue.findUnique({ where: { id: b!.id }, select: { rank: true } })
