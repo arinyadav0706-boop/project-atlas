@@ -44,11 +44,15 @@ it("422 on invalid status enum", async () => {
 it("200 on a legal transition", async () => {
   actorMock.mockResolvedValue(actor);
   svc.transition.mockResolvedValue({ id: "issue-1", status: "IN_PROGRESS" } as never);
-  expect((await POST(jsonReq({ status: "IN_PROGRESS" }), params)).status).toBe(200);
+  expect(
+    (await POST(jsonReq({ status: "IN_PROGRESS", expectedVersion: 0 }), params)).status,
+  ).toBe(200);
 });
 
 it("maps an illegal transition (ValidationError) → 422", async () => {
   actorMock.mockResolvedValue(actor);
   svc.transition.mockRejectedValue(new ValidationError("Cannot move from TODO to DONE"));
-  expect((await POST(jsonReq({ status: "DONE" }), params)).status).toBe(422);
+  expect(
+    (await POST(jsonReq({ status: "DONE", expectedVersion: 0 }), params)).status,
+  ).toBe(422);
 });

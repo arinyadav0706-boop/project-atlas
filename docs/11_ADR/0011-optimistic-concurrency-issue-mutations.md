@@ -53,15 +53,16 @@ Chosen over the alternatives:
   in DTOs; the client must carry and resend `version` (a small contract
   addition). Under pathological contention on one card, some writes get a `409`
   and retry — acceptable, and that scenario isn't realistic at scale.
-- **Scope now vs. later:** the `version` column + increment-on-every-write ships
-  now, and the **reorder** path enforces the check (ADR-0010's same-card
-  lost-update — the piece that was open). Extending the enforced check to
-  **edit** and **transition** (the higher-value "lost edited text" case) is a
-  small follow-up tracked in the ledger (DB-8), using the same column and
-  pattern — no further schema change.
+- **Scope:** the `version` column + increment-on-every-write, with the enforced
+  check on **reorder, edit, and transition** — the three mutations where a lost
+  update loses user intent. **Delete** increments version but isn't
+  version-checked (terminal action, lowest value) — tracked in DB-8.
 - **Follow-up actions:**
   1. `version` column + migration; every issue write increments it (done).
-  2. `reorderWithVersion` conditional update + `expectedVersion` on the reorder
-     contract; client sends and refreshes it (done).
-  3. Extend the enforced check to edit/transition/delete (DB-8, open).
-  4. Apply the `version` migration to prod as part of GL-4.
+  2. `reorderWithVersion` + `expectedVersion` on the reorder contract; board
+     client sends and refreshes it (done).
+  3. `updateWithVersion` / `setStatusWithVersion` for edit + transition;
+     `expectedVersion` on those contracts; edit dialog + status control send it;
+     a `409` surfaces "changed by someone else — refresh" (done).
+  4. OCC on delete (DB-8, open, low value).
+  5. Apply the `version` migration to prod as part of GL-4.

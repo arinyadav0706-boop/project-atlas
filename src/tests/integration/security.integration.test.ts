@@ -33,7 +33,7 @@ describe("cross-tenant writes are refused", () => {
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id }; // even as org admin
     await expect(
-      IssueService.update(attacker, bIssue.id, { title: "hacked" }),
+      IssueService.update(attacker, bIssue.id, { title: "hacked", expectedVersion: 0 }),
     ).rejects.toBeInstanceOf(NotFoundError);
     // And the row is untouched.
     const row = await prisma.issue.findUnique({ where: { id: bIssue.id } });
@@ -60,7 +60,7 @@ describe("cross-tenant writes are refused", () => {
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(
-      IssueService.transition(attacker, bIssue.id, "IN_PROGRESS"),
+      IssueService.transition(attacker, bIssue.id, "IN_PROGRESS", 0),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -73,7 +73,7 @@ describe("the fixed workflow cannot be skipped via the service", () => {
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     await expect(
-      IssueService.transition(actor, issue.id, "DONE"),
+      IssueService.transition(actor, issue.id, "DONE", 0),
     ).rejects.toBeInstanceOf(ValidationError);
     const row = await prisma.issue.findUnique({ where: { id: issue.id } });
     expect(row?.status).toBe("TODO"); // unchanged

@@ -54,7 +54,7 @@ export function IssueDetailView({
     try {
       await apiRequest<IssueDetailDto>(`/api/issues/${issue.id}/transition`, {
         method: "POST",
-        body: { status: to },
+        body: { status: to, expectedVersion: issue.version },
       });
       toast.success(`Moved to ${statusLabel(to)}`);
       router.refresh();

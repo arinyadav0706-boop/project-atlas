@@ -11,7 +11,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
     const actor = await getActor();
     if (!actor) throw new UnauthorizedError();
-    const { status } = transitionIssueSchema.parse(await request.json());
-    return NextResponse.json(await IssueService.transition(actor, params.issueId, status));
+    const { status, expectedVersion } = transitionIssueSchema.parse(await request.json());
+    return NextResponse.json(
+      await IssueService.transition(actor, params.issueId, status, expectedVersion),
+    );
   });
 }

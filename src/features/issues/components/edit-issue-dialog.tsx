@@ -47,8 +47,10 @@ export function EditIssueDialog({
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
 
-  const form = useForm<UpdateIssueInput>({
-    resolver: zodResolver(updateIssueSchema),
+  // The form edits fields only; the optimistic-concurrency token
+  // (expectedVersion, ADR-0011) is supplied from the loaded issue at submit.
+  const form = useForm<Omit<UpdateIssueInput, "expectedVersion">>({
+    resolver: zodResolver(updateIssueSchema.omit({ expectedVersion: true })),
     defaultValues: {
       title: issue.title,
       description: issue.description ?? "",
@@ -58,7 +60,7 @@ export function EditIssueDialog({
     },
   });
 
-  async function onSubmit(input: UpdateIssueInput) {
+  async function onSubmit(input: Omit<UpdateIssueInput, "expectedVersion">) {
     setSubmitting(true);
     try {
       await apiRequest<IssueDetailDto>(`/api/issues/${issue.id}`, {
@@ -67,6 +69,7 @@ export function EditIssueDialog({
           ...input,
           description: input.description?.trim() ? input.description : null,
           assigneeId: input.assigneeId || null,
+          expectedVersion: issue.version,
         },
       });
       toast.success("Issue updated");
