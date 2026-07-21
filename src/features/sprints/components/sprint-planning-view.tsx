@@ -206,7 +206,9 @@ export function SprintPlanningView({
   const total = sprintItems.length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  const canManage = sprint?.canManage ?? false;
+  // Panel-level (LEAD) — works even when there is no sprint yet, so the
+  // "Create sprint" control appears for a lead on an empty project.
+  const canManage = initialSprint.canManage;
 
   return (
     <DndContext

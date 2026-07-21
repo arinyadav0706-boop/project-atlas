@@ -234,6 +234,24 @@ describe("progress (BR-7, derived)", () => {
   });
 });
 
+describe("getPanel", () => {
+  it("reports canManage for a LEAD even when there is NO sprint yet (regression)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.findCurrent.mockResolvedValue(null as never);
+    const panel = await SprintService.getPanel(actor, "proj-1");
+    expect(panel.sprint).toBeNull();
+    expect(panel.canManage).toBe(true); // the "Create sprint" control gate
+  });
+
+  it("does not grant canManage to a MEMBER", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    sprints.findCurrent.mockResolvedValue(null as never);
+    const panel = await SprintService.getPanel(actor, "proj-1");
+    expect(panel.canManage).toBe(false);
+    expect(panel.canWrite).toBe(true);
+  });
+});
+
 describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
   beforeEach(() => projects.getMemberRole.mockResolvedValue("MEMBER"));
 
