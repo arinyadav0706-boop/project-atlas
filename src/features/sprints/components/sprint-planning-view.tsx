@@ -71,6 +71,26 @@ export function SprintPlanningView({
   const [activeItem, setActiveItem] = useState<IssueListItemDto | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // Re-sync the drag lists when the server sends fresh props (after a lifecycle
+  // action calls router.refresh — create/start/complete). Without this, useState
+  // keeps the previous sprint's issues, so a freshly created/completed sprint
+  // shows stale cards until a hard reload. React's "adjust state on prop change"
+  // pattern (set during render, guarded by a signature) — no flash, no effect.
+  const propSig = JSON.stringify({
+    s: initialSprint.sprint?.id ?? null,
+    st: initialSprint.sprint?.status ?? null,
+    si: initialSprint.items.map((i) => i.id),
+    bi: initialBacklog.items.map((i) => i.id),
+    nc: initialBacklog.nextCursor,
+  });
+  const [syncedSig, setSyncedSig] = useState(propSig);
+  if (propSig !== syncedSig) {
+    setSyncedSig(propSig);
+    setSprintItems(initialSprint.items);
+    setBacklogItems(initialBacklog.items);
+    setNextCursor(initialBacklog.nextCursor);
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
