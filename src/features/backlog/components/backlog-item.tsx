@@ -33,31 +33,36 @@ export function BacklogItem({
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
   };
+  // The WHOLE row is the drag handle when the viewer can write (the grip is a
+  // visual affordance only) — grabbing the card, as users expect, starts the
+  // drag. A small PointerSensor distance still lets a plain click open the issue.
+  const dragProps = canWrite ? { ...sortable.attributes, ...sortable.listeners } : {};
 
   return (
     <div
       ref={sortable.setNodeRef}
       style={style}
+      {...dragProps}
       className={cn(
         "flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm",
+        canWrite && "cursor-grab touch-none active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
         overlay && "cursor-grabbing shadow-md ring-1 ring-accent",
       )}
     >
       {canWrite && (
-        <button
-          type="button"
-          aria-label="Drag to reorder"
-          {...sortable.attributes}
-          {...sortable.listeners}
-          className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing focus-visible:outline-none focus-visible:text-accent"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        <GripVertical
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-muted-foreground/50"
+        />
       )}
       <IssueTypeIcon type={item.type} className="h-4 w-4 shrink-0" />
       <Link
         href={`/projects/${projectId}/issues/${item.id}`}
+        // Kill the browser's native anchor drag (which otherwise hijacks the
+        // gesture with a link ghost); don't navigate if a drag just happened.
+        draggable={false}
+        onClick={(e) => sortable.isDragging && e.preventDefault()}
         className="min-w-0 flex-1 truncate text-sm font-medium text-foreground hover:text-accent focus-visible:outline-none focus-visible:underline"
       >
         {item.title}

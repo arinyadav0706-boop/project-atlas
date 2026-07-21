@@ -46,7 +46,9 @@ export function BoardCard({
       <div className="flex items-start justify-between gap-2">
         <Link
           href={`/projects/${projectId}/issues/${item.id}`}
-          // Don't let a click that starts a drag also navigate.
+          // Don't let a click that starts a drag also navigate; and kill the
+          // browser's native anchor drag so it can't hijack the dnd gesture.
+          draggable={false}
           onClick={(e) => sortable.isDragging && e.preventDefault()}
           className="line-clamp-2 text-sm font-medium text-foreground hover:text-accent focus-visible:outline-none focus-visible:underline"
         >
