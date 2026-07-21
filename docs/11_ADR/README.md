@@ -20,3 +20,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0011](0011-optimistic-concurrency-issue-mutations.md) | Optimistic Concurrency Control for Issue Mutations | Accepted |
 | [0012](0012-home-unified-attention-model.md) | Home — Unified Attention Model (not per-module gadgets) | Accepted |
 | [0013](0013-unified-rank-scoped-reorder.md) | One Rank, Many Views — Scoped Reorder for Board & Backlog | Accepted |
+| [0014](0014-sprint-assignment-and-backlog-section.md) | Sprint Assignment as a Move Operation; Sprint as a Backlog-Page Section | Accepted |
