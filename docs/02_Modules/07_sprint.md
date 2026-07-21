@@ -16,14 +16,15 @@ Backlog list on the Backlog page (ADR-0014), carrying its lifecycle controls, go
 and progress. Dragging an issue between the section and the Backlog moves it in/out
 of the sprint.
 
-## Scope (v2.1)
+## Scope (v2.2)
 
-Create sprint · Backlog ↔ Sprint drag-and-drop · reorder within a sprint · Start
-sprint · Complete sprint · **Edit** name/goal/dates · **Delete** (guarded) ·
-**View completed sprints** (history) · dates + overdue on the sprint card · Sprint
+**Multi-sprint planning** (ADR-0015): the Backlog page shows every non-completed
+sprint (ACTIVE + all PLANNED) as its own droppable section; drag issues into any of
+them. Plus: Create · Start · Complete · **Edit** name/goal/dates · **Delete**
+(guarded) · **View completed sprints** (history) · dates + overdue on each sprint ·
 goal (free text) · basic progress (done vs. total, story points). Still **deferred**
-(see Future Scope): **multi-sprint planning** (several PLANNED sprints at once),
-follow-up-sprint at close, burndown/velocity.
+(see Future Scope): sprint-*queue* reordering (drag to reorder the planned sprints
+themselves), follow-up-sprint at close, burndown/velocity.
 
 ## Business Rules
 

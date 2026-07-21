@@ -126,29 +126,21 @@ export const SprintService = {
   // its rank-ordered issues, and whether the viewer may drag (MEMBER/LEAD).
   async getPanel(actor: Actor, projectId: string): Promise<SprintPanelDto> {
     const { role } = await resolve(projectId, actor);
-    const [current, completedRows] = await Promise.all([
-      SprintRepository.findCurrent(projectId),
+    const [planningRows, completedRows] = await Promise.all([
+      SprintRepository.listPlanning(projectId),
       SprintRepository.listCompleted(projectId),
     ]);
-    const completedSprints = await Promise.all(
-      completedRows.map((s) => withProgress(s, role)),
-    );
-    if (!current) {
-      return {
-        sprint: null,
-        items: [],
-        completedSprints,
-        canWrite: canWrite(role),
-        canManage: canManage(role),
-      };
-    }
-    const [sprint, rows] = await Promise.all([
-      withProgress(current, role),
-      SprintRepository.listSprintIssues(projectId, current.id),
+    const [sprints, completedSprints] = await Promise.all([
+      Promise.all(
+        planningRows.map(async (s) => ({
+          sprint: await withProgress(s, role),
+          items: (await SprintRepository.listSprintIssues(projectId, s.id)).map(toCardDto),
+        })),
+      ),
+      Promise.all(completedRows.map((s) => withProgress(s, role))),
     ]);
     return {
-      sprint,
-      items: rows.map(toCardDto),
+      sprints,
       completedSprints,
       canWrite: canWrite(role),
       canManage: canManage(role),
