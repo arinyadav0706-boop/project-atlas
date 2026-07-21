@@ -61,6 +61,17 @@ export const SprintRepository = {
     });
   },
 
+  // Non-completed sprints for the planning view (ADR-0015): the ACTIVE one and
+  // all PLANNED ones. Enum order is PLANNED < ACTIVE, so `status desc` puts
+  // ACTIVE first; within a status, oldest-created first (the planning queue).
+  listPlanning(projectId: string) {
+    return prisma.sprint.findMany({
+      where: { projectId, status: { in: ["PLANNED", "ACTIVE"] }, deletedAt: null },
+      select: sprintSelect,
+      orderBy: [{ status: "desc" }, { createdAt: "asc" }],
+    });
+  },
+
   // Completed sprints for the past-sprints section, most-recently-ended first.
   listCompleted(projectId: string) {
     return prisma.sprint.findMany({

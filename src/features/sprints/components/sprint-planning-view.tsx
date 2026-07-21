@@ -34,27 +34,36 @@ import {
   EditSprintButton,
   StartSprintButton,
 } from "./sprint-controls";
-import type { SprintWithProgressDto } from "@/features/sprints/types/sprint.types";
 import type { BacklogDto } from "@/features/backlog/types/backlog.types";
-import type { SprintPanelDto } from "@/features/sprints/types/sprint.types";
+import type {
+  SprintPanelDto,
+  SprintWithProgressDto,
+} from "@/features/sprints/types/sprint.types";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
-const SPRINT_LIST = "list:sprint";
-const BACKLOG_LIST = "list:backlog";
-type ListId = typeof SPRINT_LIST | typeof BACKLOG_LIST;
+const BACKLOG_LIST = "backlog";
+const SPRINT_PREFIX = "sprint:";
+// A list id is either the backlog or a specific sprint's droppable.
+type ListId = typeof BACKLOG_LIST | `sprint:${string}`;
 
-// Drop target is whatever the CURSOR is over (pointer-first), not the dragged
-// card's nearest corner — a wide card near a list boundary otherwise mis-targets
-// (same rationale as the Board). Rect fallback for keyboard drags.
+function sprintListId(sprintId: string): ListId {
+  return `${SPRINT_PREFIX}${sprintId}`;
+}
+// The sprint id a list id refers to, or null for the backlog.
+function sprintIdOf(listId: ListId): string | null {
+  return listId === BACKLOG_LIST ? null : listId.slice(SPRINT_PREFIX.length);
+}
+
 const collisionDetection: CollisionDetection = (args) => {
   const pointer = pointerWithin(args);
   return pointer.length > 0 ? pointer : rectIntersection(args);
 };
 
-// The Backlog page's planning view (ADR-0014): the current sprint section over
-// the backlog list, in one DndContext so issues drag between them. A drag within
-// the backlog uses PATCH /rank (scope=backlog); any drag touching the sprint
-// uses PATCH /issues/{id}/sprint (set/clear sprintId + rank). VIEWER is read-only.
+// The Backlog page's planning view (ADR-0015): every non-completed sprint as its
+// own droppable section, stacked over the backlog, all in one DndContext so
+// issues drag between any sprint and the backlog. A drag within the backlog uses
+// PATCH /rank (scope=backlog); any drag touching a sprint uses
+// PATCH /issues/{id}/sprint (set/clear sprintId + rank). VIEWER is read-only.
 export function SprintPlanningView({
   projectId,
   initialSprint,
@@ -65,31 +74,37 @@ export function SprintPlanningView({
   initialBacklog: BacklogDto;
 }) {
   const router = useRouter();
-  const sprint = initialSprint.sprint;
   const canWrite = initialSprint.canWrite && initialBacklog.canWrite;
+  const canManage = initialSprint.canManage;
+  const completedSprints = initialSprint.completedSprints;
 
-  const [sprintItems, setSprintItems] = useState<IssueListItemDto[]>(initialSprint.items);
+  // Per-sprint item lists keyed by sprint id, plus the backlog list.
+  const initialMap: Record<string, IssueListItemDto[]> = {};
+  for (const s of initialSprint.sprints) initialMap[s.sprint.id] = s.items;
+
+  const [sprintItems, setSprintItems] =
+    useState<Record<string, IssueListItemDto[]>>(initialMap);
   const [backlogItems, setBacklogItems] = useState<IssueListItemDto[]>(initialBacklog.items);
   const [nextCursor, setNextCursor] = useState<string | null>(initialBacklog.nextCursor);
   const [activeItem, setActiveItem] = useState<IssueListItemDto | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Re-sync the drag lists when the server sends fresh props (after a lifecycle
-  // action calls router.refresh — create/start/complete). Without this, useState
-  // keeps the previous sprint's issues, so a freshly created/completed sprint
-  // shows stale cards until a hard reload. React's "adjust state on prop change"
-  // pattern (set during render, guarded by a signature) — no flash, no effect.
+  // Re-sync from fresh server props after a lifecycle refresh (create/start/
+  // complete/delete/edit) — see ADR-0014 follow-up. Guarded by a signature so a
+  // plain re-render (or an optimistic drag, which doesn't refresh) never wipes
+  // local state.
   const propSig = JSON.stringify({
-    s: initialSprint.sprint?.id ?? null,
-    st: initialSprint.sprint?.status ?? null,
-    si: initialSprint.items.map((i) => i.id),
+    s: initialSprint.sprints.map((x) => [x.sprint.id, x.sprint.status, x.items.map((i) => i.id)]),
+    c: initialSprint.completedSprints.map((x) => x.id),
     bi: initialBacklog.items.map((i) => i.id),
     nc: initialBacklog.nextCursor,
   });
   const [syncedSig, setSyncedSig] = useState(propSig);
   if (propSig !== syncedSig) {
     setSyncedSig(propSig);
-    setSprintItems(initialSprint.items);
+    const m: Record<string, IssueListItemDto[]> = {};
+    for (const s of initialSprint.sprints) m[s.sprint.id] = s.items;
+    setSprintItems(m);
     setBacklogItems(initialBacklog.items);
     setNextCursor(initialBacklog.nextCursor);
   }
@@ -99,23 +114,36 @@ export function SprintPlanningView({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const readList = useCallback(
+    (listId: ListId): IssueListItemDto[] =>
+      listId === BACKLOG_LIST ? backlogItems : sprintItems[sprintIdOf(listId)!] ?? [],
+    [backlogItems, sprintItems],
+  );
+
   const listOf = useCallback(
-    (id: string): ListId | null => {
-      if (sprintItems.some((i) => i.id === id)) return SPRINT_LIST;
-      if (backlogItems.some((i) => i.id === id)) return BACKLOG_LIST;
+    (cardId: string): ListId | null => {
+      if (backlogItems.some((i) => i.id === cardId)) return BACKLOG_LIST;
+      for (const sid of Object.keys(sprintItems)) {
+        if (sprintItems[sid]!.some((i) => i.id === cardId)) return sprintListId(sid);
+      }
       return null;
     },
-    [sprintItems, backlogItems],
+    [backlogItems, sprintItems],
+  );
+
+  const isListId = useCallback(
+    (id: string): id is ListId =>
+      id === BACKLOG_LIST || (id.startsWith(SPRINT_PREFIX) && sprintIdOf(id as ListId) !== null),
+    [],
   );
 
   const onDragStart = useCallback(
     (event: DragStartEvent) => {
       const id = String(event.active.id);
-      setActiveItem(
-        sprintItems.find((i) => i.id === id) ?? backlogItems.find((i) => i.id === id) ?? null,
-      );
+      const from = listOf(id);
+      setActiveItem(from ? readList(from).find((i) => i.id === id) ?? null : null);
     },
-    [sprintItems, backlogItems],
+    [listOf, readList],
   );
 
   const onDragEnd = useCallback(
@@ -128,61 +156,62 @@ export function SprintPlanningView({
 
       const from = listOf(activeId);
       if (!from) return;
-      const to: ListId | null =
-        overId === SPRINT_LIST || overId === BACKLOG_LIST ? (overId as ListId) : listOf(overId);
-      // Can't move into a sprint that doesn't exist.
-      if (!to || (to === SPRINT_LIST && !sprint)) return;
+      const to: ListId | null = isListId(overId) ? overId : listOf(overId);
+      if (!to) return;
 
-      const sprintSnapshot = sprintItems;
-      const backlogSnapshot = backlogItems;
-      const moved = (from === SPRINT_LIST ? sprintItems : backlogItems).find(
-        (i) => i.id === activeId,
-      );
+      const moved = readList(from).find((i) => i.id === activeId);
       if (!moved) return;
 
-      const source = from === SPRINT_LIST ? [...sprintItems] : [...backlogItems];
-      const dest =
-        from === to ? source : to === SPRINT_LIST ? [...sprintItems] : [...backlogItems];
-      const srcAfterRemove = source.filter((i) => i.id !== activeId);
-      const destList = from === to ? srcAfterRemove : dest;
+      const backlogSnapshot = backlogItems;
+      const sprintSnapshot = sprintItems;
 
-      const insertAt =
-        overId === SPRINT_LIST || overId === BACKLOG_LIST
-          ? destList.length
-          : (() => {
-              const idx = destList.findIndex((i) => i.id === overId);
-              return idx >= 0 ? idx : destList.length;
-            })();
-      destList.splice(insertAt, 0, moved);
+      // Build the optimistic layout across the (possibly two) affected lists.
+      const srcItems = readList(from).filter((i) => i.id !== activeId);
+      const destBase = from === to ? srcItems : [...readList(to)];
+      const insertAt = isListId(overId)
+        ? destBase.length
+        : (() => {
+            const idx = destBase.findIndex((i) => i.id === overId);
+            return idx >= 0 ? idx : destBase.length;
+          })();
+      destBase.splice(insertAt, 0, moved);
 
-      // Commit the optimistic layout.
-      if (from === to) {
-        if (to === SPRINT_LIST) setSprintItems(destList);
-        else setBacklogItems(destList);
-      } else {
-        if (from === SPRINT_LIST) setSprintItems(srcAfterRemove);
-        else setBacklogItems(srcAfterRemove);
-        if (to === SPRINT_LIST) setSprintItems(destList);
-        else setBacklogItems(destList);
-      }
+      const writeLists = (
+        setB: (v: IssueListItemDto[]) => void,
+        setS: (updater: (m: Record<string, IssueListItemDto[]>) => Record<string, IssueListItemDto[]>) => void,
+      ) => {
+        // Compute the next state for both lists in one pass.
+        const nextFor = (listId: ListId) => (listId === to ? destBase : listId === from ? srcItems : null);
+        if (from === BACKLOG_LIST || to === BACKLOG_LIST) {
+          const b = nextFor(BACKLOG_LIST);
+          if (b) setB(b);
+        }
+        setS((m) => {
+          const copy = { ...m };
+          for (const sid of Object.keys(copy)) {
+            const lid = sprintListId(sid);
+            const n = nextFor(lid);
+            if (n) copy[sid] = n;
+          }
+          return copy;
+        });
+      };
+      writeLists(setBacklogItems, setSprintItems);
 
-      const beforeId = destList[insertAt - 1]?.id ?? null;
-      const afterId = destList[insertAt + 1]?.id ?? null;
-
+      const beforeId = destBase[insertAt - 1]?.id ?? null;
+      const afterId = destBase[insertAt + 1]?.id ?? null;
       const rollback = () => {
-        setSprintItems(sprintSnapshot);
         setBacklogItems(backlogSnapshot);
+        setSprintItems(sprintSnapshot);
       };
 
       try {
-        // Within the backlog → pure reorder (ADR-0013). Anything touching the
-        // sprint → membership move (ADR-0014).
-        const touchesSprint = from === SPRINT_LIST || to === SPRINT_LIST;
+        const touchesSprint = from !== BACKLOG_LIST || to !== BACKLOG_LIST;
         const updated = touchesSprint
           ? await apiRequest<{ version: number }>(`/api/issues/${activeId}/sprint`, {
               method: "PATCH",
               body: {
-                sprintId: to === SPRINT_LIST ? sprint!.id : null,
+                sprintId: sprintIdOf(to),
                 beforeId,
                 afterId,
                 expectedVersion: moved.version,
@@ -193,17 +222,17 @@ export function SprintPlanningView({
               body: { scope: "backlog", beforeId, afterId, expectedVersion: moved.version },
             });
 
-        // Refresh the moved card's version so a subsequent drag isn't stale.
+        // Refresh the moved card's version in whichever list it now lives in.
         const bump = (list: IssueListItemDto[]) =>
           list.map((i) => (i.id === activeId ? { ...i, version: updated.version } : i));
-        if (to === SPRINT_LIST) setSprintItems(bump);
-        else setBacklogItems(bump);
+        if (to === BACKLOG_LIST) setBacklogItems(bump);
+        else setSprintItems((m) => ({ ...m, [sprintIdOf(to)!]: bump(m[sprintIdOf(to)!] ?? []) }));
       } catch (error) {
         rollback();
         toast.error(error instanceof Error ? error.message : "Couldn't move that issue.");
       }
     },
-    [sprint, sprintItems, backlogItems, listOf],
+    [backlogItems, sprintItems, listOf, readList, isListId],
   );
 
   const loadMore = useCallback(async () => {
@@ -224,19 +253,6 @@ export function SprintPlanningView({
 
   const onChanged = useCallback(() => router.refresh(), [router]);
 
-  // Progress bar derives from the live sprint list so it updates as you drag.
-  const done = sprintItems.filter((i) => i.status === "DONE").length;
-  const total = sprintItems.length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  // Panel-level (LEAD) — works even when there is no sprint yet, so the
-  // "Create sprint" control appears for a lead on an empty project.
-  const canManage = initialSprint.canManage;
-  const completedSprints = initialSprint.completedSprints;
-
-  const overdue =
-    sprint?.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
-
   return (
     <DndContext
       sensors={sensors}
@@ -244,76 +260,33 @@ export function SprintPlanningView({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      {/* Sprint section */}
-      <section className="mb-6">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground">
-              {sprint ? sprint.name : "Sprint"}
-            </h2>
-            {sprint && (
-              <Badge variant={sprint.status === "ACTIVE" ? "accent" : "outline"}>
-                {sprint.status === "ACTIVE" ? "Active" : "Planned"}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {!sprint && canManage && (
-              <CreateSprintButton projectId={projectId} onChanged={onChanged} />
-            )}
-            {sprint && canManage && (
-              <>
-                <EditSprintButton sprint={sprint} onChanged={onChanged} />
-                <DeleteSprintButton sprint={sprint} onChanged={onChanged} />
-                {sprint.status === "PLANNED" && (
-                  <StartSprintButton sprint={sprint} onChanged={onChanged} />
-                )}
-                {sprint.status === "ACTIVE" && (
-                  <CompleteSprintButton sprint={sprint} onChanged={onChanged} />
-                )}
-              </>
-            )}
-          </div>
-        </div>
+      {/* Sprint sections (ACTIVE first, then PLANNED) */}
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Sprints</h2>
+        {canManage && <CreateSprintButton projectId={projectId} onChanged={onChanged} />}
+      </div>
 
-        {sprint ? (
-          <>
-            {sprint.goal && (
-              <p className="mb-2 text-sm text-muted-foreground">{sprint.goal}</p>
-            )}
-            {(sprint.startDate || sprint.endDate) && (
-              <p className="mb-2 text-xs text-muted-foreground">
-                {formatDateRange(sprint.startDate, sprint.endDate)}
-                {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
-              </p>
-            )}
-            <div className="mb-3 flex items-center gap-3">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {done}/{total} done
-              </span>
-            </div>
-            <DroppableList
-              listId={SPRINT_LIST}
+      {initialSprint.sprints.length === 0 ? (
+        <p className="mb-6 rounded-xl border border-dashed border-border/60 bg-surface/40 px-6 py-8 text-center text-sm text-muted-foreground">
+          {canManage
+            ? "No sprints yet. Create one, then drag issues from the backlog to plan it."
+            : "No sprints are planned yet."}
+        </p>
+      ) : (
+        <div className="mb-6 flex flex-col gap-4">
+          {initialSprint.sprints.map(({ sprint }) => (
+            <SprintSection
+              key={sprint.id}
+              sprint={sprint}
               projectId={projectId}
-              items={sprintItems}
+              items={sprintItems[sprint.id] ?? []}
               canWrite={canWrite}
-              emptyText="Drag issues here to plan this sprint."
+              canManage={canManage}
+              onChanged={onChanged}
             />
-          </>
-        ) : (
-          <p className="rounded-xl border border-dashed border-border/60 bg-surface/40 px-6 py-8 text-center text-sm text-muted-foreground">
-            {canManage
-              ? "No sprint yet. Create one, then drag issues from the backlog to plan it."
-              : "No sprint is planned yet."}
-          </p>
-        )}
-      </section>
+          ))}
+        </div>
+      )}
 
       {/* Backlog section */}
       <section>
@@ -353,15 +326,81 @@ export function SprintPlanningView({
 
       <DragOverlay>
         {activeItem && (
-          <BacklogItem
-            projectId={projectId}
-            item={activeItem}
-            canWrite={canWrite}
-            overlay
-          />
+          <BacklogItem projectId={projectId} item={activeItem} canWrite={canWrite} overlay />
         )}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+function SprintSection({
+  sprint,
+  projectId,
+  items,
+  canWrite,
+  canManage,
+  onChanged,
+}: {
+  sprint: SprintWithProgressDto;
+  projectId: string;
+  items: IssueListItemDto[];
+  canWrite: boolean;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const done = items.filter((i) => i.status === "DONE").length;
+  const total = items.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const overdue =
+    sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
+
+  return (
+    <section className="rounded-xl border border-border/60 bg-surface/20 p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
+          <Badge variant={sprint.status === "ACTIVE" ? "accent" : "outline"}>
+            {sprint.status === "ACTIVE" ? "Active" : "Planned"}
+          </Badge>
+        </div>
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <EditSprintButton sprint={sprint} onChanged={onChanged} />
+            <DeleteSprintButton sprint={sprint} onChanged={onChanged} />
+            {sprint.status === "PLANNED" && (
+              <StartSprintButton sprint={sprint} onChanged={onChanged} />
+            )}
+            {sprint.status === "ACTIVE" && (
+              <CompleteSprintButton sprint={sprint} onChanged={onChanged} />
+            )}
+          </div>
+        )}
+      </div>
+
+      {sprint.goal && <p className="mb-2 text-sm text-muted-foreground">{sprint.goal}</p>}
+      {(sprint.startDate || sprint.endDate) && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          {formatDateRange(sprint.startDate, sprint.endDate)}
+          {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
+        </p>
+      )}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {done}/{total} done
+        </span>
+      </div>
+
+      <DroppableList
+        listId={sprintListId(sprint.id)}
+        projectId={projectId}
+        items={items}
+        canWrite={canWrite}
+        emptyText="Drag issues here to plan this sprint."
+      />
+    </section>
   );
 }
 

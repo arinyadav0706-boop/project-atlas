@@ -82,9 +82,10 @@ describe("Sprint lifecycle + assignment integration", () => {
     let fresh = await prisma.issue.findUnique({ where: { id: i1!.id }, select: { sprintId: true } });
     expect(fresh?.sprintId).toBe(s.id);
 
-    // It now shows in the sprint panel, and NOT in the backlog.
+    // It now shows in the sprint's section, and NOT in the backlog.
     const panel = await SprintService.getPanel(actor, project.id);
-    expect(panel.items.map((x) => x.id)).toEqual([i1!.id]);
+    const section = panel.sprints.find((x) => x.sprint.id === s.id)!;
+    expect(section.items.map((x) => x.id)).toEqual([i1!.id]);
     const backlog = await BacklogService.getBacklog(actor, project.id, {});
     expect(backlog.items.map((x) => x.id)).not.toContain(i1!.id);
 
@@ -164,7 +165,7 @@ describe("Sprint lifecycle + assignment integration", () => {
     await SprintService.complete(actor, s.id);
 
     const panel = await SprintService.getPanel(actor, project.id);
-    expect(panel.sprint).toBeNull(); // no current sprint
+    expect(panel.sprints).toHaveLength(0); // no active/planned sprint
     expect(panel.completedSprints.map((x) => x.name)).toEqual(["Past"]);
   });
 
@@ -179,7 +180,8 @@ describe("Sprint lifecycle + assignment integration", () => {
       await IssueService.transition(actor, a!.id, to, v!.version);
     }
     const panel = await SprintService.getPanel(actor, project.id);
-    expect(panel.sprint!.progress.totalIssues).toBe(2);
-    expect(panel.sprint!.progress.doneIssues).toBe(1);
+    const section = panel.sprints.find((x) => x.sprint.id === s.id)!;
+    expect(section.sprint.progress.totalIssues).toBe(2);
+    expect(section.sprint.progress.doneIssues).toBe(1);
   });
 });

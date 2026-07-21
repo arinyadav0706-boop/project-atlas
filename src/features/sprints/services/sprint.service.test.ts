@@ -7,6 +7,7 @@ vi.mock("@/features/sprints/repositories/sprint.repository", () => ({
     listByProject: vi.fn(),
     findById: vi.fn(),
     findCurrent: vi.fn(),
+    listPlanning: vi.fn(),
     listCompleted: vi.fn(),
     update: vi.fn(),
     start: vi.fn(),
@@ -101,6 +102,8 @@ beforeEach(() => {
   projects.getContext.mockResolvedValue(ctx);
   sprints.progressByStatus.mockResolvedValue([] as never);
   sprints.listCompleted.mockResolvedValue([] as never);
+  sprints.listPlanning.mockResolvedValue([] as never);
+  sprints.listSprintIssues.mockResolvedValue([] as never);
 });
 
 describe("create", () => {
@@ -262,26 +265,37 @@ describe("delete", () => {
 });
 
 describe("getPanel", () => {
+  it("returns every non-completed sprint as a section, each with its issues", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    sprints.listPlanning.mockResolvedValue([
+      sprintRow({ id: "active-1", status: "ACTIVE" }),
+      sprintRow({ id: "plan-1", status: "PLANNED" }),
+    ] as never);
+    sprints.listSprintIssues.mockResolvedValue([] as never);
+    const panel = await SprintService.getPanel(actor, "proj-1");
+    expect(panel.sprints.map((s) => s.sprint.id)).toEqual(["active-1", "plan-1"]);
+  });
+
   it("includes completed sprints with progress", async () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
-    sprints.findCurrent.mockResolvedValue(null as never);
+    sprints.listPlanning.mockResolvedValue([] as never);
     sprints.listCompleted.mockResolvedValue([sprintRow({ id: "old", status: "COMPLETED" })] as never);
     const panel = await SprintService.getPanel(actor, "proj-1");
     expect(panel.completedSprints).toHaveLength(1);
     expect(panel.completedSprints[0]!.status).toBe("COMPLETED");
   });
 
-  it("reports canManage for a LEAD even when there is NO sprint yet (regression)", async () => {
+  it("reports canManage for a LEAD even when there are NO sprints yet (regression)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD");
-    sprints.findCurrent.mockResolvedValue(null as never);
+    sprints.listPlanning.mockResolvedValue([] as never);
     const panel = await SprintService.getPanel(actor, "proj-1");
-    expect(panel.sprint).toBeNull();
+    expect(panel.sprints).toHaveLength(0);
     expect(panel.canManage).toBe(true); // the "Create sprint" control gate
   });
 
   it("does not grant canManage to a MEMBER", async () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
-    sprints.findCurrent.mockResolvedValue(null as never);
+    sprints.listPlanning.mockResolvedValue([] as never);
     const panel = await SprintService.getPanel(actor, "proj-1");
     expect(panel.canManage).toBe(false);
     expect(panel.canWrite).toBe(true);
