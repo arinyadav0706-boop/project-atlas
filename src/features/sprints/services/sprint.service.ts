@@ -126,9 +126,21 @@ export const SprintService = {
   // its rank-ordered issues, and whether the viewer may drag (MEMBER/LEAD).
   async getPanel(actor: Actor, projectId: string): Promise<SprintPanelDto> {
     const { role } = await resolve(projectId, actor);
-    const current = await SprintRepository.findCurrent(projectId);
+    const [current, completedRows] = await Promise.all([
+      SprintRepository.findCurrent(projectId),
+      SprintRepository.listCompleted(projectId),
+    ]);
+    const completedSprints = await Promise.all(
+      completedRows.map((s) => withProgress(s, role)),
+    );
     if (!current) {
-      return { sprint: null, items: [], canWrite: canWrite(role), canManage: canManage(role) };
+      return {
+        sprint: null,
+        items: [],
+        completedSprints,
+        canWrite: canWrite(role),
+        canManage: canManage(role),
+      };
     }
     const [sprint, rows] = await Promise.all([
       withProgress(current, role),
@@ -137,9 +149,29 @@ export const SprintService = {
     return {
       sprint,
       items: rows.map(toCardDto),
+      completedSprints,
       canWrite: canWrite(role),
       canManage: canManage(role),
     };
+  },
+
+  // BR-4 + safeguard: only a LEAD may delete a sprint, and an ACTIVE sprint
+  // cannot be deleted (complete it first). Soft delete (no hard deletes).
+  async delete(actor: Actor, sprintId: string): Promise<void> {
+    const { sprint, context, role } = await loadSprint(sprintId, actor);
+    if (!canManage(role)) {
+      throw new ForbiddenError("Only a project lead can delete a sprint.");
+    }
+    if (context.status === "ARCHIVED") {
+      throw new ConflictError("Archived projects are read-only.");
+    }
+    if (sprint.status === "ACTIVE") {
+      throw new ConflictError("Complete the active sprint before deleting it.");
+    }
+    // Return any issues still parked in this sprint to the backlog, so deleting
+    // a planned sprint never strands them (keeps their rank).
+    await SprintRepository.releaseIssues(sprintId, actor.userId);
+    await SprintRepository.softDelete(sprintId, actor.userId);
   },
 
   async create(

@@ -30,8 +30,11 @@ import { BacklogItem } from "@/features/backlog/components/backlog-item";
 import {
   CompleteSprintButton,
   CreateSprintButton,
+  DeleteSprintButton,
+  EditSprintButton,
   StartSprintButton,
 } from "./sprint-controls";
+import type { SprintWithProgressDto } from "@/features/sprints/types/sprint.types";
 import type { BacklogDto } from "@/features/backlog/types/backlog.types";
 import type { SprintPanelDto } from "@/features/sprints/types/sprint.types";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
@@ -229,6 +232,10 @@ export function SprintPlanningView({
   // Panel-level (LEAD) — works even when there is no sprint yet, so the
   // "Create sprint" control appears for a lead on an empty project.
   const canManage = initialSprint.canManage;
+  const completedSprints = initialSprint.completedSprints;
+
+  const overdue =
+    sprint?.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
     <DndContext
@@ -254,11 +261,17 @@ export function SprintPlanningView({
             {!sprint && canManage && (
               <CreateSprintButton projectId={projectId} onChanged={onChanged} />
             )}
-            {sprint && canManage && sprint.status === "PLANNED" && (
-              <StartSprintButton sprint={sprint} onChanged={onChanged} />
-            )}
-            {sprint && canManage && sprint.status === "ACTIVE" && (
-              <CompleteSprintButton sprint={sprint} onChanged={onChanged} />
+            {sprint && canManage && (
+              <>
+                <EditSprintButton sprint={sprint} onChanged={onChanged} />
+                <DeleteSprintButton sprint={sprint} onChanged={onChanged} />
+                {sprint.status === "PLANNED" && (
+                  <StartSprintButton sprint={sprint} onChanged={onChanged} />
+                )}
+                {sprint.status === "ACTIVE" && (
+                  <CompleteSprintButton sprint={sprint} onChanged={onChanged} />
+                )}
+              </>
             )}
           </div>
         </div>
@@ -267,6 +280,12 @@ export function SprintPlanningView({
           <>
             {sprint.goal && (
               <p className="mb-2 text-sm text-muted-foreground">{sprint.goal}</p>
+            )}
+            {(sprint.startDate || sprint.endDate) && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                {formatDateRange(sprint.startDate, sprint.endDate)}
+                {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
+              </p>
             )}
             <div className="mb-3 flex items-center gap-3">
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
@@ -315,6 +334,23 @@ export function SprintPlanningView({
         )}
       </section>
 
+      {/* Completed sprints (history) */}
+      {completedSprints.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Completed sprints</h2>
+          <div className="flex flex-col gap-2">
+            {completedSprints.map((s) => (
+              <CompletedSprintCard
+                key={s.id}
+                sprint={s}
+                canManage={canManage}
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <DragOverlay>
         {activeItem && (
           <BacklogItem
@@ -326,6 +362,45 @@ export function SprintPlanningView({
         )}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+function formatDateRange(startIso: string | null, endIso: string | null): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  if (startIso && endIso) return `${fmt(startIso)} – ${fmt(endIso)}`;
+  if (startIso) return `Starts ${fmt(startIso)}`;
+  if (endIso) return `Ends ${fmt(endIso)}`;
+  return "";
+}
+
+// A completed sprint in the history section: name, dates, final progress, and a
+// delete control (LEAD). Read-only otherwise — its issue set is the record.
+function CompletedSprintCard({
+  sprint,
+  canManage,
+  onChanged,
+}: {
+  sprint: SprintWithProgressDto;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const { doneIssues, totalIssues } = sprint.progress;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/30 px-3 py-2.5">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-foreground">{sprint.name}</span>
+          <Badge variant="outline">Completed</Badge>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {formatDateRange(sprint.startDate, sprint.endDate)}
+          {sprint.startDate || sprint.endDate ? " · " : ""}
+          {doneIssues}/{totalIssues} done
+        </span>
+      </div>
+      {canManage && <DeleteSprintButton sprint={sprint} onChanged={onChanged} />}
+    </div>
   );
 }
 

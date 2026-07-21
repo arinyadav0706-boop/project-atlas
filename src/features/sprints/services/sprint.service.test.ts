@@ -7,11 +7,14 @@ vi.mock("@/features/sprints/repositories/sprint.repository", () => ({
     listByProject: vi.fn(),
     findById: vi.fn(),
     findCurrent: vi.fn(),
+    listCompleted: vi.fn(),
     update: vi.fn(),
     start: vi.fn(),
     complete: vi.fn(),
     progressByStatus: vi.fn(),
     listSprintIssues: vi.fn(),
+    releaseIssues: vi.fn(),
+    softDelete: vi.fn(),
     statusOf: vi.fn(),
   },
 }));
@@ -97,6 +100,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
   sprints.progressByStatus.mockResolvedValue([] as never);
+  sprints.listCompleted.mockResolvedValue([] as never);
 });
 
 describe("create", () => {
@@ -234,7 +238,39 @@ describe("progress (BR-7, derived)", () => {
   });
 });
 
+describe("delete", () => {
+  it("lets a LEAD delete a PLANNED sprint (releases issues + soft delete)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.findById.mockResolvedValue(sprintRow({ status: "PLANNED" }) as never);
+    await SprintService.delete(actor, "sprint-1");
+    expect(sprints.releaseIssues).toHaveBeenCalledWith("sprint-1", "user-1");
+    expect(sprints.softDelete).toHaveBeenCalledWith("sprint-1", "user-1");
+  });
+
+  it("blocks deleting an ACTIVE sprint (must complete first)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    await expect(SprintService.delete(actor, "sprint-1")).rejects.toBeInstanceOf(ConflictError);
+    expect(sprints.softDelete).not.toHaveBeenCalled();
+  });
+
+  it("forbids a MEMBER from deleting a sprint (BR-4)", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    sprints.findById.mockResolvedValue(sprintRow({ status: "PLANNED" }) as never);
+    await expect(SprintService.delete(actor, "sprint-1")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
 describe("getPanel", () => {
+  it("includes completed sprints with progress", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    sprints.findCurrent.mockResolvedValue(null as never);
+    sprints.listCompleted.mockResolvedValue([sprintRow({ id: "old", status: "COMPLETED" })] as never);
+    const panel = await SprintService.getPanel(actor, "proj-1");
+    expect(panel.completedSprints).toHaveLength(1);
+    expect(panel.completedSprints[0]!.status).toBe("COMPLETED");
+  });
+
   it("reports canManage for a LEAD even when there is NO sprint yet (regression)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD");
     sprints.findCurrent.mockResolvedValue(null as never);

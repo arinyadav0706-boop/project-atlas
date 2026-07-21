@@ -18,3 +18,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     );
   });
 }
+
+// DELETE /api/sprints/{sprintId} — soft-delete a PLANNED/COMPLETED sprint
+// (LEAD; an ACTIVE sprint must be completed first). Issues return to the backlog.
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  return handleRoute(async () => {
+    const actor = await getActor();
+    if (!actor) throw new UnauthorizedError();
+    await SprintService.delete(actor, params.sprintId);
+    return NextResponse.json({ ok: true });
+  });
+}

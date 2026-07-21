@@ -134,6 +134,40 @@ describe("Sprint lifecycle + assignment integration", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
+  it("deletes a PLANNED sprint and returns its issues to the backlog", async () => {
+    const { actor, project } = await seed("del");
+    const [a] = await createIssues(actor, project.id, ["A"]);
+    const s = await SprintService.create(actor, project.id, { name: "S" });
+    await move(actor, a!.id, { sprintId: s.id, beforeId: null, afterId: null });
+
+    await SprintService.delete(actor, s.id);
+
+    const gone = await prisma.sprint.findFirst({ where: { id: s.id, deletedAt: null } });
+    expect(gone).toBeNull();
+    const issue = await prisma.issue.findUnique({ where: { id: a!.id }, select: { sprintId: true } });
+    expect(issue?.sprintId).toBeNull(); // returned to the backlog
+  });
+
+  it("refuses to delete an ACTIVE sprint", async () => {
+    const { actor, project } = await seed("dela");
+    const s = await SprintService.create(actor, project.id, { name: "S" });
+    await SprintService.update(actor, s.id, dates);
+    await SprintService.start(actor, s.id);
+    await expect(SprintService.delete(actor, s.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("lists completed sprints in the panel", async () => {
+    const { actor, project } = await seed("hist");
+    const s = await SprintService.create(actor, project.id, { name: "Past" });
+    await SprintService.update(actor, s.id, dates);
+    await SprintService.start(actor, s.id);
+    await SprintService.complete(actor, s.id);
+
+    const panel = await SprintService.getPanel(actor, project.id);
+    expect(panel.sprint).toBeNull(); // no current sprint
+    expect(panel.completedSprints.map((x) => x.name)).toEqual(["Past"]);
+  });
+
   it("derives progress from the sprint's issues (BR-7)", async () => {
     const { actor, project } = await seed("prg");
     const [a, b] = await createIssues(actor, project.id, ["a", "b"]);
