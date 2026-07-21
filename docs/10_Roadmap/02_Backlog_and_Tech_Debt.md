@@ -103,6 +103,22 @@ and product decisions — that would otherwise get lost between modules.
 | FUT-4 | Board filters not yet activated: **Sprint, Epic, Label** | P3 | No | OPEN | The `BoardFilter` contract + server `where` already accept them (ADR-0008); V1 filter bar exposes only assignee/type/priority (data that exists). Add controls as those modules ship — no board redesign. |
 | UX-3 | Consistent empty / loading / error states pass | P3 | No | OPEN | |
 
+## Sprint/Backlog page — deferred UI (depends on future modules)
+
+Catalogued from the reference planning-screen review (2026-07-21). The core
+planning area (sprint sections, drag, lifecycle, row menu, star, dates, progress)
+is built; these need modules we haven't shipped and are **not** blockers.
+
+| ID | Item | Pri | 🚩 | Status | Notes |
+|---|---|---|---|---|---|
+| SP-1 | **Burndown** chart on the sprint | P3 | No | OPEN | Reports module. Needs a remaining-work time-series — reconstructable from the `audit_logs` `ISSUE_STATUS_CHANGED` events (already timestamped) or daily snapshots. |
+| SP-2 | **Per-column search** (sprint backlog / backlog text search) | P3 | No | OPEN | Small: add a `search` (title-contains) param to the backlog + sprint-issues queries — mirrors the Board's `where`. Can fold into the Search module. |
+| SP-3 | **Per-column filters** (type/assignee/priority/label) on backlog + sprint | P3 | No | OPEN | Reuse the ADR-0008 `BoardFilter` contract; add controls + params. |
+| SP-4 | **Global search (⌘K)** in the top bar | P2 | No | OPEN | Search module (FUT-1) — cross-entity. |
+| SP-5 | **Notifications** bell + unread badge in the top bar | P2 | No | OPEN | Notifications module (planned). |
+| SP-6 | Two-column (single-sprint focus) layout + sprint **Details** tab | P4 | No | PARKED | Alternative to the current stacked multi-sprint layout (decided: keep vertical/stacked, ADR-0015). Revisit in the premium re-skin (UX-1). |
+| SP-7 | Inline goal edit (pencil) on the sprint header | P4 | No | OPEN | We ship an edit dialog (BR-8); inline editing is a polish item for UX-1. |
+
 ## Groundwork for future modules
 
 | ID | Item | Pri | 🚩 | Status | Notes |

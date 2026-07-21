@@ -4,9 +4,11 @@ import { ArrowLeft } from "lucide-react";
 import { getActor } from "@/features/authentication/services/actor.service";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
+import { FavoriteService } from "@/features/home/services/favorite.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { Badge } from "@/shared/components/ui/badge";
 import { ProjectTabs } from "@/features/projects/components/project-tabs";
+import { StarProjectButton } from "@/features/projects/components/star-project-button";
 
 // Shared project shell: back-link, title, and tab nav around every
 // project-scoped page (Issues, Settings, …). Fetched once here so pages
@@ -33,6 +35,7 @@ export default async function ProjectLayout({
   // Recorded at the layer that already resolved the project, so ProjectService
   // stays free of a home dependency.
   await RecentItemService.record(actor, "PROJECT", params.projectId, "VIEWED");
+  const starred = await FavoriteService.isProjectStarred(actor, params.projectId);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -49,6 +52,7 @@ export default async function ProjectLayout({
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           {project.name}
         </h1>
+        <StarProjectButton projectId={params.projectId} initialStarred={starred} />
         {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
       </div>
 

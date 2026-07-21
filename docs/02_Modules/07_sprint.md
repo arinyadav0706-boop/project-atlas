@@ -120,6 +120,15 @@ list (ADR-0014):
 startDate` enforced in the service. `MoveIssueToSprintInput`: `sprintId` (string or
 null), `beforeId`/`afterId` (nullable), `expectedVersion` (required, OCC).
 
+## Planning-view UI additions (v2.3)
+
+Built on the existing backend, no schema change: **duration** and **issue count**
+on each sprint header; a per-row **"…" actions menu** (open the issue; move it into
+any sprint or back to the backlog via the move endpoint — a non-drag path); and a
+**star/pin toggle** on the project header (Favorites, ADR-0012). Depends on modules
+**not yet built** and deferred (see Future Scope / tech-debt): global search (⌘K),
+notifications, per-column search/filters, and the burndown chart.
+
 ## Future Scope
 
 - **Follow-up sprint at completion** (`moveIncompleteIssuesToSprintId`) instead of

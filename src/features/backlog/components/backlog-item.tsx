@@ -22,11 +22,14 @@ export function BacklogItem({
   item,
   canWrite,
   overlay = false,
+  trailing,
 }: {
   projectId: string;
   item: IssueListItemDto;
   canWrite: boolean;
   overlay?: boolean;
+  // Optional control rendered at the row's end (e.g. a "…" actions menu).
+  trailing?: React.ReactNode;
 }) {
   const sortable = useSortable({ id: item.id, disabled: !canWrite });
   const style = {
@@ -85,6 +88,7 @@ export function BacklogItem({
           </AvatarFallback>
         </Avatar>
       )}
+      {trailing}
     </div>
   );
 }

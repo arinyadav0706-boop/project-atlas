@@ -17,4 +17,8 @@ export const FavoriteService = {
   async unstarProject(actor: Actor, projectId: string): Promise<void> {
     await FavoriteRepository.remove(actor.userId, "PROJECT", projectId);
   },
+
+  isProjectStarred(actor: Actor, projectId: string): Promise<boolean> {
+    return FavoriteRepository.exists(actor.userId, "PROJECT", projectId);
+  },
 };
