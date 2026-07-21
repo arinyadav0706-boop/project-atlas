@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { MoreHorizontal } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +28,12 @@ import { apiRequest } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/shared/components/ui/dropdown-menu";
 import { BacklogItem } from "@/features/backlog/components/backlog-item";
 import {
   CompleteSprintButton,
@@ -253,6 +261,46 @@ export function SprintPlanningView({
 
   const onChanged = useCallback(() => router.refresh(), [router]);
 
+  // Sprint targets a row can be moved into via the "…" menu (non-drag path).
+  const sprintOptions = initialSprint.sprints.map((s) => ({
+    id: s.sprint.id,
+    name: s.sprint.name,
+  }));
+
+  // Menu-driven move: append the issue to the destination list's end, then
+  // refresh (menu actions are infrequent — no optimistic bookkeeping needed).
+  const moveViaMenu = useCallback(
+    async (item: IssueListItemDto, targetSprintId: string | null) => {
+      const destList = targetSprintId === null ? backlogItems : sprintItems[targetSprintId] ?? [];
+      const beforeId = destList[destList.length - 1]?.id ?? null;
+      try {
+        await apiRequest(`/api/issues/${item.id}/sprint`, {
+          method: "PATCH",
+          body: { sprintId: targetSprintId, beforeId, afterId: null, expectedVersion: item.version },
+        });
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't move that issue.");
+      }
+    },
+    [backlogItems, sprintItems, router],
+  );
+
+  const rowMenu = useCallback(
+    (item: IssueListItemDto, currentSprintId: string | null) =>
+      canWrite ? (
+        <RowMenu
+          projectId={projectId}
+          item={item}
+          currentSprintId={currentSprintId}
+          sprintOptions={sprintOptions}
+          onMove={moveViaMenu}
+        />
+      ) : null,
+    // sprintOptions is derived from props each render; safe to omit from deps.
+    [canWrite, projectId, moveViaMenu], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -283,6 +331,7 @@ export function SprintPlanningView({
               canWrite={canWrite}
               canManage={canManage}
               onChanged={onChanged}
+              renderTrailing={(item) => rowMenu(item, sprint.id)}
             />
           ))}
         </div>
@@ -297,6 +346,7 @@ export function SprintPlanningView({
           items={backlogItems}
           canWrite={canWrite}
           emptyText="The backlog is empty — new issues land here until they're scheduled."
+          renderTrailing={(item) => rowMenu(item, null)}
         />
         {nextCursor && (
           <div className="mt-4 flex justify-center">
@@ -340,6 +390,7 @@ function SprintSection({
   canWrite,
   canManage,
   onChanged,
+  renderTrailing,
 }: {
   sprint: SprintWithProgressDto;
   projectId: string;
@@ -347,6 +398,7 @@ function SprintSection({
   canWrite: boolean;
   canManage: boolean;
   onChanged: () => void;
+  renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   const done = items.filter((i) => i.status === "DONE").length;
   const total = items.length;
@@ -378,12 +430,14 @@ function SprintSection({
       </div>
 
       {sprint.goal && <p className="mb-2 text-sm text-muted-foreground">{sprint.goal}</p>}
-      {(sprint.startDate || sprint.endDate) && (
-        <p className="mb-2 text-xs text-muted-foreground">
-          {formatDateRange(sprint.startDate, sprint.endDate)}
-          {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
-        </p>
-      )}
+      <p className="mb-2 text-xs text-muted-foreground">
+        {sprint.startDate || sprint.endDate ? formatDateRange(sprint.startDate, sprint.endDate) : "No dates set"}
+        {durationDays(sprint.startDate, sprint.endDate) !== null && (
+          <span className="ml-2">· {durationDays(sprint.startDate, sprint.endDate)} days</span>
+        )}
+        <span className="ml-2">· {total} {total === 1 ? "issue" : "issues"}</span>
+        {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
+      </p>
       <div className="mb-3 flex items-center gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
           <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
@@ -399,9 +453,17 @@ function SprintSection({
         items={items}
         canWrite={canWrite}
         emptyText="Drag issues here to plan this sprint."
+        renderTrailing={renderTrailing}
       />
     </section>
   );
+}
+
+function durationDays(startIso: string | null, endIso: string | null): number | null {
+  if (!startIso || !endIso) return null;
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (ms <= 0) return null;
+  return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
 function formatDateRange(startIso: string | null, endIso: string | null): string {
@@ -449,12 +511,14 @@ function DroppableList({
   items,
   canWrite,
   emptyText,
+  renderTrailing,
 }: {
   listId: ListId;
   projectId: string;
   items: IssueListItemDto[];
   canWrite: boolean;
   emptyText: string;
+  renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: listId });
   return (
@@ -467,12 +531,63 @@ function DroppableList({
     >
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
         {items.map((item) => (
-          <BacklogItem key={item.id} projectId={projectId} item={item} canWrite={canWrite} />
+          <BacklogItem
+            key={item.id}
+            projectId={projectId}
+            item={item}
+            canWrite={canWrite}
+            trailing={renderTrailing?.(item)}
+          />
         ))}
       </SortableContext>
       {items.length === 0 && (
         <p className="px-1 py-6 text-center text-xs text-muted-foreground">{emptyText}</p>
       )}
     </div>
+  );
+}
+
+// Per-row "…" actions menu (the non-drag path): open the issue, and move it
+// between the backlog and any sprint via the move endpoint (ADR-0014).
+function RowMenu({
+  projectId,
+  item,
+  currentSprintId,
+  sprintOptions,
+  onMove,
+}: {
+  projectId: string;
+  item: IssueListItemDto;
+  currentSprintId: string | null;
+  sprintOptions: { id: string; name: string }[];
+  onMove: (item: IssueListItemDto, targetSprintId: string | null) => void;
+}) {
+  const addTargets = sprintOptions.filter((s) => s.id !== currentSprintId);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Issue actions"
+        // Don't let the trigger start a drag on the row.
+        onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+        className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={`/projects/${projectId}/issues/${item.id}`}>Open issue</Link>
+        </DropdownMenuItem>
+        {currentSprintId !== null && (
+          <DropdownMenuItem onSelect={() => onMove(item, null)}>
+            Remove from sprint
+          </DropdownMenuItem>
+        )}
+        {addTargets.map((s) => (
+          <DropdownMenuItem key={s.id} onSelect={() => onMove(item, s.id)}>
+            Move to {s.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

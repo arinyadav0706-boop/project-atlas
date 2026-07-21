@@ -131,6 +131,38 @@ test("completing a sprint moves it to history and re-syncs the panel", async ({ 
   await expect(page.getByText(/sprint deleted/i)).toBeVisible({ timeout: 15000 });
 });
 
+test("row '…' menu moves an issue into a sprint without dragging", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Menu ${Date.now()}`);
+  const issueTitle = `Menu issue ${Date.now()}`;
+  await createBacklogIssue(page, issueTitle);
+  await goToBacklog(page);
+
+  const sprintName = `Menu Sprint ${Date.now()}`;
+  await createSprint(page, sprintName);
+
+  // Open the backlog row's actions menu and move it into the sprint.
+  const row = page.locator("div").filter({ hasText: issueTitle }).last();
+  await row.getByRole("button", { name: /issue actions/i }).click();
+  await page.getByRole("menuitem", { name: new RegExp(`move to ${sprintName}`, "i") }).click();
+
+  const section = page.locator("section").filter({ hasText: sprintName });
+  await expect(section.getByText(/\/1 done/i)).toBeVisible({ timeout: 15000 });
+});
+
+test("star toggle pins and unpins the project", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Star ${Date.now()}`);
+
+  const star = page.getByRole("button", { name: /star project/i });
+  await expect(star).toBeVisible({ timeout: 15000 });
+  await star.click();
+  // After starring, the control flips to the "unstar" affordance.
+  await expect(page.getByRole("button", { name: /unstar project/i })).toBeVisible({
+    timeout: 15000,
+  });
+});
+
 // Multi-sprint planning (ADR-0015): several sprints coexist as sections; an
 // issue can be dragged into a chosen one.
 test("LEAD can plan multiple sprints and drag into a chosen one", async ({ page }) => {

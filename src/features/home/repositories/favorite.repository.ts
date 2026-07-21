@@ -23,4 +23,12 @@ export const FavoriteRepository = {
       select: { entityId: true },
     });
   },
+
+  async exists(userId: string, entityType: FavoriteEntityType, entityId: string) {
+    const row = await prisma.favorite.findUnique({
+      where: { userId_entityType_entityId: { userId, entityType, entityId } },
+      select: { userId: true },
+    });
+    return row !== null;
+  },
 };
