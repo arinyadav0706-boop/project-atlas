@@ -128,13 +128,18 @@ export const SprintService = {
     const { role } = await resolve(projectId, actor);
     const current = await SprintRepository.findCurrent(projectId);
     if (!current) {
-      return { sprint: null, items: [], canWrite: canWrite(role) };
+      return { sprint: null, items: [], canWrite: canWrite(role), canManage: canManage(role) };
     }
     const [sprint, rows] = await Promise.all([
       withProgress(current, role),
       SprintRepository.listSprintIssues(projectId, current.id),
     ]);
-    return { sprint, items: rows.map(toCardDto), canWrite: canWrite(role) };
+    return {
+      sprint,
+      items: rows.map(toCardDto),
+      canWrite: canWrite(role),
+      canManage: canManage(role),
+    };
   },
 
   async create(

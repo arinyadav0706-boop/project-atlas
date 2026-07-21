@@ -35,5 +35,10 @@ export interface SprintWithProgressDto extends SprintDto {
 export interface SprintPanelDto {
   sprint: SprintWithProgressDto | null;
   items: IssueListItemDto[];
+  // Whether the viewer may drag issues in/out (MEMBER/LEAD).
   canWrite: boolean;
+  // Whether the viewer may create/start/complete sprints (LEAD, BR-4). Carried
+  // at the panel level so the "Create sprint" control shows even when there is
+  // no sprint yet (can't be read off a null sprint).
+  canManage: boolean;
 }
