@@ -68,11 +68,22 @@ test("completing then creating a sprint does not show the old sprint's issues", 
   await page.getByRole("dialog").getByRole("button", { name: /^complete$/i }).click();
   await expect(page.getByText(/sprint completed/i)).toBeVisible({ timeout: 15000 });
 
-  // Immediately (no reload) the completed sprint is gone and a fresh "Create
-  // sprint" affordance is shown — not a stale sprint header/issues.
+  // Immediately (no reload) the completed sprint is gone from the current slot
+  // (fresh "Create sprint") AND appears in the completed-sprints history.
   await expect(page.getByRole("button", { name: /create sprint/i })).toBeVisible({
     timeout: 15000,
   });
+  await expect(page.getByText(/completed sprints/i)).toBeVisible({ timeout: 15000 });
+
+  // Delete it from history and it disappears.
+  await page
+    .getByText(/completed sprints/i)
+    .locator("xpath=following-sibling::div[1]")
+    .getByRole("button", { name: /^delete$/i })
+    .first()
+    .click();
+  await page.getByRole("dialog").getByRole("button", { name: /^delete$/i }).click();
+  await expect(page.getByText(/sprint deleted/i)).toBeVisible({ timeout: 15000 });
 });
 
 test("LEAD can create a sprint and drag a backlog card into it", async ({ page }) => {

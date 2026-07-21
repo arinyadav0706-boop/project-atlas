@@ -197,6 +197,154 @@ export function StartSprintButton({
   );
 }
 
+// Edit name / goal / dates for a PLANNED or ACTIVE sprint.
+export function EditSprintButton({
+  sprint,
+  onChanged,
+}: {
+  sprint: SprintWithProgressDto;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(sprint.name);
+  const [goal, setGoal] = useState(sprint.goal ?? "");
+  const [start, setStart] = useState(toLocalInput(sprint.startDate));
+  const [end, setEnd] = useState(toLocalInput(sprint.endDate));
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    if (!name.trim()) return;
+    if (start && end && new Date(end) <= new Date(start)) {
+      toast.error("End date must be after the start date.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/sprints/${sprint.id}`, {
+        method: "PATCH",
+        body: {
+          name: name.trim(),
+          goal: goal.trim() || null,
+          startDate: start ? new Date(start).toISOString() : null,
+          endDate: end ? new Date(end).toISOString() : null,
+        },
+      });
+      toast.success("Sprint updated");
+      setOpen(false);
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update the sprint.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost">
+          Edit
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogTitle>Edit sprint</DialogTitle>
+        <DialogDescription>Update the sprint&apos;s name, goal, or dates.</DialogDescription>
+        <div className="mt-5 space-y-4">
+          <div>
+            <Label htmlFor="edit-sprint-name">Name</Label>
+            <Input id="edit-sprint-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="edit-sprint-goal">Goal</Label>
+            <Textarea id="edit-sprint-goal" value={goal} onChange={(e) => setGoal(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="edit-sprint-start">Start date</Label>
+              <Input
+                id="edit-sprint-start"
+                type="datetime-local"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-sprint-end">End date</Label>
+              <Input
+                id="edit-sprint-end"
+                type="datetime-local"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={submit} loading={submitting} disabled={!name.trim()}>
+              Save
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Delete a PLANNED/COMPLETED sprint (an ACTIVE one must be completed first).
+// Issues in the sprint return to the backlog.
+export function DeleteSprintButton({
+  sprint,
+  onChanged,
+}: {
+  sprint: SprintWithProgressDto;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    setSubmitting(true);
+    try {
+      await apiRequest(`/api/sprints/${sprint.id}`, { method: "DELETE" });
+      toast.success("Sprint deleted");
+      setOpen(false);
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete the sprint.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost">
+          Delete
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogTitle>Delete sprint</DialogTitle>
+        <DialogDescription>
+          {sprint.status === "COMPLETED"
+            ? "This removes the completed sprint from the history. Its issues stay where they are."
+            : "Any issues in this sprint return to the backlog. This can't be undone."}
+        </DialogDescription>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={submit} loading={submitting}>
+            Delete
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Complete shows how many incomplete issues will return to the backlog (BR-3).
 export function CompleteSprintButton({
   sprint,

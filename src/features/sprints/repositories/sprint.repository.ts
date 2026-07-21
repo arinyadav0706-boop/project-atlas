@@ -61,6 +61,15 @@ export const SprintRepository = {
     });
   },
 
+  // Completed sprints for the past-sprints section, most-recently-ended first.
+  listCompleted(projectId: string) {
+    return prisma.sprint.findMany({
+      where: { projectId, status: "COMPLETED", deletedAt: null },
+      select: sprintSelect,
+      orderBy: [{ endDate: "desc" }, { updatedAt: "desc" }],
+    });
+  },
+
   // The project's "current" sprint for the Backlog page: the ACTIVE one, else
   // the earliest-created PLANNED one. Null if the project has neither.
   async findCurrent(projectId: string) {
@@ -138,6 +147,15 @@ export const SprintRepository = {
       where: { projectId, sprintId, deletedAt: null },
       select: cardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
+    });
+  },
+
+  // Return every issue in a sprint to the backlog (sprintId = null), keeping its
+  // rank — used before deleting a planned sprint so issues are never stranded.
+  releaseIssues(sprintId: string, actorId: string) {
+    return prisma.issue.updateMany({
+      where: { sprintId, deletedAt: null },
+      data: { sprintId: null, updatedBy: actorId },
     });
   },
 

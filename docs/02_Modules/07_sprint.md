@@ -16,12 +16,14 @@ Backlog list on the Backlog page (ADR-0014), carrying its lifecycle controls, go
 and progress. Dragging an issue between the section and the Backlog moves it in/out
 of the sprint.
 
-## MVP scope
+## Scope (v2.1)
 
-Create sprint · Backlog ↔ Sprint drag-and-drop · Start sprint · Complete sprint ·
-Sprint goal (free text) · basic progress (done vs. total, story points). Everything
-else (multi-sprint planning, follow-up-sprint at close, burndown/velocity) is
-**deferred** — see Future Scope and the tech-debt ledger.
+Create sprint · Backlog ↔ Sprint drag-and-drop · reorder within a sprint · Start
+sprint · Complete sprint · **Edit** name/goal/dates · **Delete** (guarded) ·
+**View completed sprints** (history) · dates + overdue on the sprint card · Sprint
+goal (free text) · basic progress (done vs. total, story points). Still **deferred**
+(see Future Scope): **multi-sprint planning** (several PLANNED sprints at once),
+follow-up-sprint at close, burndown/velocity.
 
 ## Business Rules
 
@@ -46,6 +48,13 @@ else (multi-sprint planning, follow-up-sprint at close, burndown/velocity) is
   project and not `COMPLETED`. Neighbours are validated server-side, never trusted.
 - **BR-7 (progress is derived, ADR-0014):** a sprint's progress is computed at read
   time (`GROUP BY status` over its issues) — no stored counters.
+- **BR-8 (edit):** a `LEAD` may edit a non-completed sprint's name/goal/dates
+  (`endDate > startDate`); a `COMPLETED` sprint is read-only (BR-5).
+- **BR-9 (delete):** a `LEAD` may soft-delete a `PLANNED` or `COMPLETED` sprint; an
+  `ACTIVE` sprint must be completed first. A deleted sprint's issues return to the
+  backlog (keeping their rank) — never stranded.
+- **BR-10 (history):** `COMPLETED` sprints are listed on the Backlog page (name,
+  dates, final progress), most-recently-ended first, so they don't vanish.
 
 ## Database
 
@@ -61,7 +70,8 @@ Reads/writes `Sprint` (existing) and `Issue` (`sprintId`, `rank`, `version`) —
 - **`GET /api/projects/{projectId}/sprints`** — sprints for a project, each with
   derived progress (`SprintWithProgressDto`).
 - **`POST /api/projects/{projectId}/sprints`** — create a `PLANNED` sprint (LEAD).
-- **`PATCH /api/sprints/{sprintId}`** — edit `name`/`goal`/`startDate`/`endDate` (LEAD).
+- **`PATCH /api/sprints/{sprintId}`** — edit `name`/`goal`/`startDate`/`endDate` (LEAD, BR-8).
+- **`DELETE /api/sprints/{sprintId}`** — soft-delete a PLANNED/COMPLETED sprint (LEAD, BR-9).
 - **`POST /api/sprints/{sprintId}/start`** — `PLANNED → ACTIVE` (BR-1, BR-2; LEAD).
 - **`POST /api/sprints/{sprintId}/complete`** — `ACTIVE → COMPLETED`, incomplete
   issues → Backlog (BR-3; LEAD).

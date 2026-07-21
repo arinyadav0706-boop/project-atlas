@@ -593,7 +593,16 @@ paths:
           description: Updated
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Sprint" }
+              schema: { $ref: "#/components/schemas/SprintWithProgress" }
+    delete:
+      tags: [sprints]
+      summary: >
+        Soft-delete a PLANNED or COMPLETED sprint (LEAD). An ACTIVE sprint must be
+        completed first (409). A deleted sprint's issues return to the backlog.
+      responses:
+        "200": { description: Deleted }
+        "403": { description: Caller is not a project LEAD }
+        "409": { description: Sprint is ACTIVE }
 
   /sprints/{sprintId}/start:
     parameters:
