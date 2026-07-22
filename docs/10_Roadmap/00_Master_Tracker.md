@@ -23,7 +23,7 @@ module (can't finish until that ships).
 | **Backlog** | 🟡 | (in-module done) search/filters remain | Search, Labels/Epics |
 | **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
-| Attachments | ⛔ | Build (StorageAdapter, ADR-0004) | — |
+| Attachments | 🟡 | (MVP done) previews/versioning/scan/dedup/quota/share-links later; set `STORAGE_*` env in prod (GL-8) | — |
 | Notifications | ⛔ | Build | Comments, Issues events |
 | Reports | ⛔ | Build (velocity/burndown/cycle-time) | Sprint, audit log |
 | Search | ⛔ | Build (⌘K global + per-list) | Issues, Labels |
@@ -46,6 +46,19 @@ module (can't finish until that ships).
 - [ ] **Rich-text editor** (swap renderer off `bodyFormat`) — *later*
 - [ ] **Edit history** (`comment_revisions`) — *later*
 - [ ] **Real-time / AI summaries** (subscribe the event seam) — *Dep: infra / AI*
+
+## Attachments — feature checklist (ADR-0017)
+
+- [x] Upload (multipart, MIME allow-list + 25 MB cap) / list / RBAC-gated download / delete (uploader or LEAD) ✅ 2026-07-22
+- [x] Provider-agnostic `StorageAdapter` (Local default; Supabase via REST) + factory (`STORAGE_PROVIDER`) ✅ 2026-07-22
+- [x] Opaque server-side keys; drag-drop + multi-file picker; audit on upload/delete; soft delete + best-effort blob removal ✅ 2026-07-22
+- [ ] **S3 / GCS / Azure adapters** (new class + factory case — no feature-code change) — *later*
+- [ ] **Signed-URL download + expiring share links** (documented seam) — *later*
+- [ ] **Image/PDF previews & thumbnails** (`previewUrl` additive) — *later*
+- [ ] **Versioning** (supersede-by-key) / **dedup** (`hash`) / **virus scanning** (`scanStatus`) — *later*
+- [ ] **Per-project storage quotas** + parallel bulk upload — *later*
+- [ ] **Comment attachments** (`attachments.commentId`) — *Dep: Comments wiring*
+- [ ] **AI document processing** (subscribe the upload event seam) — *Dep: AI*
 
 ## Backlog — feature checklist
 

@@ -177,9 +177,15 @@ test("completing can move incomplete issues to a follow-up sprint", async ({ pag
   await createSprint(page, active);
   await createSprint(page, next);
 
-  // Put the issue into the active sprint, then start it.
+  // Put the issue into the active sprint, then start it. Use the row "…" menu
+  // (proven, viewport-independent) rather than a drag — with two sprint sections
+  // stacked above the backlog the card and drop zone aren't co-visible, which
+  // makes a pointer drag flaky here; the drag path itself is covered elsewhere.
   const activeSection = page.locator("section").filter({ hasText: active });
-  await dragCardInto(page, issueTitle, activeSection.getByText(/drag issues here to plan this sprint/i));
+  const backlogRow = page.locator("div").filter({ hasText: issueTitle }).last();
+  await backlogRow.getByRole("button", { name: /issue actions/i }).click();
+  await page.getByRole("menuitem", { name: new RegExp(`move to ${active}`, "i") }).click();
+  await expect(activeSection.getByText(/\/1 done/i)).toBeVisible({ timeout: 15000 });
   await activeSection.getByRole("button", { name: /start sprint/i }).click();
   await page.getByLabel("Start date").fill("2026-08-01T09:00");
   await page.getByLabel("End date").fill("2026-08-14T09:00");

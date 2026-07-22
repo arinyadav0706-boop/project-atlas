@@ -29,6 +29,7 @@ and product decisions — that would otherwise get lost between modules.
 | GL-5 | **Confirm `DATABASE_URL` = `?pgbouncer=true&connection_limit=1`** | P2 | PARTIAL | `pgbouncer=true` confirmed; add `&connection_limit=1`. |
 | GL-6 | **SSO credentials** (Google + Microsoft OAuth apps) if launching with SSO | P2 | OPEN | Config, not code. Credentials login works today. |
 | GL-7 | **Load test to ~60 concurrent** (Phase 7 NFR) | P2 | OPEN | Validate the scale targets in `05_Performance_and_Scalability.md`. |
+| GL-8 | **Configure `STORAGE_*` env in prod** for Attachments (ADR-0017) | P1 | 🚩 | OPEN | Attachments defaults to `STORAGE_PROVIDER=local` (on-disk), which is **ephemeral on serverless** — files vanish between deploys. Prod must set `STORAGE_PROVIDER=supabase` + `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_STORAGE_BUCKET` (or a future S3/GCS/Azure adapter). **No migration** — the `attachments` table already exists; this is config only. |
 
 ---
 
@@ -124,12 +125,17 @@ is built; these need modules we haven't shipped and are **not** blockers.
 | ID | Item | Pri | 🚩 | Status | Notes |
 |---|---|---|---|---|---|
 | FUT-1 | Search: full-text strategy (`tsvector`/`pg_trgm` vs engine) | P3 | No | OPEN | Decide before the Search module. |
-| FUT-2 | Attachments: implement a `StorageAdapter` (S3/Supabase/Azure/local) | P3 | No | OPEN | When Attachments is built (ADR-0004). |
+| FUT-2 | Attachments: implement a `StorageAdapter` (S3/Supabase/Azure/local) | P3 | No | ✅ DONE 2026-07-22 | Provider-agnostic `StorageAdapter` (ADR-0004/0017): `LocalStorageAdapter` (default, dev/self-host/tests) + `SupabaseStorageAdapter` (REST, no SDK), chosen by `STORAGE_PROVIDER` in a cached factory. Attachments MVP built on it (upload/list/RBAC-proxied download/delete). S3/GCS/Azure = a new class + factory case, no feature-code change. **Prod needs `STORAGE_*` env = GL-8** (no migration — the `attachments` table already exists). |
 | FUT-5 | Sprint: **follow-up-sprint target at completion** (`moveIncompleteToSprintId`) | P3 | — | ✅ DONE 2026-07-21 | Complete offers Backlog (default) or a follow-up PLANNED sprint; incomplete issues move there keeping rank. Service + `POST /sprints/{id}/complete` body + modal picker; unit + integration + e2e. |
 | FUT-6 | Sprint: **multi-sprint planning** (several `PLANNED` sprints at once) | P2 | — | ✅ DONE 2026-07-21 | ADR-0015: the Backlog page shows every non-completed sprint (ACTIVE + all PLANNED) as its own droppable section; drag issues into any of them. Panel DTO → `sprints[]`; repo `listPlanning`. Browser-verified (`e2e/sprint-drag.spec.ts`: multiple sprints, drag into a chosen one). **Remaining sub-gap → FUT-8.** |
 | FUT-8 | Sprint: **reorder the planned-sprint queue** | P3 | — | ✅ DONE 2026-07-21 | Up/down controls on planned sprints; `Sprint.position` (migration `20260721000000_sprint_position` — **apply to prod = part of GL-4**), `listPlanning` orders by it, `reorderQueue` reindexes transactionally; `PATCH /projects/{id}/sprints/order`. Unit + integration + e2e. |
 | SP-8 | Backlog/Sprint: **bulk select + move** | P3 | — | ✅ DONE 2026-07-21 | Checkbox per row + action bar; move all selected to a sprint or the backlog (each a version-checked move, chained to preserve order). e2e-verified. Caught a stale-closure bug in the sprint-reorder handler during browser verify. |
 | FUT-7 | Sprint: **velocity / burndown reports** | P3 | No | OPEN | The `COMPLETED` sprint's issue set is the immutable record (BR-5); story-point totals already computed in progress. Consumed by the Reports module (`11_reports.md`). |
+| FUT-9 | Attachments: **signed-URL download + expiring share links** | P3 | No | OPEN | MVP proxies bytes through an RBAC-gated route (`getObject`); the `StorageAdapter` signed-URL methods are documented (ADR-0017 §4) but not wired. Swap in for large-file offload + external sharing. |
+| FUT-10 | Attachments: **image/PDF previews & thumbnails** | P3 | No | OPEN | `AttachmentDto.previewUrl` is an additive field (ADR-0017). Generate on upload or on demand; no client break. |
+| FUT-11 | Attachments: **versioning, dedup (hash), virus scanning** | P3 | No | OPEN | Additive columns (`version`/`hash`/`scanStatus`) + extension tables per ADR-0017 §5 — none built in MVP. Scanning gates download; dedup keys blobs by content hash. |
+| FUT-12 | Attachments: **per-project storage quotas + parallel bulk upload** | P4 | No | OPEN | MVP uploads sequentially and enforces only a per-file 25 MB cap. Quota accounting + a parallel bulk path are deferred (ADR-0017 §5). |
+| FUT-13 | Attachments: **comment attachments + AI document processing** | P3 | No | OPEN | `attachments.commentId` is reserved for attaching to comments; the upload event seam is the hook for AI extraction/OCR. Both deferred (ADR-0017). |
 | TD-1 | Consolidate the 5 issue-list-item mappers into one shared fn | P4 | No | OPEN | `issue.service.toListDto`, `board.service.toCardDto`, `home.service.toCard`, `backlog.service.toCardDto`, `sprint.service.toCardDto` are near-identical `IssueListItemDto` mappers; extract one `toIssueListItemDto` when convenient (kept per-feature for now, consistent with existing pattern). |
 
 ## Remaining V1 modules
