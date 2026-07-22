@@ -344,16 +344,29 @@ model IssueLabel {
   @@map("issue_labels")
 }
 
+// Body storage format (ADR-0016): the source is stored as-is and rendered per
+// format, so a future rich-text editor changes the value + renderer, not the schema.
+enum CommentBodyFormat {
+  PLAIN
+  MARKDOWN
+}
+
 model Comment {
-  id              String    @id @default(cuid())
+  id              String            @id @default(cuid())
   issueId         String
-  issue           Issue     @relation(fields: [issueId], references: [id])
+  issue           Issue             @relation(fields: [issueId], references: [id])
   authorId        String
-  author          User      @relation(fields: [authorId], references: [id])
+  author          User              @relation(fields: [authorId], references: [id])
+  // Threading backbone (ADR-0016). Present from day one; the MVP renders flat.
   parentCommentId String?
-  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
-  replies         Comment[] @relation("CommentReplies")
+  parentComment   Comment?          @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies         Comment[]         @relation("CommentReplies")
   body            String
+  bodyFormat      CommentBodyFormat @default(MARKDOWN)
+  // "edited" indicator; null until the first edit.
+  editedAt        DateTime?
+  // Optimistic concurrency (ADR-0011): a version-checked edit rejects stale writes.
+  version         Int               @default(0)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -361,7 +374,10 @@ model Comment {
   updatedBy String?
   deletedAt DateTime?
 
-  @@index([issueId])
+  // Ordered, keyset-paginated list per issue.
+  @@index([issueId, createdAt])
+  // Reply lookups (future threading).
+  @@index([parentCommentId])
   @@map("comments")
 }
 

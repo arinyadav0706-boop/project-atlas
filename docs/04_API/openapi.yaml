@@ -431,18 +431,30 @@ paths:
       - $ref: "#/components/parameters/IssueIdParam"
     get:
       tags: [comments]
-      summary: List comments on an issue
+      summary: List comments on an issue, oldest-first, keyset-paginated
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: take
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/Comment" }
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Comment" }
+                  nextCursor: { type: string, nullable: true }
+                  canComment: { type: boolean }
     post:
       tags: [comments]
-      summary: Add a comment (parses @mentions to trigger notifications)
+      summary: Add a comment (MEMBER/LEAD). parentCommentId reserved for future threading (ADR-0016).
       requestBody:
         content:
           application/json:
@@ -454,7 +466,6 @@ paths:
                 parentCommentId:
                   type: string
                   nullable: true
-                  description: Must reference a top-level comment (no nested replies beyond one level)
       responses:
         "201":
           description: Created
@@ -470,15 +481,16 @@ paths:
         schema: { type: string }
     patch:
       tags: [comments]
-      summary: Edit own comment
+      summary: Edit own comment (OCC, ADR-0011)
       requestBody:
         content:
           application/json:
             schema:
               type: object
-              required: [body]
+              required: [body, expectedVersion]
               properties:
                 body: { type: string }
+                expectedVersion: { type: integer, description: OCC token }
       responses:
         "200":
           description: Updated
@@ -1140,14 +1152,24 @@ components:
 
     Comment:
       type: object
+      description: CommentDto (ADR-0016) — designed to grow (reactions/mentions/attachments/replyCount later).
       properties:
         id: { type: string }
         issueId: { type: string }
-        authorId: { type: string }
         parentCommentId: { type: string, nullable: true }
         body: { type: string }
+        bodyFormat: { type: string, enum: [PLAIN, MARKDOWN] }
+        author:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
+        editedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, description: OCC token (ADR-0011) }
+        canEdit: { type: boolean }
+        canDelete: { type: boolean }
 
     Attachment:
       type: object
