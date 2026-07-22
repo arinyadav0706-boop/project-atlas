@@ -40,7 +40,7 @@ module (can't finish until that ships).
 - [x] Ordered unscheduled list (rank), drag-reorder, keyset pagination
 - [x] Drag issue → sprint / back; per-row "…" move menu
 - [x] VIEWER read-only, RBAC, optimistic + OCC
-- [ ] **Inline "create issue" at bottom of backlog** (Jira fast-add) — *in-module, launch-nice*
+- [x] **Inline "create issue" at bottom of backlog** (Jira fast-add) ✅ 2026-07-21
 - [ ] **Backlog text search** — *Dep: Search (SP-2)*
 - [ ] **Filters** (assignee/type/priority/epic/label) — *Dep: Labels/Epics (SP-3)*
 - [ ] **Epics panel / group-by-epic** — *Dep: Epics — later*
@@ -53,7 +53,7 @@ module (can't finish until that ships).
 - [x] Create · multiple planned sprints · start (dates+goal) · complete · edit · delete
 - [x] Multi-sprint sections (ADR-0015) · history · dates + overdue · count progress
 - [x] Star project · row "…" move · duration/issue-count · RBAC · OCC
-- [ ] **Complete → move incomplete to *next sprint*** (today: backlog only) — *in-module (FUT-5), launch-nice*
+- [x] **Complete → move incomplete to *next sprint*** (FUT-5) ✅ 2026-07-21
 - [ ] **Reorder the sprint queue** (drag sprints) — *in-module, needs 1 order col (FUT-8), later*
 - [ ] **Burndown / velocity** — *Dep: Reports (SP-1); data already in audit_logs*
 - [ ] **Sprint capacity** (points vs capacity) — *later*

@@ -116,6 +116,21 @@ describe("Sprint lifecycle + assignment integration", () => {
     expect(doneRow?.sprintId).toBe(s.id); // DONE stays in the historical record
   });
 
+  it("completing can move incomplete issues to a follow-up PLANNED sprint (FUT-5)", async () => {
+    const { actor, project } = await seed("next");
+    const [todo] = await createIssues(actor, project.id, ["todo"]);
+    const active = await SprintService.create(actor, project.id, { name: "Active" });
+    const next = await SprintService.create(actor, project.id, { name: "Next" });
+    await SprintService.update(actor, active.id, dates);
+    await move(actor, todo!.id, { sprintId: active.id, beforeId: null, afterId: null });
+    await SprintService.start(actor, active.id);
+
+    await SprintService.complete(actor, active.id, next.id);
+
+    const row = await prisma.issue.findUnique({ where: { id: todo!.id }, select: { sprintId: true } });
+    expect(row?.sprintId).toBe(next.id); // moved to the follow-up, not the backlog
+  });
+
   it("freezes a COMPLETED sprint — issues cannot be moved out (BR-5)", async () => {
     const { actor, project } = await seed("frz");
     const [i1] = await createIssues(actor, project.id, ["A"]);

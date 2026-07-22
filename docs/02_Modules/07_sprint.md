@@ -34,9 +34,9 @@ themselves), follow-up-sprint at close, burndown/velocity.
 - **BR-2 (start prerequisites, FR-4.2):** starting (`PLANNED → ACTIVE`) requires
   `name`, `startDate`, and `endDate`, with `endDate > startDate` (cross-field check
   in the service, not just per-field Zod).
-- **BR-3 (complete, FR-4.3):** completing (`ACTIVE → COMPLETED`) returns every issue
-  not in `DONE` status to the Backlog (`sprintId = null`), keeping its existing
-  `rank`. (MVP always returns to the Backlog; a follow-up-sprint target is deferred.)
+- **BR-3 (complete, FR-4.3):** completing (`ACTIVE → COMPLETED`) moves every issue
+  not in `DONE` status to the Backlog (`sprintId = null`) **or** to a chosen follow-up
+  `PLANNED` sprint (`moveIncompleteToSprintId`), keeping its existing `rank`.
 - **BR-4 (RBAC):** only `LEAD` can create, edit, start, or complete a sprint, and
   only `MEMBER`/`LEAD` can move issues in/out of a sprint. `VIEWER` and non-members
   get a read-only view (they still *see* the sprint — projects are org-visible).

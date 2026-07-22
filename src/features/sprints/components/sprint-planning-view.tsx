@@ -35,6 +35,7 @@ import {
   DropdownMenuItem,
 } from "@/shared/components/ui/dropdown-menu";
 import { BacklogItem } from "@/features/backlog/components/backlog-item";
+import { InlineCreateIssue } from "@/features/backlog/components/inline-create-issue";
 import {
   CompleteSprintButton,
   CreateSprintButton,
@@ -331,6 +332,9 @@ export function SprintPlanningView({
               canWrite={canWrite}
               canManage={canManage}
               onChanged={onChanged}
+              completeTargets={initialSprint.sprints
+                .filter((s) => s.sprint.status === "PLANNED" && s.sprint.id !== sprint.id)
+                .map((s) => ({ id: s.sprint.id, name: s.sprint.name }))}
               renderTrailing={(item) => rowMenu(item, sprint.id)}
             />
           ))}
@@ -348,6 +352,7 @@ export function SprintPlanningView({
           emptyText="The backlog is empty — new issues land here until they're scheduled."
           renderTrailing={(item) => rowMenu(item, null)}
         />
+        {canWrite && <InlineCreateIssue projectId={projectId} onCreated={onChanged} />}
         {nextCursor && (
           <div className="mt-4 flex justify-center">
             <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
@@ -390,6 +395,7 @@ function SprintSection({
   canWrite,
   canManage,
   onChanged,
+  completeTargets,
   renderTrailing,
 }: {
   sprint: SprintWithProgressDto;
@@ -398,6 +404,7 @@ function SprintSection({
   canWrite: boolean;
   canManage: boolean;
   onChanged: () => void;
+  completeTargets: { id: string; name: string }[];
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   const done = items.filter((i) => i.status === "DONE").length;
@@ -423,7 +430,11 @@ function SprintSection({
               <StartSprintButton sprint={sprint} onChanged={onChanged} />
             )}
             {sprint.status === "ACTIVE" && (
-              <CompleteSprintButton sprint={sprint} onChanged={onChanged} />
+              <CompleteSprintButton
+                sprint={sprint}
+                targets={completeTargets}
+                onChanged={onChanged}
+              />
             )}
           </div>
         )}

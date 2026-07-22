@@ -150,6 +150,53 @@ test("row '…' menu moves an issue into a sprint without dragging", async ({ pa
   await expect(section.getByText(/\/1 done/i)).toBeVisible({ timeout: 15000 });
 });
 
+test("inline create adds an issue to the backlog", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Inline ${Date.now()}`);
+  await goToBacklog(page);
+
+  const title = `Inline issue ${Date.now()}`;
+  await page.getByLabel("New issue title").fill(title);
+  await page.getByLabel("New issue title").press("Enter");
+
+  await expect(page.getByText(/created/i)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(title)).toBeVisible({ timeout: 15000 });
+});
+
+test("completing can move incomplete issues to a follow-up sprint", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Followup ${Date.now()}`);
+  const issueTitle = `Followup issue ${Date.now()}`;
+  await createBacklogIssue(page, issueTitle);
+  await goToBacklog(page);
+
+  const stamp = Date.now();
+  const active = `Active ${stamp}`;
+  const next = `Next ${stamp}`;
+  await createSprint(page, active);
+  await createSprint(page, next);
+
+  // Put the issue into the active sprint, then start it.
+  const activeSection = page.locator("section").filter({ hasText: active });
+  await dragCardInto(page, issueTitle, activeSection.getByText(/drag issues here to plan this sprint/i));
+  await activeSection.getByRole("button", { name: /start sprint/i }).click();
+  await page.getByLabel("Start date").fill("2026-08-01T09:00");
+  await page.getByLabel("End date").fill("2026-08-14T09:00");
+  await page.getByRole("dialog").getByRole("button", { name: /^start$/i }).click();
+  await expect(page.getByText(/sprint started/i)).toBeVisible({ timeout: 15000 });
+
+  // Complete it, sending the incomplete issue to the "Next" sprint.
+  await page.getByRole("button", { name: /complete sprint/i }).click();
+  await page.getByRole("dialog").getByRole("combobox").click();
+  await page.getByRole("option", { name: new RegExp(next, "i") }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /^complete$/i }).click();
+  await expect(page.getByText(/sprint completed/i)).toBeVisible({ timeout: 15000 });
+
+  // The issue is now in the "Next" sprint section.
+  const nextSection = page.locator("section").filter({ hasText: next });
+  await expect(nextSection.getByText(/\/1 done/i)).toBeVisible({ timeout: 15000 });
+});
+
 test("star toggle pins and unpins the project", async ({ page }) => {
   await signIn(page, "kavya.iyer@consint.ai");
   await createProject(page, `Star ${Date.now()}`);

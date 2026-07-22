@@ -626,8 +626,19 @@ paths:
       tags: [sprints]
       summary: >
         Complete a sprint (ACTIVE → COMPLETED); incomplete issues (status != DONE)
-        return to the backlog with their ranks intact (LEAD only). MVP always
-        returns to the backlog; a follow-up-sprint target is deferred (ADR-0014).
+        move to the backlog, or to a chosen follow-up PLANNED sprint, keeping their
+        ranks (LEAD only).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                moveIncompleteToSprintId:
+                  type: string
+                  nullable: true
+                  description: A PLANNED sprint in the same project; omit/null → backlog
       responses:
         "200":
           description: Completed
