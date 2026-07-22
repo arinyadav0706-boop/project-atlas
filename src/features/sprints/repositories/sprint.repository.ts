@@ -33,12 +33,19 @@ const cardSelect = {
 } as const;
 
 export const SprintRepository = {
-  create(input: { projectId: string; name: string; goal: string | null; actorId: string }) {
+  async create(input: { projectId: string; name: string; goal: string | null; actorId: string }) {
+    // Append to the end of the queue (FUT-8): one past the current max position.
+    const last = await prisma.sprint.findFirst({
+      where: { projectId: input.projectId, deletedAt: null },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
     return prisma.sprint.create({
       data: {
         projectId: input.projectId,
         name: input.name,
         goal: input.goal,
+        position: (last?.position ?? -1) + 1,
         createdBy: input.actorId,
       },
       select: sprintSelect,
@@ -68,8 +75,23 @@ export const SprintRepository = {
     return prisma.sprint.findMany({
       where: { projectId, status: { in: ["PLANNED", "ACTIVE"] }, deletedAt: null },
       select: sprintSelect,
-      orderBy: [{ status: "desc" }, { createdAt: "asc" }],
+      // ACTIVE first (status desc: PLANNED<ACTIVE), then the queue's `position`.
+      orderBy: [{ status: "desc" }, { position: "asc" }, { createdAt: "asc" }],
     });
+  },
+
+  // Reindex the planned-sprint queue (FUT-8): assign position by the given order,
+  // in one transaction. `orderedIds` are the caller's desired order; only sprints
+  // present here are touched.
+  reorderQueue(orderedIds: string[], actorId: string) {
+    return prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.sprint.update({
+          where: { id },
+          data: { position: index, updatedBy: actorId },
+        }),
+      ),
+    );
   },
 
   // Completed sprints for the past-sprints section, most-recently-ended first.

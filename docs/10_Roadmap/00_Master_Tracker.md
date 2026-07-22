@@ -20,8 +20,8 @@ module (can't finish until that ships).
 | Issues | ✅ | — | — |
 | Board | ✅ | Activate Sprint/Epic/Label filters (FUT-4) | Labels, Epics |
 | Home | ✅ | — | — |
-| **Backlog** | 🟡 | Inline create; search/filters | Search, Labels/Epics |
-| **Sprint** | 🟡 | Complete→next-sprint; queue reorder | Reports (burndown) |
+| **Backlog** | 🟡 | (in-module done) search/filters remain | Search, Labels/Epics |
+| **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
 | Comments | ⛔ | Build | — |
 | Attachments | ⛔ | Build (StorageAdapter, ADR-0004) | — |
 | Notifications | ⛔ | Build | Comments, Issues events |
@@ -45,7 +45,7 @@ module (can't finish until that ships).
 - [ ] **Filters** (assignee/type/priority/epic/label) — *Dep: Labels/Epics (SP-3)*
 - [ ] **Epics panel / group-by-epic** — *Dep: Epics — later*
 - [ ] **Versions/releases panel** — *Dep: Versions — later*
-- [ ] **Bulk select + bulk move** — *in-module, later*
+- [x] **Bulk select + bulk move** (SP-8) ✅ 2026-07-21
 - [ ] **Inline edit** assignee/points/labels from a row — *Dep: Labels — later*
 
 ## Sprint — feature checklist
@@ -54,7 +54,7 @@ module (can't finish until that ships).
 - [x] Multi-sprint sections (ADR-0015) · history · dates + overdue · count progress
 - [x] Star project · row "…" move · duration/issue-count · RBAC · OCC
 - [x] **Complete → move incomplete to *next sprint*** (FUT-5) ✅ 2026-07-21
-- [ ] **Reorder the sprint queue** (drag sprints) — *in-module, needs 1 order col (FUT-8), later*
+- [x] **Reorder the sprint queue** (up/down; FUT-8) ✅ 2026-07-21
 - [ ] **Burndown / velocity** — *Dep: Reports (SP-1); data already in audit_logs*
 - [ ] **Sprint capacity** (points vs capacity) — *later*
 - [ ] **Duration presets** (1w/2w) + auto start/complete — *later*

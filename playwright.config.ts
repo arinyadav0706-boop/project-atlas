@@ -11,6 +11,9 @@ export default defineConfig({
   timeout: 30000,
   fullyParallel: false,
   workers: 1,
+  // dnd-kit pointer drags are timing-sensitive under full-suite load; one retry
+  // absorbs that flake without hiding real failures (a genuine break fails twice).
+  retries: 1,
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:3000",

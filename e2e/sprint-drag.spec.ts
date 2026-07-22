@@ -30,7 +30,8 @@ async function createBacklogIssue(page: Page, title: string) {
   await page.getByRole("button", { name: /new issue/i }).first().click();
   await page.getByLabel("Title").fill(title);
   await page.getByRole("button", { name: /create issue/i }).click();
-  await expect(page.getByText(/created/i)).toBeVisible({ timeout: 15000 });
+  // The created issue's key toast (KEY-N created) — not the project toast.
+  await expect(page.getByText(/-\d+ created/i)).toBeVisible({ timeout: 15000 });
 }
 
 async function goToBacklog(page: Page) {
@@ -195,6 +196,50 @@ test("completing can move incomplete issues to a follow-up sprint", async ({ pag
   // The issue is now in the "Next" sprint section.
   const nextSection = page.locator("section").filter({ hasText: next });
   await expect(nextSection.getByText(/\/1 done/i)).toBeVisible({ timeout: 15000 });
+});
+
+test("reorder buttons change the planned-sprint queue order", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Queue ${Date.now()}`);
+  await goToBacklog(page);
+
+  const stamp = Date.now();
+  const first = `AAA ${stamp}`;
+  const second = `BBB ${stamp}`;
+  await createSprint(page, first);
+  await createSprint(page, second);
+
+  // "second" starts below "first"; move it up.
+  const secondSection = page.locator("section").filter({ hasText: second });
+  await secondSection.getByRole("button", { name: /move sprint up/i }).click();
+
+  // After reorder, the first sprint section on the page is now "second".
+  await expect(page.locator("section h3").first()).toHaveText(second, { timeout: 15000 });
+});
+
+test("bulk select moves multiple issues into a sprint", async ({ page }) => {
+  await signIn(page, "kavya.iyer@consint.ai");
+  await createProject(page, `Bulk ${Date.now()}`);
+  const stamp = Date.now();
+  await createBacklogIssue(page, `Bulk A ${stamp}`);
+  await createBacklogIssue(page, `Bulk B ${stamp}`);
+  await goToBacklog(page);
+
+  const sprintName = `Bulk Sprint ${stamp}`;
+  await createSprint(page, sprintName);
+
+  // Select both backlog issues.
+  await page.getByRole("checkbox", { name: new RegExp(`select`, "i") }).nth(0).click();
+  await page.getByRole("checkbox", { name: new RegExp(`select`, "i") }).nth(1).click();
+  await expect(page.getByText(/2 selected/i)).toBeVisible({ timeout: 15000 });
+
+  // Choose the sprint as the destination and move.
+  await page.getByText(/2 selected/i).locator("xpath=..").getByRole("combobox").click();
+  await page.getByRole("option", { name: new RegExp(sprintName, "i") }).click();
+  await page.getByRole("button", { name: /^move$/i }).click();
+
+  const section = page.locator("section").filter({ hasText: sprintName });
+  await expect(section.getByText(/\/2 done/i)).toBeVisible({ timeout: 15000 });
 });
 
 test("star toggle pins and unpins the project", async ({ page }) => {

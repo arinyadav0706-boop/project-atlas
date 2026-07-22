@@ -17,6 +17,11 @@ export const updateSprintSchema = z.object({
   endDate: z.string().datetime().nullable().optional(),
 });
 
+// Reorder the planned-sprint queue (FUT-8): the desired order of sprint ids.
+export const reorderSprintsSchema = z.object({
+  sprintIds: z.array(z.string()).min(1),
+});
+
 // Complete a sprint. Incomplete issues return to the backlog by default, or to
 // a chosen follow-up (PLANNED) sprint when `moveIncompleteToSprintId` is set.
 export const completeSprintSchema = z.object({
@@ -37,4 +42,5 @@ export const moveIssueToSprintSchema = z.object({
 export type CreateSprintInput = z.infer<typeof createSprintSchema>;
 export type UpdateSprintInput = z.infer<typeof updateSprintSchema>;
 export type CompleteSprintInput = z.infer<typeof completeSprintSchema>;
+export type ReorderSprintsInput = z.infer<typeof reorderSprintsSchema>;
 export type MoveIssueToSprintInput = z.infer<typeof moveIssueToSprintSchema>;

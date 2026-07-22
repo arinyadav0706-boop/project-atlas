@@ -9,6 +9,7 @@ vi.mock("@/features/sprints/repositories/sprint.repository", () => ({
     findCurrent: vi.fn(),
     listPlanning: vi.fn(),
     listCompleted: vi.fn(),
+    reorderQueue: vi.fn(),
     update: vi.fn(),
     start: vi.fn(),
     complete: vi.fn(),
@@ -291,6 +292,34 @@ describe("delete", () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
     sprints.findById.mockResolvedValue(sprintRow({ status: "PLANNED" }) as never);
     await expect(SprintService.delete(actor, "sprint-1")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("reorderQueue (FUT-8)", () => {
+  it("reindexes when given all the planning sprints (LEAD)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.listPlanning.mockResolvedValue([
+      sprintRow({ id: "a" }),
+      sprintRow({ id: "b" }),
+    ] as never);
+    await SprintService.reorderQueue(actor, "proj-1", ["b", "a"]);
+    expect(sprints.reorderQueue).toHaveBeenCalledWith(["b", "a"], "user-1");
+  });
+
+  it("rejects a stale list (missing/extra ids)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.listPlanning.mockResolvedValue([sprintRow({ id: "a" }), sprintRow({ id: "b" })] as never);
+    await expect(
+      SprintService.reorderQueue(actor, "proj-1", ["a"]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(sprints.reorderQueue).not.toHaveBeenCalled();
+  });
+
+  it("forbids a MEMBER from reordering (BR-4)", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    await expect(
+      SprintService.reorderQueue(actor, "proj-1", ["a"]),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 

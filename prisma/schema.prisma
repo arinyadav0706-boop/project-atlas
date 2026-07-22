@@ -236,6 +236,10 @@ model Sprint {
   status    SprintStatus @default(PLANNED)
   startDate DateTime?
   endDate   DateTime?
+  // Order of the PLANNED sprint queue on the backlog page (ADR-0015 / FUT-8).
+  // Small integer position, reindexed on reorder (few sprints per project);
+  // ACTIVE always sorts first regardless. createdAt is the tiebreaker.
+  position  Int          @default(0)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
