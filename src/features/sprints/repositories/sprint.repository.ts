@@ -123,14 +123,15 @@ export const SprintRepository = {
     });
   },
 
-  // Complete (ACTIVE → COMPLETED): flip the sprint and return every non-DONE
-  // issue to the backlog (sprintId = null, keeping its rank) in one transaction
-  // (BR-3). Ranks are untouched, so issues reappear in the backlog in order.
-  async complete(id: string, projectId: string, actorId: string) {
+  // Complete (ACTIVE → COMPLETED): flip the sprint and move every non-DONE issue
+  // to `targetSprintId` (a follow-up PLANNED sprint) or, when null, back to the
+  // backlog — keeping its rank — in one transaction (BR-3). Ranks are untouched,
+  // so issues reappear in order.
+  async complete(id: string, projectId: string, actorId: string, targetSprintId: string | null) {
     return prisma.$transaction(async (tx) => {
       const returned = await tx.issue.updateMany({
         where: { sprintId: id, status: { not: "DONE" }, deletedAt: null },
-        data: { sprintId: null, updatedBy: actorId },
+        data: { sprintId: targetSprintId, updatedBy: actorId },
       });
       const sprint = await tx.sprint.update({
         where: { id },

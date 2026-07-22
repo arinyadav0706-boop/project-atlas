@@ -17,6 +17,12 @@ export const updateSprintSchema = z.object({
   endDate: z.string().datetime().nullable().optional(),
 });
 
+// Complete a sprint. Incomplete issues return to the backlog by default, or to
+// a chosen follow-up (PLANNED) sprint when `moveIncompleteToSprintId` is set.
+export const completeSprintSchema = z.object({
+  moveIncompleteToSprintId: z.string().nullable().optional(),
+});
+
 // Move an issue to a sprint (or back to the backlog when sprintId is null),
 // positioned between two visible neighbours — one atomic sprintId + rank write
 // (ADR-0014). Neighbour ids are validated server-side, never trusted.
@@ -30,4 +36,5 @@ export const moveIssueToSprintSchema = z.object({
 
 export type CreateSprintInput = z.infer<typeof createSprintSchema>;
 export type UpdateSprintInput = z.infer<typeof updateSprintSchema>;
+export type CompleteSprintInput = z.infer<typeof completeSprintSchema>;
 export type MoveIssueToSprintInput = z.infer<typeof moveIssueToSprintSchema>;

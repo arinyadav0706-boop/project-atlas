@@ -15,6 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/shared/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import type { SprintWithProgressDto } from "@/features/sprints/types/sprint.types";
 
 // Sprint lifecycle actions (BR-2/BR-3/BR-4). LEAD-only; rendered by the planning
@@ -345,22 +352,32 @@ export function DeleteSprintButton({
   );
 }
 
-// Complete shows how many incomplete issues will return to the backlog (BR-3).
+// Complete shows how many incomplete issues will move, and where — the backlog
+// (default) or a chosen follow-up PLANNED sprint (BR-3).
 export function CompleteSprintButton({
   sprint,
+  targets,
   onChanged,
 }: {
   sprint: SprintWithProgressDto;
+  // Other PLANNED sprints the incomplete issues may move into.
+  targets: { id: string; name: string }[];
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [destination, setDestination] = useState("backlog");
   const incomplete = sprint.progress.totalIssues - sprint.progress.doneIssues;
 
   async function submit() {
     setSubmitting(true);
     try {
-      await apiRequest(`/api/sprints/${sprint.id}/complete`, { method: "POST" });
+      await apiRequest(`/api/sprints/${sprint.id}/complete`, {
+        method: "POST",
+        body: {
+          moveIncompleteToSprintId: destination === "backlog" ? null : destination,
+        },
+      });
       toast.success("Sprint completed");
       setOpen(false);
       onChanged();
@@ -382,9 +399,27 @@ export function CompleteSprintButton({
         <DialogTitle>Complete sprint</DialogTitle>
         <DialogDescription>
           {incomplete > 0
-            ? `${incomplete} incomplete ${incomplete === 1 ? "issue" : "issues"} will return to the backlog.`
+            ? `${incomplete} incomplete ${incomplete === 1 ? "issue" : "issues"} will move to:`
             : "All issues are done. This will close the sprint."}
         </DialogDescription>
+        {incomplete > 0 && targets.length > 0 && (
+          <div className="mt-4">
+            <Label htmlFor="complete-destination">Move incomplete issues to</Label>
+            <Select value={destination} onValueChange={setDestination}>
+              <SelectTrigger id="complete-destination" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="backlog">Backlog</SelectItem>
+                {targets.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
             Cancel

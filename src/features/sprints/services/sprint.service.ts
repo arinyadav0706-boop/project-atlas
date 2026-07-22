@@ -266,10 +266,12 @@ export const SprintService = {
     return withProgress(result.sprint, role);
   },
 
-  // BR-3: complete an ACTIVE sprint; incomplete issues return to the backlog.
+  // BR-3: complete an ACTIVE sprint; incomplete issues return to the backlog, or
+  // to a chosen follow-up PLANNED sprint (moveIncompleteToSprintId).
   async complete(
     actor: Actor,
     sprintId: string,
+    moveIncompleteToSprintId?: string | null,
   ): Promise<SprintWithProgressDto> {
     const { sprint, context, role } = await loadSprint(sprintId, actor);
     if (!canManage(role)) {
@@ -281,10 +283,27 @@ export const SprintService = {
     if (sprint.status !== "ACTIVE") {
       throw new ConflictError("Only an active sprint can be completed.");
     }
+
+    let target: string | null = null;
+    if (moveIncompleteToSprintId) {
+      if (moveIncompleteToSprintId === sprintId) {
+        throw new ValidationError("Choose a different sprint for the incomplete issues.");
+      }
+      const dest = await SprintRepository.findById(moveIncompleteToSprintId);
+      if (!dest || dest.projectId !== sprint.projectId) {
+        throw new NotFoundError("Target sprint not found.");
+      }
+      if (dest.status !== "PLANNED") {
+        throw new ConflictError("Incomplete issues can only move to a planned sprint.");
+      }
+      target = dest.id;
+    }
+
     const { sprint: row } = await SprintRepository.complete(
       sprintId,
       sprint.projectId,
       actor.userId,
+      target,
     );
     return withProgress(row, role);
   },

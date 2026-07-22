@@ -209,6 +209,36 @@ describe("complete", () => {
       ConflictError,
     );
   });
+
+  it("moves incomplete issues to a chosen PLANNED follow-up sprint (FUT-5)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.findById.mockImplementation(((id: string) =>
+      Promise.resolve(
+        id === "sprint-1"
+          ? sprintRow({ id: "sprint-1", status: "ACTIVE" })
+          : sprintRow({ id: "next", status: "PLANNED" }),
+      )) as never);
+    sprints.complete.mockResolvedValue({
+      sprint: sprintRow({ status: "COMPLETED" }),
+      returnedCount: 1,
+    } as never);
+    await SprintService.complete(actor, "sprint-1", "next");
+    expect(sprints.complete).toHaveBeenCalledWith("sprint-1", "proj-1", "user-1", "next");
+  });
+
+  it("rejects a follow-up target that is not PLANNED", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    sprints.findById.mockImplementation(((id: string) =>
+      Promise.resolve(
+        id === "sprint-1"
+          ? sprintRow({ id: "sprint-1", status: "ACTIVE" })
+          : sprintRow({ id: "done", status: "COMPLETED" }),
+      )) as never);
+    await expect(SprintService.complete(actor, "sprint-1", "done")).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(sprints.complete).not.toHaveBeenCalled();
+  });
 });
 
 describe("update (date cross-field, BR-2)", () => {

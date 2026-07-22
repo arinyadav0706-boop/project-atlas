@@ -32,7 +32,9 @@ New scopes (e.g. `sprint`) are added without touching existing callers.
   `sprintId = null`, ordered by `rank` (ADR-0009), independent of status. Bounded
   by keyset pagination (like the issue list) — backlogs grow large.
 - **BR-2:** new issues created without a sprint default to the Backlog
-  (`sprintId = null`) and append to its end — already true (`createWithKey`).
+  (`sprintId = null`) and append to its end — already true (`createWithKey`). A
+  Jira-style **inline "add issue"** input at the bottom of the backlog creates a
+  `TASK` via the existing create endpoint (MEMBER/LEAD).
 - **BR-3 (reorder):** `MEMBER`/`LEAD` reorder via `PATCH /issues/{id}/rank` with
   `scope = backlog`; neighbours validated as unscheduled (ADR-0013). Single-row
   write, optimistic-concurrency guarded (ADR-0011). `VIEWER` is read-only.
