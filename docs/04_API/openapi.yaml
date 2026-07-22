@@ -508,23 +508,31 @@ paths:
       - $ref: "#/components/parameters/IssueIdParam"
     get:
       tags: [attachments]
-      summary: List attachments on an issue
+      summary: List attachments on an issue, oldest-first
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/Attachment" }
+                type: object
+                required: [items, canUpload]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Attachment" }
+                  canUpload:
+                    type: boolean
+                    description: Whether the viewer may upload (MEMBER/LEAD on a non-archived project)
     post:
       tags: [attachments]
-      summary: Upload an attachment (multipart; validated server-side for MIME type and size)
+      summary: Upload an attachment (multipart; MIME type + size validated server-side, ADR-0017)
       requestBody:
         content:
           multipart/form-data:
             schema:
               type: object
+              required: [file]
               properties:
                 file: { type: string, format: binary }
       responses:
@@ -533,10 +541,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Attachment" }
-        "413":
-          description: File exceeds the configured maximum size
-        "415":
-          description: MIME type not in the configured allow-list
+        "403": { description: Caller is not a project member }
+        "422":
+          description: File is empty, exceeds the size limit, or its MIME type is not in the allow-list
 
   /attachments/{attachmentId}:
     parameters:
@@ -546,9 +553,10 @@ paths:
         schema: { type: string }
     delete:
       tags: [attachments]
-      summary: Delete an attachment
+      summary: Delete an attachment (uploader, or a project LEAD). Soft-deletes the row; blob removal is best-effort (BR-6).
       responses:
-        "204": { description: Deleted }
+        "200": { description: Deleted }
+        "403": { description: Caller is neither the uploader nor a project LEAD }
 
   /attachments/{attachmentId}/download:
     parameters:
@@ -558,9 +566,17 @@ paths:
         schema: { type: string }
     get:
       tags: [attachments]
-      summary: Redirect to a short-lived signed URL from the StorageAdapter
+      summary: >-
+        RBAC-gated proxy of the blob bytes (ADR-0017). The bytes are streamed
+        through this route after a tenant + role check — never a public URL.
+        A signed-URL redirect is a documented future scale seam.
       responses:
-        "302": { description: Redirect to signed URL }
+        "200":
+          description: The file bytes, with Content-Type and Content-Disposition set
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { description: Attachment not found, or its blob is no longer available }
 
   /projects/{projectId}/sprints/order:
     parameters:
@@ -1173,14 +1189,28 @@ components:
 
     Attachment:
       type: object
+      description: >-
+        AttachmentDto (ADR-0017) — designed to grow (scanStatus/previewUrl/hash/version
+        are additive later). The blob itself is never exposed as a public URL.
       properties:
         id: { type: string }
         issueId: { type: string }
-        uploadedById: { type: string }
         fileName: { type: string }
         mimeType: { type: string }
         sizeBytes: { type: integer }
+        uploadedBy:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        downloadUrl:
+          type: string
+          description: Path to the RBAC-gated download route (never a public URL)
+        canDelete:
+          type: boolean
+          description: Whether the viewer may delete this attachment (uploader or LEAD)
 
     Notification:
       type: object

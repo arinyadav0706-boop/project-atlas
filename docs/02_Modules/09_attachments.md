@@ -1,12 +1,18 @@
 # Module: Attachments
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** v2.0 (MVP spec) · **Owner:** Founding CTO · **Last Updated:** 2026-07-21
+· **Decisions:** ADR-0004 (storage portability), ADR-0017 (attachments/storage architecture)
 
 ## Overview
 
-File upload/download on issues, stored via the provider-agnostic
-`StorageAdapter` interface (Supabase Storage today, Azure Blob later —
-ADR-0004).
+File upload/download on issues, stored via the provider-agnostic **`StorageAdapter`**
+seam (ADR-0004/0017). Two adapters ship behind one interface: a **`LocalStorageAdapter`**
+(disk; dev + self-hosted default, and the one tests exercise) and a
+**`SupabaseStorageAdapter`** (SaaS); the concrete one is picked by `STORAGE_PROVIDER`.
+Adding S3/GCS/Azure later is one new class — no feature-code change. The MVP proxies
+upload bytes through the app (validated, ≤ 25 MB) and serves downloads via a short-lived
+signed-URL redirect; presigned direct-to-storage upload is a documented scale seam
+(ADR-0017). No provider SDK ever leaks into feature code.
 
 ## Business Rules
 
@@ -67,8 +73,12 @@ Server-side: `mimeType` against the BR-3 allow-list, `sizeBytes <=
 being used as the display name; the actual storage key is a generated
 opaque identifier, never the raw file name (Security Architecture §4).
 
-## Future Scope
+## Future Scope (all additive behind the same seam — ADR-0017)
 
-- Virus/malware scanning integration before storage.
-- Image thumbnail generation/preview.
-- File versioning (replace vs. new attachment).
+- **Presigned direct-to-storage upload** (`getSignedUploadUrl`) for large files/scale.
+- **Versioning** (`attachment_versions`); **deduplication** (content `sha256` + refcount);
+  **virus scanning** (`scanStatus` + async worker, download gates on `CLEAN`);
+  **image/PDF previews** (derived thumbnails); **storage quotas** (per-org bytes sum);
+  **expiring share links** (the signed-URL seam + a share record); **visibility**;
+  **AI document processing** (extracted text/embeddings); **external storage integrations**
+  (new `StorageAdapter` implementations); **drag-and-drop bulk uploads**.

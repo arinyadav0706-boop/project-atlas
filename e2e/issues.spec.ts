@@ -11,7 +11,7 @@ async function signIn(page: Page, email: string, password = "Passw0rd!") {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   await page.getByRole("button", { name: /sign in with email/i }).click();
-  await page.waitForURL(/\/(dashboard|projects)/);
+  await page.waitForURL(/\/(home|dashboard|projects)/);
 }
 
 async function openDemoIssues(page: Page) {
