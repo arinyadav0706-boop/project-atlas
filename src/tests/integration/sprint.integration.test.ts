@@ -184,6 +184,19 @@ describe("Sprint lifecycle + assignment integration", () => {
     expect(panel.completedSprints.map((x) => x.name)).toEqual(["Past"]);
   });
 
+  it("reorders the planned-sprint queue (FUT-8)", async () => {
+    const { actor, project } = await seed("queue");
+    const a = await SprintService.create(actor, project.id, { name: "A" });
+    const b = await SprintService.create(actor, project.id, { name: "B" });
+    const c = await SprintService.create(actor, project.id, { name: "C" });
+
+    // Created order A,B,C → move C to the front.
+    await SprintService.reorderQueue(actor, project.id, [c.id, a.id, b.id]);
+
+    const panel = await SprintService.getPanel(actor, project.id);
+    expect(panel.sprints.map((s) => s.sprint.name)).toEqual(["C", "A", "B"]);
+  });
+
   it("derives progress from the sprint's issues (BR-7)", async () => {
     const { actor, project } = await seed("prg");
     const [a, b] = await createIssues(actor, project.id, ["a", "b"]);

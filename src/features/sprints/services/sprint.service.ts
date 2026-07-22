@@ -308,6 +308,24 @@ export const SprintService = {
     return withProgress(row, role);
   },
 
+  // FUT-8: reorder the planned-sprint queue. LEAD only; every id must be a
+  // non-completed sprint in this project. Reindexes positions transactionally.
+  async reorderQueue(actor: Actor, projectId: string, sprintIds: string[]): Promise<void> {
+    const { context, role } = await resolve(projectId, actor);
+    if (!canManage(role)) {
+      throw new ForbiddenError("Only a project lead can reorder sprints.");
+    }
+    if (context.status === "ARCHIVED") {
+      throw new ConflictError("Archived projects are read-only.");
+    }
+    const planning = await SprintRepository.listPlanning(projectId);
+    const valid = new Set(planning.map((s) => s.id));
+    if (sprintIds.length !== valid.size || !sprintIds.every((id) => valid.has(id))) {
+      throw new ValidationError("The sprint list is stale — refresh and try again.");
+    }
+    await SprintRepository.reorderQueue(sprintIds, actor.userId);
+  },
+
   // BR-6 (ADR-0014): move an issue to a sprint or back to the backlog, positioned
   // between its dropped neighbours — one atomic sprintId + rank write, OCC-guarded.
   async moveIssue(

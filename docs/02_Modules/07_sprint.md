@@ -56,6 +56,10 @@ themselves), follow-up-sprint at close, burndown/velocity.
   backlog (keeping their rank) — never stranded.
 - **BR-10 (history):** `COMPLETED` sprints are listed on the Backlog page (name,
   dates, final progress), most-recently-ended first, so they don't vanish.
+- **BR-11 (queue order, FUT-8):** a `LEAD` may reorder the `PLANNED` sprint queue
+  (up/down); order is a small integer `position` (ACTIVE always sorts first).
+- **BR-12 (bulk move):** `MEMBER`/`LEAD` may multi-select issues and move them all
+  to a sprint or the backlog in one action (each a version-checked move).
 
 ## Database
 

@@ -550,6 +550,29 @@ paths:
       responses:
         "302": { description: Redirect to signed URL }
 
+  /projects/{projectId}/sprints/order:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    patch:
+      tags: [sprints]
+      summary: Reorder the planned-sprint queue (FUT-8; LEAD)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sprintIds]
+              properties:
+                sprintIds:
+                  type: array
+                  items: { type: string }
+                  description: All non-completed sprint ids in the desired order
+      responses:
+        "200": { description: Reordered }
+        "403": { description: Caller is not a project LEAD }
+        "422": { description: The sprint list is stale (missing/extra ids) }
+
   /projects/{projectId}/sprints:
     parameters:
       - $ref: "#/components/parameters/ProjectIdParam"

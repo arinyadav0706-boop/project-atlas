@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, ChevronUp, ChevronDown } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -28,6 +28,14 @@ import { apiRequest } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -97,6 +105,9 @@ export function SprintPlanningView({
   const [nextCursor, setNextCursor] = useState<string | null>(initialBacklog.nextCursor);
   const [activeItem, setActiveItem] = useState<IssueListItemDto | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTarget, setBulkTarget] = useState("backlog");
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Re-sync from fresh server props after a lifecycle refresh (create/start/
   // complete/delete/edit) — see ADR-0014 follow-up. Guarded by a signature so a
@@ -116,6 +127,7 @@ export function SprintPlanningView({
     setSprintItems(m);
     setBacklogItems(initialBacklog.items);
     setNextCursor(initialBacklog.nextCursor);
+    setSelected(new Set());
   }
 
   const sensors = useSensors(
@@ -262,6 +274,35 @@ export function SprintPlanningView({
 
   const onChanged = useCallback(() => router.refresh(), [router]);
 
+  // Planned-sprint queue order (FUT-8). Reorder = swap two planned sprints and
+  // send the full planning order (ACTIVE ids first — they always sort first).
+  const plannedIds = initialSprint.sprints
+    .filter((s) => s.sprint.status === "PLANNED")
+    .map((s) => s.sprint.id);
+  const activeIds = initialSprint.sprints
+    .filter((s) => s.sprint.status === "ACTIVE")
+    .map((s) => s.sprint.id);
+
+  // Plain function (not memoised): it must read the CURRENT plannedIds/activeIds
+  // each render — a useCallback keyed on [projectId, router] would capture the
+  // first (empty) render's arrays and silently no-op.
+  const moveSprint = async (sprintId: string, direction: "up" | "down") => {
+    const order = [...plannedIds];
+    const i = order.indexOf(sprintId);
+    const j = direction === "up" ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j]!, order[i]!];
+    try {
+      await apiRequest(`/api/projects/${projectId}/sprints/order`, {
+        method: "PATCH",
+        body: { sprintIds: [...activeIds, ...order] },
+      });
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't reorder the sprints.");
+    }
+  };
+
   // Sprint targets a row can be moved into via the "…" menu (non-drag path).
   const sprintOptions = initialSprint.sprints.map((s) => ({
     id: s.sprint.id,
@@ -302,6 +343,65 @@ export function SprintPlanningView({
     [canWrite, projectId, moveViaMenu], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // --- Bulk select + move (a power-user, non-drag path) ---
+  const toggleSelect = useCallback((id: string, on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const rowLeading = useCallback(
+    (item: IssueListItemDto) =>
+      canWrite ? (
+        <span onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}>
+          <Checkbox
+            aria-label={`Select ${item.key}`}
+            checked={selected.has(item.id)}
+            onCheckedChange={(v) => toggleSelect(item.id, v === true)}
+          />
+        </span>
+      ) : null,
+    [canWrite, selected, toggleSelect],
+  );
+
+  const bulkMove = useCallback(async () => {
+    if (selected.size === 0 || bulkBusy) return;
+    const targetSprintId = bulkTarget === "backlog" ? null : bulkTarget;
+    const ids = [...selected];
+    setBulkBusy(true);
+    try {
+      // Append each to the destination end, chaining so order is preserved.
+      let prevId =
+        targetSprintId === null
+          ? backlogItems.at(-1)?.id ?? null
+          : sprintItems[targetSprintId]?.at(-1)?.id ?? null;
+      for (const id of ids) {
+        const from = listOf(id);
+        // Skip issues already in the destination (nothing to move).
+        if (from === (targetSprintId === null ? BACKLOG_LIST : sprintListId(targetSprintId))) {
+          continue;
+        }
+        const item = from ? readList(from).find((i) => i.id === id) : undefined;
+        if (!item) continue;
+        await apiRequest(`/api/issues/${id}/sprint`, {
+          method: "PATCH",
+          body: { sprintId: targetSprintId, beforeId: prevId, afterId: null, expectedVersion: item.version },
+        });
+        prevId = id;
+      }
+      toast.success(`Moved ${ids.length} ${ids.length === 1 ? "issue" : "issues"}`);
+      setSelected(new Set());
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't move the selected issues.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selected, bulkBusy, bulkTarget, backlogItems, sprintItems, listOf, readList, router]);
+
   return (
     <DndContext
       sensors={sensors}
@@ -335,6 +435,16 @@ export function SprintPlanningView({
               completeTargets={initialSprint.sprints
                 .filter((s) => s.sprint.status === "PLANNED" && s.sprint.id !== sprint.id)
                 .map((s) => ({ id: s.sprint.id, name: s.sprint.name }))}
+              queuePosition={
+                sprint.status === "PLANNED"
+                  ? {
+                      canMoveUp: plannedIds.indexOf(sprint.id) > 0,
+                      canMoveDown: plannedIds.indexOf(sprint.id) < plannedIds.length - 1,
+                      onMove: (dir) => moveSprint(sprint.id, dir),
+                    }
+                  : null
+              }
+              renderLeading={rowLeading}
               renderTrailing={(item) => rowMenu(item, sprint.id)}
             />
           ))}
@@ -350,6 +460,7 @@ export function SprintPlanningView({
           items={backlogItems}
           canWrite={canWrite}
           emptyText="The backlog is empty — new issues land here until they're scheduled."
+          renderLeading={rowLeading}
           renderTrailing={(item) => rowMenu(item, null)}
         />
         {canWrite && <InlineCreateIssue projectId={projectId} onCreated={onChanged} />}
@@ -384,6 +495,37 @@ export function SprintPlanningView({
           <BacklogItem projectId={projectId} item={activeItem} canWrite={canWrite} overlay />
         )}
       </DragOverlay>
+
+      {/* Bulk action bar — appears while issues are selected */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
+          <span className="text-sm font-medium text-foreground">
+            {selected.size} selected
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Move to</span>
+            <Select value={bulkTarget} onValueChange={setBulkTarget}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="backlog">Backlog</SelectItem>
+                {sprintOptions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={bulkMove} loading={bulkBusy}>
+              Move
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 }
@@ -396,6 +538,8 @@ function SprintSection({
   canManage,
   onChanged,
   completeTargets,
+  queuePosition,
+  renderLeading,
   renderTrailing,
 }: {
   sprint: SprintWithProgressDto;
@@ -405,6 +549,12 @@ function SprintSection({
   canManage: boolean;
   onChanged: () => void;
   completeTargets: { id: string; name: string }[];
+  queuePosition: {
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onMove: (direction: "up" | "down") => void;
+  } | null;
+  renderLeading?: (item: IssueListItemDto) => React.ReactNode;
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   const done = items.filter((i) => i.status === "DONE").length;
@@ -424,6 +574,28 @@ function SprintSection({
         </div>
         {canManage && (
           <div className="flex items-center gap-2">
+            {queuePosition && (canManage) && (
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  aria-label="Move sprint up"
+                  disabled={!queuePosition.canMoveUp}
+                  onClick={() => queuePosition.onMove("up")}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Move sprint down"
+                  disabled={!queuePosition.canMoveDown}
+                  onClick={() => queuePosition.onMove("down")}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <EditSprintButton sprint={sprint} onChanged={onChanged} />
             <DeleteSprintButton sprint={sprint} onChanged={onChanged} />
             {sprint.status === "PLANNED" && (
@@ -464,6 +636,7 @@ function SprintSection({
         items={items}
         canWrite={canWrite}
         emptyText="Drag issues here to plan this sprint."
+        renderLeading={renderLeading}
         renderTrailing={renderTrailing}
       />
     </section>
@@ -522,6 +695,7 @@ function DroppableList({
   items,
   canWrite,
   emptyText,
+  renderLeading,
   renderTrailing,
 }: {
   listId: ListId;
@@ -529,6 +703,7 @@ function DroppableList({
   items: IssueListItemDto[];
   canWrite: boolean;
   emptyText: string;
+  renderLeading?: (item: IssueListItemDto) => React.ReactNode;
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: listId });
@@ -547,6 +722,7 @@ function DroppableList({
             projectId={projectId}
             item={item}
             canWrite={canWrite}
+            leading={renderLeading?.(item)}
             trailing={renderTrailing?.(item)}
           />
         ))}

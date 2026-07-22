@@ -22,12 +22,15 @@ export function BacklogItem({
   item,
   canWrite,
   overlay = false,
+  leading,
   trailing,
 }: {
   projectId: string;
   item: IssueListItemDto;
   canWrite: boolean;
   overlay?: boolean;
+  // Optional control rendered at the row's start (e.g. a bulk-select checkbox).
+  leading?: React.ReactNode;
   // Optional control rendered at the row's end (e.g. a "…" actions menu).
   trailing?: React.ReactNode;
 }) {
@@ -53,6 +56,7 @@ export function BacklogItem({
         overlay && "cursor-grabbing shadow-md ring-1 ring-accent",
       )}
     >
+      {leading}
       {canWrite && (
         <GripVertical
           aria-hidden
