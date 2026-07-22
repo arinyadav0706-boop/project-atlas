@@ -22,7 +22,7 @@ module (can't finish until that ships).
 | Home | ✅ | — | — |
 | **Backlog** | 🟡 | (in-module done) search/filters remain | Search, Labels/Epics |
 | **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
-| Comments | ⛔ | Build | — |
+| Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
 | Attachments | ⛔ | Build (StorageAdapter, ADR-0004) | — |
 | Notifications | ⛔ | Build | Comments, Issues events |
 | Reports | ⛔ | Build (velocity/burndown/cycle-time) | Sprint, audit log |
@@ -34,6 +34,18 @@ module (can't finish until that ships).
 | **Deploy pipeline (GL-4/DB-2)** | 🟡 held | Prod migration baseline + `migrate deploy` | prod access |
 
 ---
+
+## Comments — feature checklist (ADR-0016)
+
+- [x] Post / list (keyset, oldest-first) / edit own (OCC) / delete own (LEAD any) ✅ 2026-07-21
+- [x] Escaped body render (XSS boundary); `bodyFormat` seam; audit/event seam ✅ 2026-07-21
+- [ ] **Threaded replies** (render off `parentCommentId`) — *later, column exists*
+- [ ] **@mentions** (`comment_mentions`) — *Dep: Notifications*
+- [ ] **Reactions** (`comment_reactions`) — *later*
+- [ ] **Attachments** (`attachments.commentId`) — *Dep: Attachments*
+- [ ] **Rich-text editor** (swap renderer off `bodyFormat`) — *later*
+- [ ] **Edit history** (`comment_revisions`) — *later*
+- [ ] **Real-time / AI summaries** (subscribe the event seam) — *Dep: infra / AI*
 
 ## Backlog — feature checklist
 

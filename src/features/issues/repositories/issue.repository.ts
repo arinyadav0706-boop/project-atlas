@@ -87,6 +87,15 @@ export const IssueRepository = {
     });
   },
 
+  // Lean lookup for sibling features (e.g. Comments) that need the owning
+  // project for tenant scope / RBAC without the full detail include.
+  findProjectId(id: string) {
+    return prisma.issue.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, projectId: true },
+    });
+  },
+
   findEpic(projectId: string, epicId: string) {
     return prisma.issue.findFirst({
       where: { id: epicId, projectId, type: "EPIC", deletedAt: null },
