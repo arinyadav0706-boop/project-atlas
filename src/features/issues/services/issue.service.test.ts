@@ -163,15 +163,19 @@ describe("create", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it("forbids a non-member (org admin with no project role) from creating", async () => {
-    projects.getMemberRole.mockResolvedValue(null);
-    await expect(
-      IssueService.create(
-        { userId: "admin-1", orgRole: "ADMIN", organizationId: "org-1" },
-        "proj-1",
-        { type: "TASK", title: "x", priority: "MEDIUM" },
-      ),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+  it("allows an org ADMIN with no project role to create (effective LEAD, ADR-0024)", async () => {
+    projects.getMemberRole.mockResolvedValue(null); // not a member…
+    repo.createWithKey.mockResolvedValue(issueRow({ key: "ENG-9" }) as never);
+    const dto = await IssueService.create(
+      { userId: "admin-1", orgRole: "ADMIN", organizationId: "org-1" },
+      "proj-1",
+      { type: "TASK", title: "x", priority: "MEDIUM" },
+    );
+    // …but elevated to LEAD, so the create succeeds and records the admin as reporter.
+    expect(dto.key).toBe("ENG-9");
+    expect(repo.createWithKey).toHaveBeenCalledWith(
+      expect.objectContaining({ reporterId: "admin-1", projectId: "proj-1" }),
+    );
   });
 
   it("rejects an assignee who is not a project member (BR-3)", async () => {

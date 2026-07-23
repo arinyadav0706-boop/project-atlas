@@ -16,32 +16,40 @@ This module doc defines the permission matrix that every other module's
   design (Security §2 A5: granularity confirmed as the V1 baseline when
   Phase 2 proceeded).
 - BR-2: `OrgRole` and `ProjectRole` are independent axes — an org
-  `MEMBER` can be a project `LEAD`, and an org `ADMIN` is not automatically
-  a `LEAD` on every project (org admin ≠ implicit project ownership,
-  keeping the two concerns separate).
+  `MEMBER` can be a project `LEAD`. **⚠️ Superseded by ADR-0024
+  (2026-07-23):** org `ADMIN` is now an **effective `LEAD` on every project**
+  in its organization. The elevation lives in one place (the permission engine
+  `elevate`, `src/features/authorization`); it is an *authorization* elevation
+  scoped to the admin's own org (F-1 unchanged) and does not create membership
+  rows. The original 2026-07-12 "no implicit project powers" rule is retained
+  below only as history.
 - BR-3: Every service method that mutates data checks the caller's
   relevant role before proceeding — this table is the enforcement
   reference, not aspirational documentation (Coding Standards §7).
 
 ## Permission Matrix
 
-Project-scoped rows are governed **solely by the caller's project role**
-(founder-confirmed 2026-07-12, see BR-2 and Acceptance Criteria): an org
-`ADMIN` gets no implicit project powers — on a project where they hold no
-`ProjectMember` row, they have viewer-level visibility only (BR from
-`03_projects.md` BR-7: all employees can view active projects).
+Project-scoped rows are governed by the caller's **effective** project role.
+Since **ADR-0024**, an org `ADMIN` has an effective role of `LEAD` on every
+project in its organization (elevation via the permission engine), so the
+`ADMIN` column below reflects full project powers — within their own org only
+(F-1). A non-admin's powers still come solely from their `ProjectMember` role.
 
-| Action | `VIEWER` | `MEMBER` | `LEAD` | Org `ADMIN` (org-level only) |
+| Action | `VIEWER` | `MEMBER` | `LEAD` | Org `ADMIN` (effective LEAD, ADR-0024) |
 |---|---|---|---|---|
-| View project/issues/board/backlog | ✅ | ✅ | ✅ | ✅ (like any employee, per `03_projects.md` BR-7) |
-| Create/edit issue, comment, attachment | ❌ | ✅ | ✅ | per their project role, if any |
-| Delete own comment/attachment | ❌ | ✅ | ✅ | per their project role, if any |
-| Delete any comment/attachment (moderation) | ❌ | ❌ | ✅ | per their project role, if any |
-| Create/start/close sprint | ❌ | ❌ | ✅ | per their project role, if any |
-| Manage project members/roles | ❌ | ❌ | ✅ | per their project role, if any |
-| Edit project settings, archive/delete project | ❌ | ❌ | ✅ | per their project role, if any |
+| View project/issues/board/backlog | ✅ | ✅ | ✅ | ✅ |
+| Create/edit issue, comment, attachment | ❌ | ✅ | ✅ | ✅ |
+| Delete own comment/attachment | ❌ | ✅ | ✅ | ✅ |
+| Delete any comment/attachment (moderation) | ❌ | ❌ | ✅ | ✅ |
+| Create/start/close sprint | ❌ | ❌ | ✅ | ✅ |
+| Manage project members/roles | ❌ | ❌ | ✅ | ✅ |
+| Edit project settings, archive/delete project | ❌ | ❌ | ✅ | ✅ |
 | Invite/deactivate users, change org roles | ❌ | ❌ | ❌ | ✅ |
 | View/edit org settings, audit log | ❌ | ❌ | ❌ | ✅ |
+
+Guardrails (ADR-0024): elevation never crosses organizations (F-1), never
+creates membership rows, and never counts toward a project's "at least one
+LEAD" guard (that counts real `ProjectMember` LEAD rows only).
 
 ## Database
 
@@ -69,12 +77,14 @@ Admin → Users.
   a role marked ❌ for that action, then it returns `403`, verified by an
   automated test per role/action pair before a module is considered done
   (Coding Standards §8).
-- Given an org `ADMIN` who is not a `ProjectMember` of a given project,
-  when they attempt a project-scoped action requiring `LEAD`, then org
-  `ADMIN` status alone is **not** sufficient. **Founder-confirmed
-  (2026-07-12):** `ADMIN` never implicitly acts as `LEAD`; org
-  administration and project leadership are strictly separate powers
-  (BR-2, and the Permission Matrix above reflects this).
+- Given an org `ADMIN` who is not a `ProjectMember` of a given project, when
+  they attempt a project-scoped action requiring `LEAD`, then it **succeeds** —
+  org `ADMIN` is an effective `LEAD` on every project in its org (ADR-0024).
+  *(This reverses the 2026-07-12 rule; kept here as the current acceptance
+  criterion.)*
+- Given an org `ADMIN` of organization A, when they attempt any action on a
+  project in organization B, then it returns `404`/`403` — elevation never
+  crosses tenant boundaries (F-1, ADR-0024).
 
 ## Validation
 

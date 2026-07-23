@@ -18,6 +18,7 @@ import {
 } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
+import { elevate, canWriteContent } from "@/features/authorization/permission";
 import type {
   CommentDto,
   CommentPageDto,
@@ -30,9 +31,7 @@ import type {
 // Business rules from docs/02_Modules/08_comments.md. RBAC + the audit/event seam
 // (ADR-0016) are enforced here, server-side. Prisma lives only in repositories.
 
-function canWrite(role: ProjectRoleDto | null): boolean {
-  return role === "MEMBER" || role === "LEAD";
-}
+const canWrite = canWriteContent;
 
 async function resolve(
   projectId: string,
@@ -43,7 +42,7 @@ async function resolve(
   if (!context || context.organizationId !== actor.organizationId) {
     throw new NotFoundError("Issue not found.");
   }
-  const role = await ProjectService.getMemberRole(projectId, actor.userId);
+  const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
   return { context, role };
 }
 

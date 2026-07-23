@@ -8,7 +8,7 @@ import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { BacklogDto } from "@/features/backlog/types/backlog.types";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
-import type { ProjectRoleDto } from "@/features/projects/types/project.types";
+import { elevate, canWriteContent } from "@/features/authorization/permission";
 
 // Business rules from docs/02_Modules/06_backlog.md. RBAC is enforced here,
 // server-side. The reorder write lives in IssueService.reorder (scope=backlog,
@@ -34,9 +34,7 @@ function toCardDto(row: CardRow): IssueListItemDto {
   };
 }
 
-function canWrite(role: ProjectRoleDto | null): boolean {
-  return role === "MEMBER" || role === "LEAD";
-}
+const canWrite = canWriteContent;
 
 export const BacklogService = {
   // BR-1/BR-5: any authenticated org member may VIEW a project's backlog
@@ -53,7 +51,7 @@ export const BacklogService = {
     if (!context || context.organizationId !== actor.organizationId) {
       throw new NotFoundError("Project not found.");
     }
-    const role = await ProjectService.getMemberRole(projectId, actor.userId);
+    const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
 
     const pageSize = Math.min(
       page.take ?? DEFAULT_BACKLOG_PAGE_SIZE,
