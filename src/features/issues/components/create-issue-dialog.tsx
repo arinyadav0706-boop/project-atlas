@@ -52,7 +52,7 @@ export function CreateIssueDialog({
 
   const form = useForm<CreateIssueInput>({
     resolver: zodResolver(createIssueSchema),
-    defaultValues: { type: "TASK", title: "", description: "", priority: "MEDIUM" },
+    defaultValues: { type: "TASK", title: "", description: "", priority: "MEDIUM", storyPoints: null },
   });
 
   useEffect(() => {
@@ -191,6 +191,30 @@ export function CreateIssueDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="issue-points">
+              Story points <span className="font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="issue-points"
+              type="number"
+              min={0}
+              max={100}
+              inputMode="numeric"
+              placeholder="—"
+              className="max-w-28"
+              aria-invalid={Boolean(form.formState.errors.storyPoints)}
+              {...form.register("storyPoints", {
+                setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
+              })}
+            />
+            {form.formState.errors.storyPoints && (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {form.formState.errors.storyPoints.message}
+              </p>
+            )}
           </div>
 
           <div>
