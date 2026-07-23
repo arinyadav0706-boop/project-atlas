@@ -27,3 +27,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0018](0018-labels-and-components.md) | Labels & Components — Governance and Data Model | Accepted |
 | [0019](0019-notifications-delivery.md) | Notifications — Synchronous Fan-out with a Future Event Seam | Accepted |
 | [0020](0020-reports-registry.md) | Reports — Pluggable Report Registry over Existing Data | Accepted |
+| [0021](0021-search-architecture.md) | Search — Postgres Full-Text via a Swappable Repository | Accepted |
