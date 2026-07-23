@@ -87,3 +87,9 @@ anywhere in the system.
 - Granular per-field permissions (e.g., can edit priority but not
   reassign).
 - Delegated admin scopes (e.g., a "billing admin" without full `ADMIN`).
+
+**Extension point (ADR-0022):** org-level admin powers are now expressed as
+`AdminCapability` values resolved by a single `resolveCapabilities(actor)`
+function. In V1 every capability maps to `orgRole === "ADMIN"`. Custom roles
+and delegated admin scopes land by extending *only* that resolver — no admin
+service or route changes — which is why they're safe to defer.

@@ -1,64 +1,106 @@
-# Module: Admin
+# Module: Admin (Platform Control Plane)
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** Accepted v2.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-23
 
 ## Overview
 
-Org-wide settings and the audit log viewer, restricted to `orgRole = ADMIN`.
-User management itself is a separate module (`14_user_management.md`) —
-this module covers organization-level settings and oversight.
+Admin is the **central control plane** for EAGLES: org-wide configuration,
+platform oversight, and feature rollout, all in one capability-gated console.
+It is designed as a platform capability, not a single screen — new admin areas
+(Users, Roles, Policy, Billing) plug in as **registry entries** without
+touching the console or the authorization core (**ADR-0022**, **ADR-0023**).
+
+Capabilities delivered here are separated into three tiers:
+
+| Tier | What | Where |
+|---|---|---|
+| **MVP** | Admin console shell, Organization settings, **Feature Flags**, Audit Log viewer | this module, now |
+| **Foundation** | Capability-gated authz seam, pluggable section registry, typed audit-action taxonomy, feature-flag platform (typed registry + per-org overrides + server-evaluated seam) | this module, now — the extensibility spine |
+| **Future** | Delegated/custom admin scopes, org-policy config, billing, multi-org switch, impersonation, system-health, flag targeting/rollout | logged, additive behind the seams |
+
+User Management (`14_user_management.md`), Roles (`15_roles.md`), and Profile
+(`16_profile.md`) are **separate modules** that mount into this console via the
+section registry + `AdminCapability.MANAGE_USERS` — no breaking change when they
+land.
 
 ## Business Rules
 
-- BR-1: Every endpoint under this module requires `orgRole = ADMIN`,
-  checked server-side in the service layer — never inferred from a
-  client-visible flag.
-- BR-2: `AuditLog` is read-only from this module — no update/delete
-  operation is ever exposed for it (Security Architecture §5).
-- BR-3: Organization settings changes (`name`, `domain`) are themselves
-  written to `AuditLog` (`action: ORG_SETTINGS_CHANGED`) since they're
-  exactly the kind of sensitive, infrequent admin action the audit trail
-  exists for.
-- BR-4: The `domain` field here is informational/config metadata for
-  `ALLOWED_EMAIL_DOMAINS` (ADR-0005) — changing it in this UI does **not**
-  itself flip the sign-in restriction on; that's still an environment
-  variable set by whoever operates the deployment, kept deliberately
-  decoupled so a UI change can't accidentally lock everyone out.
+- BR-1: Every admin endpoint is authorized server-side in the service layer via
+  `requireCapability(actor, <capability>)` — never a client flag, never an
+  inline `orgRole` check at the call site (ADR-0022 §1, Coding Standards §7). In
+  V1 all capabilities resolve to `orgRole === "ADMIN"`.
+- BR-2: `AuditLog` is **append-only** — this module exposes read (`list`, with
+  filters) and the shared write (`record`), never update or delete (Security §5).
+- BR-3: Sensitive admin actions are themselves audited: organization settings
+  changes (`ORG_SETTINGS_CHANGED`) and feature-flag changes
+  (`FEATURE_FLAG_CHANGED`), each with before/after (ADR-0022 §2).
+- BR-4: `Organization.domain` is informational config metadata for
+  `ALLOWED_EMAIL_DOMAINS` (ADR-0005) — editing it here does **not** flip the
+  sign-in restriction; that stays an environment variable so a UI change can't
+  lock everyone out.
+- BR-5: A **feature flag** gates behavior/visibility only, never tenant
+  isolation or role enforcement (ADR-0023 §2). Flags are org-scoped (F-1),
+  evaluated server-side, and default to the code registry's `defaultEnabled`
+  when no override row exists.
+- BR-6: The flag **catalog** is code (typed registry); the DB stores only
+  explicit per-org overrides. "Reset to default" deletes the override row
+  (ADR-0023 §1).
 
 ## Database
 
-`Organization`, `AuditLog` (read-only) —
-`docs/03_Database/01_Database_Design.md §2.1, §2.13`.
+- `Organization`, `AuditLog` (append-only) — `docs/03_Database/01_Database_Design.md §2`.
+- `FeatureFlag` (new, `20260723140000_feature_flags`): per-org override rows,
+  `@@unique([organizationId, key])` — §2 + §5.
 
-## API
+## API (`docs/04_API/openapi.yaml`)
 
-`GET/PATCH /admin/organization`, `GET /admin/audit-log` —
-`docs/04_API/openapi.yaml`.
+- `GET/PATCH /admin/organization` — org settings (audited).
+- `GET /admin/feature-flags` — catalog + effective state per flag.
+- `PATCH /admin/feature-flags/{key}` — set/reset an override (audited).
+- `GET /admin/audit-log` — paginated, filterable (action/entityType/date), newest first.
+
+All require the matching `AdminCapability`; non-holders get `403`.
 
 ## UI
 
-Screen #14 in `docs/05_UI/02_Screens_and_Information_Architecture.md`:
-Org Settings form (name/domain) and a paginated, filterable
-(action/entityType/date) Audit Log table (shadcn/ui `table`), newest
-first.
+`/admin` — a tabbed **console** whose tabs come from the admin-section registry
+(only sections the actor's capabilities allow are shown). MVP sections:
+
+- **Organization** — name/domain form.
+- **Feature Flags** — one toggle row per registered flag (description, owner,
+  effective state, override indicator, reset).
+- **Audit Log** — paginated, filterable table (shadcn/ui `table`), newest first.
+
+Screen #14 in `docs/05_UI/02_Screens_and_Information_Architecture.md`.
 
 ## Acceptance Criteria
 
-- Given a non-`ADMIN` user, when they attempt to load `/admin` or call any
-  admin endpoint, then they receive `403`.
-- Given an `ADMIN` updates the organization name, when saved, then an
-  `AuditLog` entry records the before/after values.
-- Given 200 audit log entries exist, when the `ADMIN` views the audit log,
-  then it's paginated, not loaded all at once.
+- Given a non-ADMIN, when they load `/admin` or call any admin endpoint, they
+  are redirected / receive `403`.
+- Given an ADMIN edits the org name, an `AuditLog` entry records before/after.
+- Given an ADMIN toggles a feature flag, the override persists, an `AuditLog`
+  entry records before/after, and `FeatureFlagService.isEnabled` reflects it for
+  that org only.
+- Given a flag with no override row, `isEnabled` returns the registry default.
+- Given a flag key removed from the registry, any stale override row is inert
+  (never returned by the catalog endpoint or evaluated).
+- Given 200 audit entries, the viewer paginates (never loads all at once).
 
 ## Validation
 
-`UpdateOrganizationInput`: `name` (1–200 chars), `domain` (valid domain
-format, informational only per BR-4).
+- `UpdateOrganizationInput`: `name` (1–200), `domain` (valid domain, optional,
+  informational per BR-4).
+- `SetFeatureFlagInput`: `enabled` (boolean) **or** `reset: true`; `key` must be
+  a registered flag (unknown keys → `422`/`404`).
+- `AuditLogQuery`: `page`/`pageSize` (bounded), optional `action`,
+  `entityType`, `from`/`to` dates.
 
 ## Future Scope
 
-- Multi-organization switcher (V2 SaaS conversion, ADR-0001).
-- Org-wide policy configuration UI (session timeout, allow-list
-  management) beyond the current env-var-driven approach.
-- Billing/subscription management (V2 SaaS).
+- Delegated/custom admin scopes & roles (`15_roles.md`) — `resolveCapabilities`
+  is the only change point.
+- Dynamic `OrgSetting` store for policy config (session timeout, allow-list mgmt).
+- Feature-flag targeting: percentage rollout, per-user/project, scheduling
+  (ADR-0023 §4).
+- Billing/subscription, multi-org switcher (V2 SaaS, ADR-0001), admin
+  impersonation, system-health/metrics section, audit-log export.

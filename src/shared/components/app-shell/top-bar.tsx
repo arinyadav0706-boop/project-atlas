@@ -14,9 +14,13 @@ import { SearchPalette } from "@/features/search/components/search-palette";
 export function TopBar({
   userName,
   userImage,
+  searchEnabled = true,
 }: {
   userName: string;
   userImage?: string | null;
+  // Gated by the platform.commandPalette feature flag (ADR-0023), decided
+  // server-side in the app layout.
+  searchEnabled?: boolean;
 }) {
   const initials = userName
     .split(" ")
@@ -27,9 +31,7 @@ export function TopBar({
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-5">
-      <div className="flex-1">
-        <SearchPalette />
-      </div>
+      <div className="flex-1">{searchEnabled && <SearchPalette />}</div>
       <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

@@ -28,3 +28,5 @@ place — supersede it with a new numbered ADR that links back.
 | [0019](0019-notifications-delivery.md) | Notifications — Synchronous Fan-out with a Future Event Seam | Accepted |
 | [0020](0020-reports-registry.md) | Reports — Pluggable Report Registry over Existing Data | Accepted |
 | [0021](0021-search-architecture.md) | Search — Postgres Full-Text via a Swappable Repository | Accepted |
+| [0022](0022-admin-control-plane.md) | Admin — Capability-Gated Control Plane with Pluggable Sections | Accepted |
+| [0023](0023-feature-flags.md) | Feature Flags — Typed Registry with Per-Org DB Overrides | Accepted |
