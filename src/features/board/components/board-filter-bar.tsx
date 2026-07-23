@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Select,
@@ -9,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { typeLabel, priorityLabel } from "@/features/issues/components/issue-meta";
 import type { BoardFilter } from "@/features/board/types/board.types";
 import type {
@@ -24,17 +30,31 @@ const PRIORITIES: IssuePriorityDto[] = ["HIGHEST", "HIGH", "MEDIUM", "LOW", "LOW
 // Epic, Label, or Saved Filters later is a control here — no board redesign.
 export function BoardFilterBar({
   members,
+  labels,
+  components,
   filter,
   onChange,
 }: {
   members: { userId: string; name: string }[];
+  labels: { id: string; name: string; color: string }[];
+  components: { id: string; name: string }[];
   filter: BoardFilter;
   onChange: (next: BoardFilter) => void;
 }) {
   const active =
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
-    filter.priority !== undefined;
+    filter.priority !== undefined ||
+    (filter.labelIds?.length ?? 0) > 0 ||
+    (filter.componentIds?.length ?? 0) > 0;
+
+  function toggleId(list: string[] | undefined, id: string): string[] | undefined {
+    const set = new Set(list ?? []);
+    if (set.has(id)) set.delete(id);
+    else set.add(id);
+    const next = [...set];
+    return next.length ? next : undefined;
+  }
 
   // `Select` has no empty value, so "Any" maps to removing the key entirely.
   const ANY = "__any__";
@@ -101,6 +121,28 @@ export function BoardFilterBar({
         </SelectContent>
       </Select>
 
+      {components.length > 0 && (
+        <MultiSelect
+          label="Components"
+          options={components.map((c) => ({ id: c.id, label: c.name }))}
+          selected={filter.componentIds}
+          onToggle={(id) =>
+            onChange({ ...filter, componentIds: toggleId(filter.componentIds, id) })
+          }
+        />
+      )}
+
+      {labels.length > 0 && (
+        <MultiSelect
+          label="Labels"
+          options={labels.map((l) => ({ id: l.id, label: l.name, color: l.color }))}
+          selected={filter.labelIds}
+          onToggle={(id) =>
+            onChange({ ...filter, labelIds: toggleId(filter.labelIds, id) })
+          }
+        />
+      )}
+
       {active && (
         <Button
           variant="ghost"
@@ -113,5 +155,58 @@ export function BoardFilterBar({
         </Button>
       )}
     </div>
+  );
+}
+
+// A compact multi-select on DropdownMenu — items stay open on toggle. Used for
+// the label + component filters (both are `?field=` repeated query params).
+function MultiSelect({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: { id: string; label: string; color?: string }[];
+  selected: string[] | undefined;
+  onToggle: (id: string) => void;
+}) {
+  const count = selected?.length ?? 0;
+  const chosen = new Set(selected ?? []);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 gap-1 text-sm">
+          {label}
+          {count > 0 && (
+            <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">
+              {count}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-64 w-56 overflow-y-auto">
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option.id}
+            onSelect={(e) => {
+              e.preventDefault();
+              onToggle(option.id);
+            }}
+            className="gap-2 text-sm"
+          >
+            {option.color && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: option.color }}
+              />
+            )}
+            <span className="flex-1 truncate">{option.label}</span>
+            {chosen.has(option.id) && <span className="text-xs text-accent">✓</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
