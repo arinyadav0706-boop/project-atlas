@@ -57,6 +57,7 @@ export function EditIssueDialog({
       type: issue.type,
       priority: issue.priority,
       assigneeId: issue.assignee?.id ?? null,
+      storyPoints: issue.storyPoints ?? null,
     },
   });
 
@@ -164,6 +165,31 @@ export function EditIssueDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="edit-points">
+              Story points <span className="font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="edit-points"
+              type="number"
+              min={0}
+              max={100}
+              inputMode="numeric"
+              placeholder="—"
+              className="max-w-28"
+              aria-invalid={Boolean(form.formState.errors.storyPoints)}
+              {...form.register("storyPoints", {
+                // Empty field → null (clears the estimate); otherwise a number.
+                setValueAs: (v) => (v === "" || v === null ? null : Number(v)),
+              })}
+            />
+            {form.formState.errors.storyPoints && (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {form.formState.errors.storyPoints.message}
+              </p>
+            )}
           </div>
 
           <div>

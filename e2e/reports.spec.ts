@@ -14,13 +14,15 @@ async function signIn(page: Page, email: string) {
 test("the Reports tab renders the three MVP reports", async ({ page }) => {
   await signIn(page, "kavya.iyer@consint.ai");
 
-  const key = ("R" + Date.now().toString(36).toUpperCase()).slice(0, 10);
+  const stamp = Date.now();
+  const name = `Reports ${stamp}`;
+  const key = ("R" + stamp.toString(36).toUpperCase()).slice(0, 10);
   await page.goto("/projects");
   await page.getByRole("button", { name: /new project/i }).click();
   await page.locator("#new-project-key").fill(key);
-  await page.locator("#new-project-name").fill(`Reports ${Date.now()}`);
+  await page.locator("#new-project-name").fill(name);
   await page.getByRole("button", { name: /create project/i }).click();
-  await page.getByRole("link", { name: new RegExp(`Reports ${Date.now()}`.slice(0, 10), "i") }).click();
+  await page.getByRole("link", { name: new RegExp(name, "i") }).first().click();
   await page.waitForURL(/\/projects\/.+\/issues/);
 
   // Create one issue so Status breakdown has data.
