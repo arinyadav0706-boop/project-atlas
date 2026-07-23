@@ -35,6 +35,9 @@ function boardWhere(projectId: string, filter: BoardFilter): Prisma.IssueWhereIn
     ...(filter.priority ? { priority: filter.priority } : {}),
     ...(filter.sprintId ? { sprintId: filter.sprintId } : {}),
     ...(filter.epicId ? { epicId: filter.epicId } : {}),
+    ...(filter.componentIds?.length
+      ? { components: { some: { componentId: { in: filter.componentIds } } } }
+      : {}),
     ...(filter.labelIds?.length
       ? { labels: { some: { labelId: { in: filter.labelIds } } } }
       : {}),

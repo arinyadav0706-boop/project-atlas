@@ -133,15 +133,30 @@ The core entity.
 | Field | Type | Notes |
 |---|---|---|
 | id | String (PK) | |
-| organizationId | String (FK → Organization) | labels are org-wide, not per-project, to keep V1 simple |
-| name | String | unique per organization |
-| color | String | hex code |
-| + audit fields | | |
+| organizationId | String (FK → Organization) | labels are org-wide, not per-project (ADR-0018) |
+| name | String | **case-insensitive** unique per org over live rows — a functional partial unique index `(organizationId, lower(name)) WHERE deletedAt IS NULL` (migration `20260723120000_labels_components`), not the exact `@@unique` (dropped). Lets `Bug`==`bug` and a soft-deleted name be reused (BR-3) |
+| color | String | `#RRGGBB` hex, validated server-side |
+| + audit fields | | soft-delete detaches from issues (ADR-0018 BR-6) |
 
 ### 2.9 IssueLabel
 Join table, `(issueId, labelId)` unique. No audit fields beyond
 `createdAt`/`createdBy` — it's a pure association with no independent
 lifecycle to update.
+
+### 2.9a Component
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| projectId | String (FK → Project) | components are **project-scoped** (ADR-0018) |
+| name | String | case-insensitive unique per project over live rows — functional partial unique index `(projectId, lower(name)) WHERE deletedAt IS NULL` |
+| description | String? | ≤ 500 chars |
+| leadId | String? (FK → User, `ON DELETE SET NULL`) | default owner; adding the component to an **unassigned** issue routes it here (BR-3), never overwriting an existing assignee |
+| + audit fields | | soft-delete detaches from issues |
+
+### 2.9b IssueComponent
+Join table, `(issueId, componentId)` unique. Pure association
+(`createdAt`/`createdBy` only), mirroring IssueLabel — an issue may carry
+several components (Jira parity, ADR-0018).
 
 ### 2.10 Comment
 | Field | Type | Notes |

@@ -27,7 +27,7 @@ module (can't finish until that ships).
 | Notifications | ⛔ | Build | Comments, Issues events |
 | Reports | ⛔ | Build (velocity/burndown/cycle-time) | Sprint, audit log |
 | Search | ⛔ | Build (⌘K global + per-list) | Issues, Labels |
-| Labels / Components | ⛔ | Wire (tables exist) | — |
+| Labels / Components | 🟡 | (MVP done) filter controls + card chips remain | — |
 | Epics / Versions | ⛔ | First-class planning lanes | Issues |
 | Admin / User Mgmt | ⛔ | Build | — |
 | Profile | ⛔ | Build | Auth |
@@ -59,6 +59,17 @@ module (can't finish until that ships).
 - [ ] **Per-project storage quotas** + parallel bulk upload — *later*
 - [ ] **Comment attachments** (`attachments.commentId`) — *Dep: Comments wiring*
 - [ ] **AI document processing** (subscribe the upload event seam) — *Dep: AI*
+
+## Labels & Components — feature checklist (ADR-0018)
+
+- [x] Labels: org-scoped entity; member create+apply, LEAD/ADMIN manage; case-insensitive dedup (functional index) ✅ 2026-07-23
+- [x] Components: project-scoped; LEAD CRUD; multi-per-issue; default-assignee routing (BR-3) ✅ 2026-07-23
+- [x] Issue-detail pickers (inline label create) + chips; management in Project Settings ✅ 2026-07-23
+- [x] Board filter *query* support for `labelIds` + `componentIds` ✅ 2026-07-23
+- [ ] **Filter *controls*** (label/component multiselect) in the Board/Backlog filter bars — *query side done; UI control deferred*
+- [ ] **Chips on board cards / list rows / backlog rows** — *needs `labels[]`/`components[]` on `IssueListItemDto` (5-mapper change, TD-1)*
+- [ ] **Label creation-lockdown toggle** (Phase 2), label merge, usage counts — *ADR-0018, deferred*
+- [ ] **Component board swimlanes**, component lead as watcher — *deferred*
 
 ## Backlog — feature checklist
 

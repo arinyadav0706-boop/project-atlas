@@ -58,6 +58,7 @@ function filterToQuery(filter: BoardFilter): string {
   if (filter.epicId) params.set("epicId", filter.epicId);
   if (filter.search) params.set("search", filter.search);
   for (const id of filter.labelIds ?? []) params.append("labelIds", id);
+  for (const id of filter.componentIds ?? []) params.append("componentIds", id);
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }

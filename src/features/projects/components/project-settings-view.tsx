@@ -18,6 +18,8 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { LabelsManager } from "@/features/labels/components/labels-manager";
+import { ComponentsManager } from "@/features/components/components/components-manager";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
@@ -98,6 +100,21 @@ export function ProjectSettingsView({
             isLead={isLead}
             currentUserId={currentUserId}
           />
+          <SectionCard
+            title="Components"
+            description="Sub-systems of this project. A component's lead is the default assignee for new work tagged with it."
+          >
+            <ComponentsManager
+              projectId={project.id}
+              members={members.map((m) => ({ userId: m.userId, name: m.name }))}
+            />
+          </SectionCard>
+          <SectionCard
+            title="Labels"
+            description="Org-wide tags for grouping and filtering issues across every project."
+          >
+            <LabelsManager />
+          </SectionCard>
           {isLead && <DangerZone project={project} />}
         </div>
       </div>

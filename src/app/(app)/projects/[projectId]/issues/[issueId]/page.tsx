@@ -6,8 +6,11 @@ import { ProjectService } from "@/features/projects/services/project.service";
 import { IssueService } from "@/features/issues/services/issue.service";
 import { CommentService } from "@/features/comments/services/comment.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
+import { LabelService } from "@/features/labels/services/label.service";
+import { ComponentService } from "@/features/components/services/component.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { IssueDetailView } from "@/features/issues/components/issue-detail-view";
+import { IssueClassification } from "@/features/issues/components/issue-classification";
 import { CommentsSection } from "@/features/comments/components/comments-section";
 import { AttachmentsSection } from "@/features/attachments/components/attachments-section";
 
@@ -20,11 +23,24 @@ export default async function IssueDetailPage({
   if (!actor) redirect("/sign-in");
 
   try {
-    const [issue, members, comments, attachments] = await Promise.all([
+    const [
+      issue,
+      members,
+      comments,
+      attachments,
+      labelCatalog,
+      componentCatalog,
+      issueLabels,
+      issueComponents,
+    ] = await Promise.all([
       IssueService.get(actor, params.issueId),
       ProjectService.listMembers(actor, params.projectId),
       CommentService.list(actor, params.issueId, {}),
       AttachmentService.list(actor, params.issueId),
+      LabelService.list(actor),
+      ComponentService.list(actor, params.projectId),
+      LabelService.listForIssue(actor, params.issueId),
+      ComponentService.listForIssue(actor, params.issueId),
     ]);
     return (
       <div>
@@ -40,6 +56,16 @@ export default async function IssueDetailPage({
           issue={issue}
           members={members.map((m) => ({ userId: m.userId, name: m.name }))}
         />
+        <div className="mt-8">
+          <IssueClassification
+            issueId={params.issueId}
+            canWrite={issue.canEdit}
+            initialLabels={issueLabels}
+            labelCatalog={labelCatalog}
+            initialComponents={issueComponents}
+            componentCatalog={componentCatalog}
+          />
+        </div>
         <AttachmentsSection issueId={params.issueId} initial={attachments} />
         <CommentsSection issueId={params.issueId} initialPage={comments} />
       </div>

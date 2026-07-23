@@ -17,6 +17,7 @@ export interface BoardFilter {
   type?: IssueTypeDto;
   priority?: IssuePriorityDto;
   labelIds?: string[];
+  componentIds?: string[];
   search?: string;
 }
 

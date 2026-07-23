@@ -21,6 +21,8 @@ tags:
   - name: issues
   - name: comments
   - name: attachments
+  - name: labels
+  - name: components
   - name: sprints
   - name: backlog
   - name: board
@@ -577,6 +579,176 @@ paths:
             application/octet-stream:
               schema: { type: string, format: binary }
         "404": { description: Attachment not found, or its blob is no longer available }
+
+  /labels:
+    get:
+      tags: [labels]
+      summary: All org labels + the viewer's create/manage rights (17_labels.md)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, canCreate, canManage]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Label" }
+                  canCreate: { type: boolean }
+                  canManage: { type: boolean }
+    post:
+      tags: [labels]
+      summary: Create a label (any org member, BR-1). Case-insensitive unique per org.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, color]
+              properties:
+                name: { type: string, maxLength: 50 }
+                color: { type: string, description: "#RRGGBB hex" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Label" } } } }
+        "409": { description: A label with that name (case-insensitive) already exists }
+
+  /labels/{labelId}:
+    parameters:
+      - { name: labelId, in: path, required: true, schema: { type: string } }
+    patch:
+      tags: [labels]
+      summary: Rename/recolor a label (org ADMIN or a project LEAD, BR-2)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 50 }
+                color: { type: string }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Label" } } } }
+        "403": { description: Caller may not manage labels }
+    delete:
+      tags: [labels]
+      summary: Soft-delete a label; detaches it from issues (BR-2/BR-6)
+      responses:
+        "200": { description: Deleted }
+        "403": { description: Caller may not manage labels }
+
+  /issues/{issueId}/labels:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [labels]
+      summary: The labels on an issue
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Label" } } } } }
+    put:
+      tags: [labels]
+      summary: Replace the issue's label set (MEMBER/LEAD, idempotent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [labelIds]
+              properties:
+                labelIds: { type: array, items: { type: string } }
+      responses:
+        "200": { description: The issue's labels after the change, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Label" } } } } }
+        "403": { description: Caller is not a project member }
+
+  /projects/{projectId}/components:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [components]
+      summary: The project's components + the viewer's manage right (18_components.md)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, canManage]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Component" } }
+                  canManage: { type: boolean }
+    post:
+      tags: [components]
+      summary: Create a component (project LEAD, BR-1). Case-insensitive unique per project.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 50 }
+                description: { type: string, maxLength: 500, nullable: true }
+                leadId: { type: string, nullable: true, description: default owner; must be a project member }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Component" } } } }
+        "403": { description: Caller is not a project LEAD }
+        "409": { description: A component with that name already exists in the project }
+
+  /components/{componentId}:
+    parameters:
+      - { name: componentId, in: path, required: true, schema: { type: string } }
+    patch:
+      tags: [components]
+      summary: Rename/edit/reassign lead (project LEAD, BR-1)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 50 }
+                description: { type: string, maxLength: 500, nullable: true }
+                leadId: { type: string, nullable: true }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Component" } } } }
+        "403": { description: Caller is not a project LEAD }
+    delete:
+      tags: [components]
+      summary: Soft-delete a component; detaches it from issues (BR-1/BR-7)
+      responses:
+        "200": { description: Deleted }
+        "403": { description: Caller is not a project LEAD }
+
+  /issues/{issueId}/components:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [components]
+      summary: The components on an issue
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Component" } } } } }
+    put:
+      tags: [components]
+      summary: >-
+        Replace the issue's component set (MEMBER/LEAD). A newly added component
+        with a lead auto-assigns the issue if it's unassigned (BR-3).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [componentIds]
+              properties:
+                componentIds: { type: array, items: { type: string } }
+      responses:
+        "200": { description: The issue's components after the change, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Component" } } } } }
+        "403": { description: Caller is not a project member }
 
   /projects/{projectId}/sprints/order:
     parameters:
@@ -1211,6 +1383,30 @@ components:
         canDelete:
           type: boolean
           description: Whether the viewer may delete this attachment (uploader or LEAD)
+
+    Label:
+      type: object
+      description: LabelDto (ADR-0018) — org-scoped tag.
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string, description: "#RRGGBB hex" }
+
+    Component:
+      type: object
+      description: ComponentDto (ADR-0018) — project-scoped sub-system with an optional default owner.
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        lead:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
 
     Notification:
       type: object

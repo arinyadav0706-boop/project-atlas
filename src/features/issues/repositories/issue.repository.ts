@@ -96,6 +96,17 @@ export const IssueRepository = {
     });
   },
 
+  // Component default-assignee routing (18_components.md BR-3): assign the issue
+  // only if it currently has no assignee — atomic (the `assigneeId: null` guard
+  // is in the WHERE), so it never overwrites an existing assignee. Bumps version
+  // like any mutation (ADR-0011). Returns the number of rows changed (0 or 1).
+  assignIfUnassigned(issueId: string, userId: string, actorId: string) {
+    return prisma.issue.updateMany({
+      where: { id: issueId, assigneeId: null, deletedAt: null },
+      data: { assigneeId: userId, version: { increment: 1 }, updatedBy: actorId },
+    });
+  },
+
   findEpic(projectId: string, epicId: string) {
     return prisma.issue.findFirst({
       where: { id: epicId, projectId, type: "EPIC", deletedAt: null },
