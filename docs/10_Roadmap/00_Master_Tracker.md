@@ -25,7 +25,7 @@ module (can't finish until that ships).
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
 | Attachments | 🟡 | (MVP done) previews/versioning/scan/dedup/quota/share-links later; set `STORAGE_*` env in prod (GL-8) | — |
 | Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
-| Reports | ⛔ | Build (velocity/burndown/cycle-time) | Sprint, audit log |
+| Reports | 🟡 | (MVP done) burndown/CFD/more via registry | Sprint, audit log |
 | Search | ⛔ | Build (⌘K global + per-list) | Issues, Labels |
 | Labels / Components | 🟡 | (MVP done + board chips/filter) list-row/backlog chips remain | — |
 | Epics / Versions | ⛔ | First-class planning lanes | Issues |
@@ -81,6 +81,16 @@ module (can't finish until that ships).
 - [ ] **Commenter-participation** recipients on comment/status events — *deferred (ADR-0019)*
 - [ ] **Real-time push** (websockets) + **email digest** — *outbox/bus seam behind NotificationService*
 - [ ] **Per-notification-type preferences** + explicit watch/follow — *today: one global toggle*
+
+## Reports — feature checklist (ADR-0020)
+
+- [x] Pluggable **report registry** (`REPORTS` map; API dispatches by id, UI renders by chartType) ✅ 2026-07-23
+- [x] Velocity (bar), Status breakdown (donut), Cycle time (KPI) — read-only over issues/sprints/audit_logs, no new tables ✅ 2026-07-23
+- [x] Reports tab + hand-rolled SVG charts (theme-aware, no chart lib) ✅ 2026-07-23
+- [ ] **Burndown** (`line`) — first post-MVP registry add (active-sprint DONE events across dates)
+- [ ] **Committed-vs-completed velocity** — needs a `committedPoints` snapshot at sprint close
+- [ ] CFD, cycle/lead-time distributions, workload, epic progress, release reports, custom builder — registry adds
+- [ ] Compute cache / pre-aggregation — scale seam behind `compute`
 
 ## Backlog — feature checklist
 
