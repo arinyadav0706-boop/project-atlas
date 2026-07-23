@@ -34,6 +34,22 @@ it("isEnabled returns the registry default when there is no override", async () 
   expect(await FeatureFlagService.isEnabled(admin, "search.fuzzyMatching")).toBe(false);
 });
 
+it("isEnabled falls back to registry defaults if the store lookup throws (GL-4 safety)", async () => {
+  repo.listOverrides.mockRejectedValue(new Error('relation "feature_flags" does not exist'));
+  // Must not throw — the app layout depends on this never crashing the page.
+  expect(await FeatureFlagService.isEnabled(admin, "platform.commandPalette")).toBe(true);
+  expect(await FeatureFlagService.isEnabled(admin, "search.fuzzyMatching")).toBe(false);
+});
+
+it("listForAdmin falls back to defaults if the store lookup throws", async () => {
+  repo.listOverrides.mockRejectedValue(new Error("db down"));
+  const flags = await FeatureFlagService.listForAdmin(admin);
+  expect(flags.find((f) => f.key === "platform.commandPalette")).toMatchObject({
+    enabled: true,
+    isOverridden: false,
+  });
+});
+
 it("isEnabled honors an explicit override over the default", async () => {
   repo.listOverrides.mockResolvedValue([
     { key: "platform.commandPalette", enabled: false, updatedAt: new Date() },

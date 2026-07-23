@@ -20,11 +20,27 @@ import type { SetFeatureFlagInput } from "@/features/admin/validation/admin.sche
 const perRequest: typeof cache =
   typeof cache === "function" ? cache : (<T>(fn: T) => fn) as typeof cache;
 
+// The flag store being unavailable — a DB blip, or the feature_flags table not
+// yet migrated in an environment (GL-4) — must NEVER take down the app. Flags
+// gate behavior, not core availability (ADR-0023 BR-5), so a failed lookup
+// fails safe to the code-registry defaults instead of throwing.
+async function safeListOverrides(organizationId: string) {
+  try {
+    return await FeatureFlagRepository.listOverrides(organizationId);
+  } catch (error) {
+    console.error(
+      "[feature-flags] override lookup failed; falling back to registry defaults",
+      error,
+    );
+    return [];
+  }
+}
+
 // Load an org's overrides once per request. A page gating several flags pays
 // one query. Stale keys not in the registry are ignored at read time (ADR-0023 §1).
 const loadOverrides = perRequest(
   async (organizationId: string): Promise<Map<string, boolean>> => {
-    const rows = await FeatureFlagRepository.listOverrides(organizationId);
+    const rows = await safeListOverrides(organizationId);
     return new Map(rows.map((row) => [row.key, row.enabled]));
   },
 );
@@ -45,7 +61,9 @@ export const FeatureFlagService = {
   // appear even if a stale row exists.
   async listForAdmin(actor: Actor): Promise<FeatureFlagDto[]> {
     requireCapability(actor, AdminCapability.MANAGE_FEATURE_FLAGS);
-    const overrides = await FeatureFlagRepository.listOverrides(actor.organizationId);
+    // Same fail-safe: the admin console shows registry defaults if the store is
+    // unavailable, rather than 500ing the page.
+    const overrides = await safeListOverrides(actor.organizationId);
     const byKey = new Map(overrides.map((row) => [row.key, row]));
 
     return FEATURE_FLAG_KEYS.map((key) => {
