@@ -257,6 +257,24 @@ allowed exception to §1's no-hard-delete rule).
 
 Unique `(userId, entityType, entityId)`; index `(userId, entityType)`.
 
+### 2.16 FeatureFlag
+**Admin control plane** (ADR-0023, `docs/02_Modules/13_admin.md`). Stores only
+explicit per-org **overrides** — the flag *catalog* is a typed code registry, so
+a flag with no row here takes its registry `defaultEnabled`. Gates
+behavior/visibility only, never tenant isolation or RBAC (13_admin.md BR-5).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| organizationId | String (FK → Organization) | F-1 scope |
+| key | String | must match a registered flag key; stale keys are inert |
+| enabled | Boolean | the override value |
+| + audit fields | | `updatedBy` records who flipped it; changes also written to `AuditLog` (`FEATURE_FLAG_CHANGED`) |
+
+Unique `(organizationId, key)`. "Reset to default" hard-deletes the override
+row (a config override, not audited domain data — the audit trail of the change
+itself lives in `AuditLog`).
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`
@@ -302,6 +320,7 @@ Full visual: `02_ER_Diagram.md`.
 | `Comment` | index `issueId` | issue detail view |
 | `Notification` | index `(userId, isRead)` | notification bell query |
 | `AuditLog` | index `(organizationId, createdAt)` | audit review, newest-first |
+| `FeatureFlag` | unique `(organizationId, key)` | per-org flag override lookup (ADR-0023) |
 | Full-text search | `GIN` expression indexes: `to_tsvector('english', title \|\| description)` on `Issue`, `to_tsvector('english', name \|\| key)` on `Project` (migration `20260723130000_search_fts`) | PRD FR-6.1, `docs/02_Modules/12_search.md`, ADR-0021 |
 
 ## 6. Formerly Open Items — Now Decided

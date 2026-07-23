@@ -132,13 +132,66 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Organization" }
 
+  /admin/feature-flags:
+    get:
+      tags: [admin]
+      summary: List all registered feature flags with their effective state for this org (MANAGE_FEATURE_FLAGS)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flags: { type: array, items: { $ref: "#/components/schemas/FeatureFlag" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/feature-flags/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [admin]
+      summary: Set or reset a feature-flag override for this org (audited, MANAGE_FEATURE_FLAGS)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetFeatureFlagInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeatureFlag" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: Unknown flag key (not in the registry) }
+
   /admin/audit-log:
     get:
       tags: [admin]
-      summary: List audit log entries, newest first (ADMIN only)
+      summary: List audit log entries, newest first, filterable (VIEW_AUDIT_LOG)
       parameters:
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/PageSizeParam"
+        - name: action
+          in: query
+          required: false
+          schema: { type: string }
+        - name: entityType
+          in: query
+          required: false
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
       responses:
         "200":
           description: OK
@@ -149,6 +202,7 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: "#/components/schemas/AuditLogEntry" } }
                   pagination: { $ref: "#/components/schemas/Pagination" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /home:
     get:
@@ -1235,6 +1289,28 @@ components:
         beforeData: { type: object, nullable: true }
         afterData: { type: object, nullable: true }
         createdAt: { type: string, format: date-time }
+
+    FeatureFlag:
+      type: object
+      description: >
+        A registered flag (catalog is code, ADR-0023) with its effective state
+        for the caller's org. `enabled` is the resolved value; `isOverridden`
+        distinguishes an explicit per-org override from the registry default.
+      properties:
+        key: { type: string }
+        description: { type: string }
+        owner: { type: string, description: "Owning module/feature" }
+        defaultEnabled: { type: boolean }
+        enabled: { type: boolean, description: "Effective (override ?? default)" }
+        isOverridden: { type: boolean }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    SetFeatureFlagInput:
+      type: object
+      description: "Provide `enabled` to set an override, or `reset: true` to remove it."
+      properties:
+        enabled: { type: boolean }
+        reset: { type: boolean }
 
     Project:
       type: object

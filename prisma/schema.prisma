@@ -130,10 +130,11 @@ model Organization {
   updatedBy String?
   deletedAt DateTime?
 
-  users     User[]
-  projects  Project[]
-  labels    Label[]
-  auditLogs AuditLog[]
+  users        User[]
+  projects     Project[]
+  labels       Label[]
+  auditLogs    AuditLog[]
+  featureFlags FeatureFlag[]
 
   @@map("organizations")
 }
@@ -527,4 +528,25 @@ model AuditLog {
   // Per-entity activity timeline (e.g. one issue's history), newest first.
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
+}
+
+// Admin control plane (ADR-0023, Database Design §2.16). Stores only explicit
+// per-org overrides; the flag catalog is a typed code registry, so a flag with
+// no row here takes its registry default. Gates behavior/visibility, never
+// tenant isolation or RBAC.
+model FeatureFlag {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  key            String
+  enabled        Boolean
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([organizationId, key])
+  @@map("feature_flags")
 }
