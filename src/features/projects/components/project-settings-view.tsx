@@ -102,7 +102,7 @@ export function ProjectSettingsView({
           />
           <SectionCard
             title="Components"
-            description="Sub-systems of this project. A component's lead is the default assignee for new work tagged with it."
+            description="Sub-systems of this project. A component's owner is the default assignee for new work tagged with it."
           >
             <ComponentsManager
               projectId={project.id}

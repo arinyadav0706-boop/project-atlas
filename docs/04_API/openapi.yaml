@@ -693,7 +693,7 @@ paths:
               properties:
                 name: { type: string, maxLength: 50 }
                 description: { type: string, maxLength: 500, nullable: true }
-                leadId: { type: string, nullable: true, description: default owner; must be a project member }
+                ownerId: { type: string, nullable: true, description: default assignee (owner); must be a project member }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Component" } } } }
         "403": { description: Caller is not a project LEAD }
@@ -713,7 +713,7 @@ paths:
               properties:
                 name: { type: string, maxLength: 50 }
                 description: { type: string, maxLength: 500, nullable: true }
-                leadId: { type: string, nullable: true }
+                ownerId: { type: string, nullable: true }
       responses:
         "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Component" } } } }
         "403": { description: Caller is not a project LEAD }
@@ -1400,9 +1400,10 @@ components:
         projectId: { type: string }
         name: { type: string }
         description: { type: string, nullable: true }
-        lead:
+        owner:
           type: object
           nullable: true
+          description: Default assignee; DB column is `leadId`, exposed as `owner`.
           properties:
             id: { type: string }
             name: { type: string }

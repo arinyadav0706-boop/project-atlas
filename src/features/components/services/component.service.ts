@@ -34,20 +34,36 @@ async function requireLead(actor: Actor, projectId: string, context: { status: s
   }
 }
 
-// A component lead must be a member of the same project (BR-5).
-async function assertLeadIsMember(projectId: string, leadId: string | null | undefined) {
-  if (!leadId) return;
-  const role = await ProjectService.getMemberRole(projectId, leadId);
+// A component owner (default assignee) must be a member of the same project
+// (BR-5).
+async function assertOwnerIsMember(projectId: string, ownerId: string | null | undefined) {
+  if (!ownerId) return;
+  const role = await ProjectService.getMemberRole(projectId, ownerId);
   if (!role) {
-    throw new ValidationError("The chosen lead is not a member of this project.");
+    throw new ValidationError("The chosen owner is not a member of this project.");
   }
+}
+
+// Map the repository row (DB term `lead`) to the DTO (public term `owner`).
+type ComponentRow = Awaited<
+  ReturnType<typeof ComponentRepository.listByProject>
+>[number];
+
+function toDto(row: ComponentRow): ComponentDto {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    name: row.name,
+    description: row.description,
+    owner: row.lead,
+  };
 }
 
 export const ComponentService = {
   async list(actor: Actor, projectId: string): Promise<ComponentListDto> {
     const { role } = await resolveProject(actor, projectId);
-    const items = await ComponentRepository.listByProject(projectId);
-    return { items, canManage: role === "LEAD" };
+    const rows = await ComponentRepository.listByProject(projectId);
+    return { items: rows.map(toDto), canManage: role === "LEAD" };
   },
 
   // BR-1: LEAD-only create; case-insensitive dedup; lead must be a member.
@@ -62,12 +78,12 @@ export const ComponentService = {
     if (clash) {
       throw new ConflictError(`A component named "${clash.name}" already exists.`);
     }
-    await assertLeadIsMember(projectId, input.leadId);
+    await assertOwnerIsMember(projectId, input.ownerId);
     const component = await ComponentRepository.create({
       projectId,
       name: input.name,
       description: input.description ?? null,
-      leadId: input.leadId ?? null,
+      leadId: input.ownerId ?? null,
       actorId: actor.userId,
     });
     await AuditLogService.record({
@@ -76,9 +92,9 @@ export const ComponentService = {
       action: "COMPONENT_CREATED",
       entityType: "Component",
       entityId: component.id,
-      afterData: { projectId, name: component.name, leadId: component.lead?.id ?? null },
+      afterData: { projectId, name: component.name, ownerId: component.lead?.id ?? null },
     });
-    return component;
+    return toDto(component);
   },
 
   // BR-1: LEAD-only edit.
@@ -99,13 +115,13 @@ export const ComponentService = {
         throw new ConflictError(`A component named "${clash.name}" already exists.`);
       }
     }
-    if (input.leadId !== undefined) {
-      await assertLeadIsMember(existing.projectId, input.leadId);
+    if (input.ownerId !== undefined) {
+      await assertOwnerIsMember(existing.projectId, input.ownerId);
     }
     const component = await ComponentRepository.update(componentId, {
       name: input.name,
       description: input.description,
-      leadId: input.leadId,
+      leadId: input.ownerId,
       actorId: actor.userId,
     });
     await AuditLogService.record({
@@ -115,7 +131,7 @@ export const ComponentService = {
       entityType: "Component",
       entityId: componentId,
     });
-    return component;
+    return toDto(component);
   },
 
   // BR-1 + BR-7: LEAD-only soft delete; detaches from issues.
@@ -144,7 +160,8 @@ export const ComponentService = {
     if (!context || context.organizationId !== actor.organizationId) {
       throw new NotFoundError("Issue not found.");
     }
-    return ComponentRepository.listForIssue(issueId);
+    const rows = await ComponentRepository.listForIssue(issueId);
+    return rows.map(toDto);
   },
 
   // BR-2 + BR-3: replace the issue's component set (MEMBER/LEAD). Newly added
@@ -191,6 +208,7 @@ export const ComponentService = {
       entityId: issueId,
       afterData: { componentIds: unique },
     });
-    return ComponentRepository.listForIssue(issueId);
+    const rows = await ComponentRepository.listForIssue(issueId);
+    return rows.map(toDto);
   },
 };

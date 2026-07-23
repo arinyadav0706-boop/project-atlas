@@ -32,7 +32,7 @@ test("manage a component + label, then classify an issue (auto-assign)", async (
 
   const componentsCard = page.locator("section").filter({ hasText: "Components" });
   await componentsCard.getByLabel("New component name").fill("Payments");
-  await componentsCard.getByRole("combobox", { name: /default lead/i }).click();
+  await componentsCard.getByRole("combobox", { name: /owner/i }).click();
   await page.getByRole("option", { name: /Kavya Iyer/i }).click();
   await componentsCard.getByRole("button", { name: /add component/i }).click();
   await expect(componentsCard.getByText("Payments")).toBeVisible({ timeout: 15000 });
