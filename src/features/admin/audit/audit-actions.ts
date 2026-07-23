@@ -5,6 +5,10 @@
 export const AuditAction = {
   ORG_SETTINGS_CHANGED: "ORG_SETTINGS_CHANGED",
   FEATURE_FLAG_CHANGED: "FEATURE_FLAG_CHANGED",
+  // User lifecycle (14_user_management.md).
+  USER_INVITED: "USER_INVITED",
+  USER_ROLE_CHANGED: "USER_ROLE_CHANGED",
+  USER_STATUS_CHANGED: "USER_STATUS_CHANGED",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

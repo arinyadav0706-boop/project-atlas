@@ -59,10 +59,23 @@ paths:
   /admin/users:
     get:
       tags: [admin]
-      summary: List all users in the organization (ADMIN only)
+      summary: List users in the organization, filterable (MANAGE_USERS)
       parameters:
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/PageSizeParam"
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+          description: Search by name or email
+        - name: role
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/OrgRole" }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [active, inactive] }
       responses:
         "200":
           description: OK

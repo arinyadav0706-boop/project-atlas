@@ -1,4 +1,4 @@
-import { Building2, Flag, ScrollText, type LucideIcon } from "lucide-react";
+import { Building2, Flag, ScrollText, Users, type LucideIcon } from "lucide-react";
 import { AdminCapability } from "@/features/admin/authz/capabilities";
 
 // The admin console's tabs are registry entries, not hardcoded markup
@@ -25,6 +25,14 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
     order: 10,
   },
   {
+    id: "users",
+    label: "Users",
+    href: "/admin/users",
+    capability: AdminCapability.MANAGE_USERS,
+    icon: Users,
+    order: 15,
+  },
+  {
     id: "feature-flags",
     label: "Feature Flags",
     href: "/admin/feature-flags",
@@ -40,5 +48,4 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
     icon: ScrollText,
     order: 30,
   },
-  // Future: { id: "users", … capability: MANAGE_USERS } lands with module 14.
 ];
