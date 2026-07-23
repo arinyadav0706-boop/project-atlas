@@ -26,3 +26,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0017](0017-attachments-storage-architecture.md) | Attachments — Provider-Agnostic Storage Architecture | Accepted |
 | [0018](0018-labels-and-components.md) | Labels & Components — Governance and Data Model | Accepted |
 | [0019](0019-notifications-delivery.md) | Notifications — Synchronous Fan-out with a Future Event Seam | Accepted |
+| [0020](0020-reports-registry.md) | Reports — Pluggable Report Registry over Existing Data | Accepted |

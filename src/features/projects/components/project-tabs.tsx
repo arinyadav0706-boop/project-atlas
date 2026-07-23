@@ -12,6 +12,7 @@ export function ProjectTabs({ projectId }: { projectId: string }) {
     { href: `/projects/${projectId}/issues`, label: "Issues" },
     { href: `/projects/${projectId}/board`, label: "Board" },
     { href: `/projects/${projectId}/backlog`, label: "Backlog" },
+    { href: `/projects/${projectId}/reports`, label: "Reports" },
     { href: `/projects/${projectId}/settings`, label: "Settings" },
   ];
 

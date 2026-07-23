@@ -991,6 +991,43 @@ paths:
       responses:
         "200": { description: Done }
 
+  /projects/{projectId}/reports:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [reports]
+      summary: List the project's available reports (registry metadata, ADR-0020)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReportMeta" }
+
+  /projects/{projectId}/reports/{reportId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+      - name: reportId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: windowDays
+        in: query
+        description: Trailing window for cycle-time (default 30).
+        schema: { type: integer }
+    get:
+      tags: [reports]
+      summary: Run one report; the registry dispatches by id, result carries its chartType
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportResult" }
+        "404": { description: Report or project not found }
+
   /search:
     get:
       tags: [search]
@@ -1441,6 +1478,29 @@ components:
           type: string
           nullable: true
           description: Resolved target URL (e.g. the issue detail page); null if unresolvable.
+
+    ReportMeta:
+      type: object
+      description: Report registry metadata (ADR-0020).
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        category: { type: string, enum: [delivery, flow, workload] }
+        chartType: { type: string, enum: [bar, donut, kpi, line] }
+
+    ReportResult:
+      type: object
+      description: >-
+        A computed report. `data` is a per-report shape selected by `chartType`
+        (velocity → {sprints[]}, status-breakdown → {total,segments[]},
+        cycle-time → {averageDays,sampleSize,windowDays}).
+      properties:
+        id: { type: string }
+        name: { type: string }
+        chartType: { type: string, enum: [bar, donut, kpi, line] }
+        generatedAt: { type: string, format: date-time }
+        data: { type: object }
 
     BoardResponse:
       type: object

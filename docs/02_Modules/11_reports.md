@@ -1,6 +1,6 @@
 # Module: Reports
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** v2.0 (MVP implemented) · **Owner:** Founding CTO · **Last Updated:** 2026-07-23
 
 ## Overview
 
@@ -9,14 +9,22 @@ time. No new tables — velocity/status reads existing `Issue`/`Sprint`
 data; cycle time reads the `ISSUE_STATUS_CHANGED` entries already written
 to `AuditLog` for this purpose (`docs/03_Database/01_Database_Design.md §2.13`).
 
+Architecture: **ADR-0020** — a pluggable **report registry** (`REPORTS` map of
+`ReportDefinition`s). The API dispatches by report id; the UI renders by
+`chartType`. Adding a future report (burndown, CFD, cycle/lead distributions,
+workload, epic progress, release, custom) is a new registry entry — no refactor.
+Reports compute on demand from live data (no aggregate tables); a compute-cache
+is the documented scale seam.
+
 ## Business Rules
 
-- BR-1 (Velocity): for each `COMPLETED` sprint, report
-  `committedPoints` (sum of `storyPoints` for issues that were in the
-  sprint at close time) vs. `completedPoints` (sum of `storyPoints` for
-  issues that reached `DONE` by close time) — sourced from the sprint's
-  final issue set, not recomputed retroactively if issues are edited
-  later.
+- BR-1 (Velocity): for each `COMPLETED` sprint (most recent ~8), report
+  `completedPoints` (sum of `storyPoints` for issues in the sprint now in
+  `DONE`) and `completedIssues` — the standard velocity metric.
+  **`committedPoints` (say/do ratio) is deferred**: it needs a snapshot of the
+  sprint's issue set *at close time*, which we don't store (completing a sprint
+  moves incomplete issues out). It becomes a future `committedPoints` column
+  written at close (ADR-0020) — not reconstructed from mutable current data.
 - BR-2 (Status Breakdown): live count of non-deleted issues per `status`
   for the project, computed on read (no caching needed at V1 scale).
 - BR-3 (Cycle Time): for issues that reached `DONE` within a trailing
