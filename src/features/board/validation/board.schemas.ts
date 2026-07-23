@@ -11,6 +11,7 @@ export const boardFilterSchema = z.object({
   type: issueType.optional(),
   priority: issuePriority.optional(),
   labelIds: z.array(z.string().trim().min(1)).optional(),
+  componentIds: z.array(z.string().trim().min(1)).optional(),
   search: z.string().trim().min(1).max(200).optional(),
 });
 

@@ -147,4 +147,17 @@ export const ProjectRepository = {
       where: { projectId, role: "LEAD", deletedAt: null },
     });
   },
+
+  // Whether the user is LEAD of any live project in their org — the
+  // "trusted curator" signal for managing org-wide labels (ADR-0018 BR-2).
+  countLeadMemberships(userId: string, organizationId: string) {
+    return prisma.projectMember.count({
+      where: {
+        userId,
+        role: "LEAD",
+        deletedAt: null,
+        project: { organizationId, deletedAt: null },
+      },
+    });
+  },
 };

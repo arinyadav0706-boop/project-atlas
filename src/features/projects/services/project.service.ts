@@ -92,6 +92,16 @@ export const ProjectService = {
     return membership?.role ?? null;
   },
 
+  // Whether the actor is LEAD of any live project in their org — the curator
+  // signal for org-wide label management (ADR-0018 BR-2).
+  async isLeadAnywhere(actor: Actor): Promise<boolean> {
+    const count = await ProjectRepository.countLeadMemberships(
+      actor.userId,
+      actor.organizationId,
+    );
+    return count > 0;
+  },
+
   // BR-7: all authenticated employees can view all non-deleted projects;
   // membership governs edit rights, not visibility.
   async list(actor: Actor): Promise<ProjectDto[]> {

@@ -139,17 +139,17 @@ model Organization {
 }
 
 model User {
-  id                   String   @id @default(cuid())
+  id                   String       @id @default(cuid())
   organizationId       String
   organization         Organization @relation(fields: [organizationId], references: [id])
-  email                String   @unique
+  email                String       @unique
   name                 String
   avatarUrl            String?
   passwordHash         String?
-  orgRole              OrgRole  @default(MEMBER)
-  isActive             Boolean  @default(true)
+  orgRole              OrgRole      @default(MEMBER)
+  isActive             Boolean      @default(true)
   lastLoginAt          DateTime?
-  notificationsEnabled Boolean  @default(true)
+  notificationsEnabled Boolean      @default(true)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -159,8 +159,9 @@ model User {
 
   authAccounts       AuthAccount[]
   projectMemberships ProjectMember[]
-  assignedIssues     Issue[]        @relation("IssueAssignee")
-  reportedIssues     Issue[]        @relation("IssueReporter")
+  assignedIssues     Issue[]         @relation("IssueAssignee")
+  reportedIssues     Issue[]         @relation("IssueReporter")
+  ledComponents      Component[]     @relation("ComponentLead")
   comments           Comment[]
   attachments        Attachment[]
   notifications      Notification[]
@@ -200,9 +201,10 @@ model Project {
   updatedBy String?
   deletedAt DateTime?
 
-  members ProjectMember[]
-  sprints Sprint[]
-  issues  Issue[]
+  members    ProjectMember[]
+  sprints    Sprint[]
+  issues     Issue[]
+  components Component[]
 
   @@unique([organizationId, key])
   @@map("projects")
@@ -297,6 +299,7 @@ model Issue {
   comments    Comment[]
   attachments Attachment[]
   labels      IssueLabel[]
+  components  IssueComponent[]
 
   @@unique([projectId, key])
   // Covers the board/list query (filter by projectId[,status] + sort by rank)
@@ -328,7 +331,12 @@ model Label {
 
   issues IssueLabel[]
 
-  @@unique([organizationId, name])
+  // Case-insensitive uniqueness per org over LIVE rows is enforced by a
+  // functional partial unique index (lower(name) WHERE deletedAt IS NULL) in
+  // migration 20260723..._labels_components — Prisma can't express `lower()`
+  // or a partial index in-schema, so the exact `@@unique` is dropped and the
+  // constraint lives in that migration (ADR-0018 §2, BR-3). Prisma leaves the
+  // raw index untouched.
   @@map("labels")
 }
 
@@ -342,6 +350,47 @@ model IssueLabel {
 
   @@id([issueId, labelId])
   @@map("issue_labels")
+}
+
+// Project-scoped sub-system of a project (ADR-0018, 18_components.md). A
+// component may name a `lead`; adding it to an unassigned issue routes the
+// issue to that lead (BR-3). Many-to-many with issues via IssueComponent.
+model Component {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+  name        String
+  description String?
+  // Optional default owner. Soft reference to a User; kept as a real relation
+  // (like Issue.assignee) so default-assignee routing can join it.
+  leadId      String?
+  lead        User?   @relation("ComponentLead", fields: [leadId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  issues IssueComponent[]
+
+  // Case-insensitive uniqueness per project over live rows is enforced by a
+  // functional partial unique index in the migration (same reason as Label).
+  @@index([projectId])
+  @@map("components")
+}
+
+model IssueComponent {
+  issueId     String
+  issue       Issue     @relation(fields: [issueId], references: [id])
+  componentId String
+  component   Component @relation(fields: [componentId], references: [id])
+  createdAt   DateTime  @default(now())
+  createdBy   String?
+
+  @@id([issueId, componentId])
+  @@index([componentId])
+  @@map("issue_components")
 }
 
 // Body storage format (ADR-0016): the source is stored as-is and rendered per
@@ -432,13 +481,13 @@ model Notification {
 // personal *navigation* signal (views included) — kept separate so views never
 // bloat the audit log.
 model RecentItem {
-  id              String           @id @default(cuid())
-  userId          String
-  user            User             @relation(fields: [userId], references: [id])
-  entityType      RecentEntityType
-  entityId        String
-  interactionType InteractionType
-  lastInteractedAt DateTime        @default(now())
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id])
+  entityType       RecentEntityType
+  entityId         String
+  interactionType  InteractionType
+  lastInteractedAt DateTime         @default(now())
 
   @@unique([userId, entityType, entityId])
   @@index([userId, lastInteractedAt(sort: Desc)])

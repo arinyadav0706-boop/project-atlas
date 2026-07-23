@@ -24,3 +24,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0015](0015-multi-sprint-planning.md) | Multi-Sprint Planning on the Backlog Page | Accepted |
 | [0016](0016-comments-architecture.md) | Comments — Extensible Architecture | Accepted |
 | [0017](0017-attachments-storage-architecture.md) | Attachments — Provider-Agnostic Storage Architecture | Accepted |
+| [0018](0018-labels-and-components.md) | Labels & Components — Governance and Data Model | Accepted |

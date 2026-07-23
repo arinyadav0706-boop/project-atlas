@@ -1,0 +1,40 @@
+import { z } from "zod";
+
+// One schema per action, shared client/server (Coding Standards §7).
+export const componentNameSchema = z
+  .string()
+  .trim()
+  .min(1, "A component needs a name.")
+  .max(50, "Keep component names under 50 characters.");
+
+export const componentDescriptionSchema = z
+  .string()
+  .trim()
+  .max(500, "Keep the description under 500 characters.");
+
+export const createComponentSchema = z.object({
+  name: componentNameSchema,
+  description: componentDescriptionSchema.optional(),
+  // Optional default owner; null clears it. Membership is validated server-side.
+  leadId: z.string().min(1).nullable().optional(),
+});
+
+export const updateComponentSchema = z
+  .object({
+    name: componentNameSchema.optional(),
+    description: componentDescriptionSchema.nullable().optional(),
+    leadId: z.string().min(1).nullable().optional(),
+  })
+  .refine(
+    (v) => v.name !== undefined || v.description !== undefined || v.leadId !== undefined,
+    { message: "Nothing to update." },
+  );
+
+// Replace the full set of components on an issue (idempotent PUT, BR-2).
+export const setIssueComponentsSchema = z.object({
+  componentIds: z.array(z.string().min(1)).max(50),
+});
+
+export type CreateComponentInput = z.infer<typeof createComponentSchema>;
+export type UpdateComponentInput = z.infer<typeof updateComponentSchema>;
+export type SetIssueComponentsInput = z.infer<typeof setIssueComponentsSchema>;

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!actor) throw new UnauthorizedError();
     const q = request.nextUrl.searchParams;
     const labelIds = q.getAll("labelIds");
+    const componentIds = q.getAll("componentIds");
     const filter = boardFilterSchema.parse({
       sprintId: q.get("sprintId") ?? undefined,
       epicId: q.get("epicId") ?? undefined,
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       type: q.get("type") ?? undefined,
       priority: q.get("priority") ?? undefined,
       labelIds: labelIds.length ? labelIds : undefined,
+      componentIds: componentIds.length ? componentIds : undefined,
       search: q.get("search") ?? undefined,
     });
     return NextResponse.json(
