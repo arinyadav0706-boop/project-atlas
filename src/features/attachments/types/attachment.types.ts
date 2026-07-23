@@ -26,4 +26,8 @@ export interface AttachmentListDto {
   items: AttachmentDto[];
   // Whether the viewer may upload (MEMBER/LEAD on a non-archived project).
   canUpload: boolean;
+  // Per-file upload ceiling in bytes, resolved server-side (config-driven). The
+  // client uses it for the label + an instant pre-check; the server still
+  // enforces it as the security boundary.
+  maxUploadBytes: number;
 }

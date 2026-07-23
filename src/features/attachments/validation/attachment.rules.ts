@@ -4,7 +4,20 @@ import { ValidationError } from "@/shared/lib/errors";
 // The client may pre-check for UX, but this is the security boundary — an
 // allow-list, never a block-list (Security Architecture §4).
 
-export const MAX_ATTACHMENT_BYTES = 25_000_000; // 25 MB (BR-2)
+// Per-file upload ceiling (BR-2). A single config value so it can be raised in
+// one place — e.g. once uploads no longer pass through the app server (direct-to-
+// storage upload, ADR-0017 §4). The default stays under the typical serverless
+// request-body limit (~4.5 MB) so uploads *through* the app actually succeed
+// instead of being rejected at the platform edge with a cryptic failure.
+const DEFAULT_MAX_ATTACHMENT_BYTES = 4_000_000; // 4 MB
+const configuredMax = Number(process.env.ATTACHMENT_MAX_BYTES);
+export const MAX_ATTACHMENT_BYTES =
+  Number.isFinite(configuredMax) && configuredMax > 0
+    ? configuredMax
+    : DEFAULT_MAX_ATTACHMENT_BYTES;
+
+// Whole-MB figure for user-facing copy (client label + error message).
+export const MAX_ATTACHMENT_MB = Math.floor(MAX_ATTACHMENT_BYTES / 1_000_000);
 
 export const ALLOWED_MIME_TYPES = new Set<string>([
   "image/png",
@@ -29,7 +42,7 @@ export function assertValidUpload(mimeType: string, sizeBytes: number): void {
     throw new ValidationError("The file is empty.");
   }
   if (sizeBytes > MAX_ATTACHMENT_BYTES) {
-    throw new ValidationError("File is too large — the limit is 25 MB.");
+    throw new ValidationError(`File is too large — the limit is ${MAX_ATTACHMENT_MB} MB.`);
   }
   if (!ALLOWED_MIME_TYPES.has(mimeType)) {
     throw new ValidationError(`Files of type "${mimeType}" aren't allowed.`);

@@ -10,17 +10,25 @@ seam (ADR-0004/0017). Two adapters ship behind one interface: a **`LocalStorageA
 (disk; dev + self-hosted default, and the one tests exercise) and a
 **`SupabaseStorageAdapter`** (SaaS); the concrete one is picked by `STORAGE_PROVIDER`.
 Adding S3/GCS/Azure later is one new class — no feature-code change. The MVP proxies
-upload bytes through the app (validated, ≤ 25 MB) and serves downloads via a short-lived
-signed-URL redirect; presigned direct-to-storage upload is a documented scale seam
-(ADR-0017). No provider SDK ever leaks into feature code.
+upload bytes through the app (validated, ≤ `ATTACHMENT_MAX_BYTES`, default 4 MB) and
+serves downloads via an RBAC-gated proxy route; presigned direct-to-storage upload —
+which also lifts the per-file ceiling past the host's request-body limit — is a
+documented scale seam (ADR-0017). No provider SDK ever leaks into feature code.
 
 ## Business Rules
 
 - BR-1: Any project member (`MEMBER`/`LEAD`) can upload/delete their own
   attachments; `LEAD` can delete any attachment on the project (parity
   with Comments moderation).
-- BR-2: Max file size: 25 MB per file (V1 default — revisit if usage
-  demands otherwise; not user-configurable in V1).
+- BR-2: Max file size per file, config-driven via `ATTACHMENT_MAX_BYTES`
+  (default **4 MB**). While uploads pass *through* the app server the ceiling
+  must stay under the host's request-body limit (many serverless platforms cap
+  it at ~4.5 MB) — a larger value would look valid but be rejected at the
+  platform edge. Raising the ceiling meaningfully (toward the 25 MB long-term
+  target and beyond) is unlocked by **direct-to-storage upload** (ADR-0017 §4),
+  where bytes bypass the app server entirely. The resolved limit is returned to
+  the client (`AttachmentListDto.maxUploadBytes`) so the UI label + pre-check
+  never drift from the server rule.
 - BR-3: Allowed MIME types (allow-list, not block-list, per Security
   Architecture §4): common office/image/doc formats — `image/png`,
   `image/jpeg`, `image/gif`, `image/webp`, `application/pdf`,
@@ -57,14 +65,13 @@ isn't hard-deleted at the storage layer instantly in every failure path
 
 ## Acceptance Criteria
 
-- Given a 30 MB file, when a user attempts to upload it, then the API
-  rejects it with `413` and the UI explains the 25 MB limit before
-  attempting the request client-side too.
+- Given a file over `ATTACHMENT_MAX_BYTES` (default 4 MB), when a user attempts
+  to upload it, then the client rejects it instantly with a clear message and the
+  server rejects it too with `422` (the security boundary).
 - Given a `.exe` file, when a user attempts to upload it, then the API
-  rejects it with `415` (not in the allow-list).
-- Given an attachment, when a user clicks download, then they're redirected
-  to a signed URL that expires shortly after issuance, not a permanent
-  public link.
+  rejects it with `422` (not in the allow-list).
+- Given an attachment, when a user clicks download, then the bytes are served
+  through the RBAC-gated proxy route, never a permanent public link.
 
 ## Validation
 
