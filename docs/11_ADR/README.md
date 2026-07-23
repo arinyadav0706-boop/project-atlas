@@ -31,3 +31,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0022](0022-admin-control-plane.md) | Admin — Capability-Gated Control Plane with Pluggable Sections | Accepted |
 | [0023](0023-feature-flags.md) | Feature Flags — Typed Registry with Per-Org DB Overrides | Accepted |
 | [0024](0024-permission-engine-org-admin-lead.md) | Centralized Permission Engine; Org Admins Are Effective LEAD Everywhere | Accepted |
+| [0025](0025-navigation-two-rail-registry.md) | Navigation — Registry-Driven Two-Rail Sidebar | Accepted |
