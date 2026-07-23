@@ -120,7 +120,7 @@ describe("Components integration", () => {
     const { project, issue, lead, asLead, asMember } = await seed("c2");
     const component = await ComponentService.create(asLead, project.id, {
       name: "Payments",
-      leadId: lead.id,
+      ownerId: lead.id,
     });
     await ComponentService.setForIssue(asMember, issue.id, [component.id]);
 
@@ -137,7 +137,7 @@ describe("Components integration", () => {
     await prisma.issue.update({ where: { id: issue.id }, data: { assigneeId: member.id } });
     const component = await ComponentService.create(asLead, project.id, {
       name: "Infra",
-      leadId: lead.id,
+      ownerId: lead.id,
     });
     await ComponentService.setForIssue(asMember, issue.id, [component.id]);
 
@@ -152,7 +152,7 @@ describe("Components integration", () => {
     const a = await seed("c4");
     const b = await seed("c5");
     await expect(
-      ComponentService.create(a.asLead, a.project.id, { name: "X", leadId: b.member.id }),
+      ComponentService.create(a.asLead, a.project.id, { name: "X", ownerId: b.member.id }),
     ).rejects.toBeInstanceOf(Error); // ValidationError
   });
 });

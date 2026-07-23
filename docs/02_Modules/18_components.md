@@ -6,10 +6,10 @@
 ## Overview
 
 A **Component** is a project-scoped entity (`name`, optional `description`,
-optional `leadId`) representing a part of that project — `Payments API`,
+optional `ownerId`) representing a part of that project — `Payments API`,
 `Mobile App`, `Infra`. Many components per issue (`IssueComponent` join). When
-a component with a `leadId` is added to an issue that has **no assignee**, the
-issue is auto-assigned to that lead (Jira-style routing) — we never override an
+a component with a `ownerId` is added to an issue that has **no assignee**, the
+issue is auto-assigned to that owner (Jira-style routing) — we never override an
 existing assignee.
 
 ## Business Rules
@@ -19,13 +19,13 @@ existing assignee.
   org ADMIN has no implicit project power — `15_roles.md`).
 - **BR-2 (apply)**: any project MEMBER/LEAD may add/remove a component on an
   issue in that project (VIEWER cannot).
-- **BR-3 (default assignee)**: adding a component that has a `leadId` to an
-  issue whose `assigneeId` is null sets the assignee to that lead. An existing
+- **BR-3 (default assignee)**: adding a component that has a `ownerId` to an
+  issue whose `assigneeId` is null sets the assignee to that owner. An existing
   assignee is never overwritten. Removing a component never unassigns.
 - **BR-4 (uniqueness)**: component names are unique per project,
   case-insensitive, over live rows.
 - **BR-5 (validation)**: `name` 1–50 chars after trim; `description` ≤ 500;
-  `leadId`, if set, must be a member of the project. Zod, shared client/server.
+  `ownerId`, if set, must be a member of the project. Zod, shared client/server.
 - **BR-6 (tenant scope, F-1)**: all reads/writes scoped via the owning
   project's org; cross-org access is NotFound.
 - **BR-7 (soft delete + audit)**: `deletedAt` on delete; component drops from
@@ -33,8 +33,10 @@ existing assignee.
 
 ## Data
 
-New `components`: `id`, `projectId`, `name`, `description?`, `leadId?`, audit,
-`deletedAt`, case-insensitive unique `(projectId, name)` over live rows. New
+New `components`: `id`, `projectId`, `name`, `description?`, `leadId?` (the DB
+column name; exposed as `owner`/`ownerId` in the API & UI — no migration to
+rename), audit, `deletedAt`, case-insensitive unique `(projectId, name)` over
+live rows. New
 `issue_components` join: `(issueId, componentId)`. Migration
 `20260723..._labels_components`.
 
@@ -42,7 +44,7 @@ New `components`: `id`, `projectId`, `name`, `description?`, `leadId?`, audit,
 
 - `GET /api/projects/{projectId}/components` — live components for the project.
 - `POST /api/projects/{projectId}/components` — create (BR-1).
-- `PATCH /api/components/{id}` — rename/edit/reassign lead (BR-1).
+- `PATCH /api/components/{id}` — rename/edit/reassign owner (BR-1).
 - `DELETE /api/components/{id}` — soft delete (BR-1).
 - `PUT /api/issues/{issueId}/components` — set the issue's components to
   `{ componentIds }` (MEMBER/LEAD; applies BR-3 for newly added ones).
@@ -52,11 +54,11 @@ New `components`: `id`, `projectId`, `name`, `description?`, `leadId?`, audit,
 - **Component picker** on the issue detail (removable chips + add combobox).
 - **Chips** on issue detail, list rows, board cards, backlog rows.
 - **Filter** control in Board/Backlog (adds `BoardFilter.componentIds`).
-- **Management** in Project Settings → Components (BR-1), with a lead selector.
+- **Management** in Project Settings → Components (BR-1), with an owner selector.
 
 ## Acceptance Criteria
 
-- A LEAD creates `Payments API` with lead = Aditi; adding it to an unassigned
+- A LEAD creates `Payments API` with owner = Aditi; adding it to an unassigned
   issue assigns Aditi; adding it to an already-assigned issue does not change
   the assignee.
 - A MEMBER can apply/remove components but cannot create/edit/delete them.
@@ -65,6 +67,6 @@ New `components`: `id`, `projectId`, `name`, `description?`, `leadId?`, audit,
 
 ## Future Scope (deferred — ADR-0018, backlog)
 
-Component-based board swimlanes, component lead as a watcher (Notifications),
+Component-based board swimlanes, component owner as a watcher (Notifications),
 per-component default issue type, component archiving vs delete, cross-project
 component templates.

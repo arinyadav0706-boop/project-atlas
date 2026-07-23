@@ -19,9 +19,9 @@ import type {
 } from "@/features/components/types/component.types";
 
 // Project-scoped component management (18_components.md). CRUD is LEAD-only
-// (server-enforced, BR-1); a component's lead auto-assigns new work (BR-3).
-// `Select` has no empty value, so "no lead" maps to a sentinel → null on save.
-const NO_LEAD = "__none__";
+// (server-enforced, BR-1); a component.s owner auto-assigns new work (BR-3).
+// `Select` has no empty value, so "no owner" maps to a sentinel → null on save.
+const NO_OWNER = "__none__";
 
 type Member = { userId: string; name: string };
 
@@ -36,7 +36,7 @@ export function ComponentsManager({
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
-  const [leadId, setLeadId] = useState<string>(NO_LEAD);
+  const [ownerId, setOwnerId] = useState<string>(NO_OWNER);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -56,11 +56,11 @@ export function ComponentsManager({
     try {
       const created = await apiRequest<ComponentDto>(
         `/api/projects/${projectId}/components`,
-        { method: "POST", body: { name: trimmed, leadId: leadId === NO_LEAD ? null : leadId } },
+        { method: "POST", body: { name: trimmed, ownerId: ownerId === NO_OWNER ? null : ownerId } },
       );
       setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setName("");
-      setLeadId(NO_LEAD);
+      setOwnerId(NO_OWNER);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't create the component.");
     } finally {
@@ -98,12 +98,12 @@ export function ComponentsManager({
             onChange={(e) => setName(e.target.value)}
             className="h-8 max-w-xs"
           />
-          <Select value={leadId} onValueChange={setLeadId}>
-            <SelectTrigger className="h-8 w-auto min-w-40 text-sm" aria-label="Default lead">
-              <SelectValue placeholder="Default lead" />
+          <Select value={ownerId} onValueChange={setOwnerId}>
+            <SelectTrigger className="h-8 w-auto min-w-40 text-sm" aria-label="Owner">
+              <SelectValue placeholder="Owner" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_LEAD}>No default lead</SelectItem>
+              <SelectItem value={NO_OWNER}>No owner</SelectItem>
               {members.map((m) => (
                 <SelectItem key={m.userId} value={m.userId}>
                   {m.name}
@@ -151,7 +151,7 @@ function ComponentRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(component.name);
-  const [leadId, setLeadId] = useState<string>(component.lead?.id ?? NO_LEAD);
+  const [ownerId, setOwnerId] = useState<string>(component.owner?.id ?? NO_OWNER);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -160,7 +160,7 @@ function ComponentRow({
     try {
       const updated = await apiRequest<ComponentDto>(`/api/components/${component.id}`, {
         method: "PATCH",
-        body: { name: name.trim(), leadId: leadId === NO_LEAD ? null : leadId },
+        body: { name: name.trim(), ownerId: ownerId === NO_OWNER ? null : ownerId },
       });
       onSaved(updated);
       setEditing(false);
@@ -175,12 +175,12 @@ function ComponentRow({
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5">
         <Input value={name} onChange={(e) => setName(e.target.value)} className="h-7 max-w-xs" />
-        <Select value={leadId} onValueChange={setLeadId}>
-          <SelectTrigger className="h-7 w-auto min-w-40 text-sm" aria-label="Default lead">
-            <SelectValue placeholder="Default lead" />
+        <Select value={ownerId} onValueChange={setOwnerId}>
+          <SelectTrigger className="h-7 w-auto min-w-40 text-sm" aria-label="Owner">
+            <SelectValue placeholder="Owner" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_LEAD}>No default lead</SelectItem>
+            <SelectItem value={NO_OWNER}>No owner</SelectItem>
             {members.map((m) => (
               <SelectItem key={m.userId} value={m.userId}>
                 {m.name}
@@ -201,8 +201,8 @@ function ComponentRow({
   return (
     <div className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
       <span className="flex-1 text-sm">{component.name}</span>
-      {component.lead && (
-        <span className="text-xs text-muted-foreground">→ {component.lead.name}</span>
+      {component.owner && (
+        <span className="text-xs text-muted-foreground">→ {component.owner.name}</span>
       )}
       {canManage && (
         <>

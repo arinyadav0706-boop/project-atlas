@@ -51,15 +51,30 @@ so Phase 2 can flip to a stricter "restrict creation to LEAD/ADMIN" mode via
 an org setting — a config change, not a refactor. We do **not** build that
 toggle now (no premature abstraction, rule #10); we only keep the seam.
 
+> **Known limitation — accepted for MVP (revisit post-MVP):** because any
+> member can create a project and instantly becomes its LEAD, the "LEAD of any
+> project" curator signal in `canManageLabels` is effectively self-grantable —
+> a determined member could spin up a throwaway project to gain label-management
+> rights over the shared org catalog. The clean fix is **ADMIN-only management**
+> (`canManageLabels` = `orgRole === "ADMIN"`), a one-line change in the policy
+> function. We are **deliberately shipping the hybrid model to MVP** to learn
+> from real usage whether label governance needs centralizing before locking it
+> down. Tracked in the backlog. This is a governance/UX call, not a data-leak:
+> tenant scope (F-1) still fully isolates orgs regardless.
+
 ### 3. Components are project-scoped, LEAD-managed
 
 - **CRUD**: the **project LEAD** (component config is project config; org
   ADMIN carries no implicit project power — founder decision, `15_roles.md`).
 - **Apply**: any project MEMBER/LEAD on that project (VIEWER cannot).
-- **Default assignee**: a component may carry `leadId`. When a component is
-  added to an issue that currently has **no assignee**, the issue is assigned
-  to that lead (classic Jira routing). We never *override* an existing
-  assignee — the rule only fills a blank.
+- **Default assignee ("owner")**: a component may carry a default assignee.
+  When a component is added to an issue that currently has **no assignee**, the
+  issue is assigned to that person (classic Jira routing). We never *override*
+  an existing assignee — the rule only fills a blank. **Naming:** the DB column
+  is `leadId`, but the API/UI term is **owner** — "lead" was ambiguous against
+  the project **LEAD** role (a component owner gets *no* permissions; it's purely
+  a default-assignee pointer). The column is left as `leadId` to avoid a no-op
+  rename migration; it's mapped to `owner` at the DTO boundary.
 - **Uniqueness**: case-insensitive per project.
 
 ### 4. Cardinality — both many-to-many via join tables

@@ -15,18 +15,19 @@ export const componentDescriptionSchema = z
 export const createComponentSchema = z.object({
   name: componentNameSchema,
   description: componentDescriptionSchema.optional(),
-  // Optional default owner; null clears it. Membership is validated server-side.
-  leadId: z.string().min(1).nullable().optional(),
+  // Optional default assignee ("owner"); null clears it. Membership validated
+  // server-side.
+  ownerId: z.string().min(1).nullable().optional(),
 });
 
 export const updateComponentSchema = z
   .object({
     name: componentNameSchema.optional(),
     description: componentDescriptionSchema.nullable().optional(),
-    leadId: z.string().min(1).nullable().optional(),
+    ownerId: z.string().min(1).nullable().optional(),
   })
   .refine(
-    (v) => v.name !== undefined || v.description !== undefined || v.leadId !== undefined,
+    (v) => v.name !== undefined || v.description !== undefined || v.ownerId !== undefined,
     { message: "Nothing to update." },
   );
 
