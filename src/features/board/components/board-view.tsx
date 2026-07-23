@@ -71,10 +71,14 @@ export function BoardView({
   projectId,
   initialBoard,
   members,
+  labels,
+  components,
 }: {
   projectId: string;
   initialBoard: BoardDto;
   members: { userId: string; name: string }[];
+  labels: { id: string; name: string; color: string }[];
+  components: { id: string; name: string }[];
 }) {
   const [columns, setColumns] = useState<Columns>(() => toColumns(initialBoard));
   const [counts, setCounts] = useState<IssueStatusCounts>(initialBoard.counts);
@@ -210,7 +214,13 @@ export function BoardView({
 
   return (
     <div>
-      <BoardFilterBar members={members} filter={filter} onChange={setFilter} />
+      <BoardFilterBar
+        members={members}
+        labels={labels}
+        components={components}
+        filter={filter}
+        onChange={setFilter}
+      />
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollisionDetection}

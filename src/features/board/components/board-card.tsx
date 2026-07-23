@@ -56,6 +56,32 @@ export function BoardCard({
         </Link>
         <PriorityIcon priority={item.priority} className="mt-0.5 shrink-0" />
       </div>
+
+      {((item.labels?.length ?? 0) > 0 || (item.components?.length ?? 0) > 0) && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {item.components?.map((component) => (
+            <span
+              key={component.id}
+              className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            >
+              {component.name}
+            </span>
+          ))}
+          {item.labels?.map((label) => (
+            <span
+              key={label.id}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[10px]"
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: label.color }}
+              />
+              {label.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-2.5 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <IssueTypeIcon type={item.type} className="h-3.5 w-3.5" />

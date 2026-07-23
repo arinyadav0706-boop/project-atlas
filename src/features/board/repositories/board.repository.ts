@@ -22,6 +22,15 @@ const cardSelect = {
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  // Classification chips (ADR-0018) — only live labels/components.
+  labels: {
+    where: { label: { deletedAt: null } },
+    select: { label: { select: { id: true, name: true, color: true } } },
+  },
+  components: {
+    where: { component: { deletedAt: null } },
+    select: { component: { select: { id: true, name: true } } },
+  },
 } as const;
 
 // One place translates the whole composable filter to a Prisma `where`. Adding

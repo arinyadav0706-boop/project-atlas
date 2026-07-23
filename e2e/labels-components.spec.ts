@@ -70,4 +70,17 @@ test("manage a component + label, then classify an issue (auto-assign)", async (
 
   // Now Kavya is both reporter and (auto-assigned) assignee → two occurrences.
   await expect(page.getByText("Kavya Iyer")).toHaveCount(2, { timeout: 15000 });
+
+  // --- Board: the card shows the label + component chips, and the label
+  // filter narrows to it. ---
+  await page.goto(`/projects/${projectId}/board`);
+  // The card carries the component + label chips (only this card has them).
+  await expect(page.getByText("Payments").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("frontend").first()).toBeVisible();
+
+  // The label filter control narrows the board; the labeled card stays.
+  await page.getByRole("button", { name: /^Labels/ }).click();
+  await page.getByRole("menuitem", { name: /^frontend$/i }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText(title)).toBeVisible({ timeout: 15000 });
 });

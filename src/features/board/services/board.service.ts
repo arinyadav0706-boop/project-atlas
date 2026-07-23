@@ -31,6 +31,8 @@ function toCardDto(row: CardRow): IssueListItemDto {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     assignee: row.assignee,
+    labels: row.labels.map((il) => il.label),
+    components: row.components.map((ic) => ic.component),
   };
 }
 

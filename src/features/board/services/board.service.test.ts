@@ -45,6 +45,8 @@ function card(id: string, status: string) {
     updatedAt: new Date("2026-07-14T00:00:00Z"),
     version: 0,
     assignee: null,
+    labels: [],
+    components: [],
   };
 }
 

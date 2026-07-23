@@ -32,6 +32,10 @@ export interface IssueListItemDto {
   // Optimistic-concurrency token (ADR-0011). The client sends this back on a
   // reorder; a stale value is rejected instead of silently overwriting.
   version: number;
+  // Classification chips (ADR-0018). Optional so list mappers that don't need
+  // them (Home, list, backlog) stay untouched; the Board populates them.
+  labels?: { id: string; name: string; color: string }[];
+  components?: { id: string; name: string }[];
 }
 
 // Per-status totals for the filter chips (ALL = sum). Always present so the
