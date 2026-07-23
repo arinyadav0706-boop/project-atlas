@@ -14,7 +14,10 @@ vi.mock("@/features/comments/repositories/comment.repository", () => ({
   },
 }));
 vi.mock("@/features/issues/repositories/issue.repository", () => ({
-  IssueRepository: { findProjectId: vi.fn() },
+  IssueRepository: { findProjectId: vi.fn(), findNotificationContext: vi.fn() },
+}));
+vi.mock("@/features/notifications/services/notification.service", () => ({
+  NotificationService: { issueCommented: vi.fn() },
 }));
 vi.mock("@/features/projects/services/project.service", () => ({
   ProjectService: { getContext: vi.fn(), getMemberRole: vi.fn() },
@@ -71,6 +74,13 @@ beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
   issues.findProjectId.mockResolvedValue({ id: "issue-1", projectId: "proj-1" } as never);
+  issues.findNotificationContext.mockResolvedValue({
+    id: "issue-1",
+    key: "P-1",
+    title: "t",
+    assigneeId: null,
+    reporterId: "u-rep",
+  } as never);
 });
 
 describe("list", () => {

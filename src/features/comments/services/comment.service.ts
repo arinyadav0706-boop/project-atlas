@@ -10,6 +10,7 @@ import {
   type ProjectContext,
 } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
+import { NotificationService } from "@/features/notifications/services/notification.service";
 import {
   ConflictError,
   ForbiddenError,
@@ -139,6 +140,15 @@ export const CommentService = {
       parentCommentId: input.parentCommentId ?? null,
     });
     await recordEvent(context.organizationId, actor.userId, "COMMENT_CREATED", row.id, issueId);
+    // Notify the issue's assignee + reporter of the new comment (ADR-0019).
+    const target = await IssueRepository.findNotificationContext(issueId);
+    if (target) {
+      await NotificationService.issueCommented(actor, {
+        issueId,
+        issueKey: target.key,
+        recipientIds: [target.assigneeId, target.reporterId],
+      });
+    }
     return toDto(row, actor, role, context.status);
   },
 

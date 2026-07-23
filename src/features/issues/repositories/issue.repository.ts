@@ -96,6 +96,24 @@ export const IssueRepository = {
     });
   },
 
+  // Batch id -> projectId, for building links to many issues at once (e.g. the
+  // notification list resolves each ISSUE notification's detail-page URL).
+  findProjectIdsByIds(ids: string[]) {
+    return prisma.issue.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, projectId: true },
+    });
+  },
+
+  // Lean context for fanning out a notification about an issue (ADR-0019) —
+  // the display key/title and the recipients (assignee + reporter).
+  findNotificationContext(id: string) {
+    return prisma.issue.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, key: true, title: true, assigneeId: true, reporterId: true },
+    });
+  },
+
   // Component default-assignee routing (18_components.md BR-3): assign the issue
   // only if it currently has no assignee — atomic (the `assigneeId: null` guard
   // is in the WHERE), so it never overwrites an existing assignee. Bumps version
