@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { SearchPalette } from "@/features/search/components/search-palette";
 
 export function TopBar({
   userName,
@@ -25,7 +26,10 @@ export function TopBar({
     .toUpperCase();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-end gap-3 border-b border-border bg-background px-5">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-5">
+      <div className="flex-1">
+        <SearchPalette />
+      </div>
       <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

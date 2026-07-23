@@ -1574,13 +1574,33 @@ components:
 
     SearchResponse:
       type: object
+      description: >
+        Lean, palette-oriented results (12_search.md, ADR-0021). Each item
+        carries only what the command palette renders — not the full entity.
       properties:
-        projects:
-          type: array
-          items: { $ref: "#/components/schemas/Project" }
         issues:
           type: array
-          items: { $ref: "#/components/schemas/Issue" }
+          items: { $ref: "#/components/schemas/SearchIssueResult" }
+        projects:
+          type: array
+          items: { $ref: "#/components/schemas/SearchProjectResult" }
+
+    SearchIssueResult:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+        projectKey: { type: string }
+        href: { type: string }
+
+    SearchProjectResult:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        href: { type: string }
 
     VelocityReport:
       type: object

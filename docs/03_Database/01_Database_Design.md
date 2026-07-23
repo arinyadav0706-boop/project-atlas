@@ -302,7 +302,7 @@ Full visual: `02_ER_Diagram.md`.
 | `Comment` | index `issueId` | issue detail view |
 | `Notification` | index `(userId, isRead)` | notification bell query |
 | `AuditLog` | index `(organizationId, createdAt)` | audit review, newest-first |
-| Full-text search | `GIN` index on `to_tsvector` over `Issue.title`/`Issue.description` and `Project.name` | PRD FR-6.1, `docs/02_Modules/12_search.md` |
+| Full-text search | `GIN` expression indexes: `to_tsvector('english', title \|\| description)` on `Issue`, `to_tsvector('english', name \|\| key)` on `Project` (migration `20260723130000_search_fts`) | PRD FR-6.1, `docs/02_Modules/12_search.md`, ADR-0021 |
 
 ## 6. Formerly Open Items — Now Decided
 
