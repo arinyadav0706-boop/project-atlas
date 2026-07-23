@@ -2,6 +2,7 @@ import { ComponentRepository } from "@/features/components/repositories/componen
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
+import { NotificationService } from "@/features/notifications/services/notification.service";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { ComponentDto, ComponentListDto } from "@/features/components/types/component.types";
@@ -197,7 +198,20 @@ export const ComponentService = {
     // issue to that lead. `assignIfUnassigned` is atomic — never overwrites.
     const addedWithLead = found.filter((c) => !beforeSet.has(c.id) && c.leadId);
     if (addedWithLead.length > 0) {
-      await IssueRepository.assignIfUnassigned(issueId, addedWithLead[0]!.leadId!, actor.userId);
+      const ownerId = addedWithLead[0]!.leadId!;
+      const assigned = await IssueRepository.assignIfUnassigned(issueId, ownerId, actor.userId);
+      // Notify the owner only if the routing actually assigned them (ADR-0019).
+      if (assigned.count > 0) {
+        const ctx = await IssueRepository.findNotificationContext(issueId);
+        if (ctx) {
+          await NotificationService.issueAssigned(actor, {
+            issueId,
+            issueKey: ctx.key,
+            issueTitle: ctx.title,
+            assigneeId: ownerId,
+          });
+        }
+      }
     }
 
     await AuditLogService.record({

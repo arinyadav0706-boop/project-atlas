@@ -11,6 +11,7 @@ import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { allowedTransitions, canTransition } from "@/features/issues/services/issue-workflow";
 import { rankBetween } from "@/shared/lib/rank";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
+import { NotificationService } from "@/features/notifications/services/notification.service";
 import {
   ConflictError,
   ForbiddenError,
@@ -210,6 +211,13 @@ export const IssueService = {
       creatorId: actor.userId,
     });
     await RecentItemService.record(actor, "ISSUE", row.id, "EDITED");
+    // Notify the assignee if the issue was created already assigned (ADR-0019).
+    await NotificationService.issueAssigned(actor, {
+      issueId: row.id,
+      issueKey: row.key,
+      issueTitle: row.title,
+      assigneeId: row.assigneeId,
+    });
     return toDetailDto(row, actor, role);
   },
 
@@ -260,6 +268,19 @@ export const IssueService = {
       );
     }
     await RecentItemService.record(actor, "ISSUE", issueId, "EDITED");
+    // Notify a newly-assigned user (reassignment to someone else — ADR-0019).
+    if (
+      input.assigneeId !== undefined &&
+      input.assigneeId &&
+      input.assigneeId !== existing.assigneeId
+    ) {
+      await NotificationService.issueAssigned(actor, {
+        issueId,
+        issueKey: row.key,
+        issueTitle: row.title,
+        assigneeId: input.assigneeId,
+      });
+    }
     return toDetailDto(row, actor, role);
   },
 
@@ -309,6 +330,13 @@ export const IssueService = {
       entityId: issueId,
       beforeData: { status: existing.status },
       afterData: { status: to },
+    });
+    // Notify the assignee + reporter of the status change (ADR-0019).
+    await NotificationService.issueStatusChanged(actor, {
+      issueId,
+      issueKey: existing.key,
+      status: to,
+      recipientIds: [existing.assigneeId, existing.reporterId],
     });
     return toDetailDto(row, actor, role);
   },

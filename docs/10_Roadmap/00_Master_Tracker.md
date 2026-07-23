@@ -24,7 +24,7 @@ module (can't finish until that ships).
 | **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
 | Attachments | 🟡 | (MVP done) previews/versioning/scan/dedup/quota/share-links later; set `STORAGE_*` env in prod (GL-8) | — |
-| Notifications | ⛔ | Build | Comments, Issues events |
+| Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
 | Reports | ⛔ | Build (velocity/burndown/cycle-time) | Sprint, audit log |
 | Search | ⛔ | Build (⌘K global + per-list) | Issues, Labels |
 | Labels / Components | 🟡 | (MVP done + board chips/filter) list-row/backlog chips remain | — |
@@ -71,6 +71,16 @@ module (can't finish until that ships).
 - [ ] Chips on list rows / backlog rows + Backlog filter bar — *optional additive `IssueListItemDto` fields exist; other views not yet wired*
 - [ ] **Label creation-lockdown toggle** (Phase 2), label merge, usage counts — *ADR-0018, deferred*
 - [ ] **Component board swimlanes**, component lead as watcher — *deferred*
+
+## Notifications — feature checklist (ADR-0019)
+
+- [x] Bell (unread badge, poll) + dropdown + `/notifications` history page ✅ 2026-07-23
+- [x] Triggers: ASSIGNED (create/update/component-owner), COMMENT_ADDED, STATUS_CHANGED → assignee + reporter, actor excluded, `notificationsEnabled` honored ✅ 2026-07-23
+- [x] Per-recipient rows + precomputed message; mark-read / mark-all-read; keyset list ✅ 2026-07-23
+- [ ] **@mentions** (`MENTIONED`) — *needs comment @mention parsing (ADR-0016)*
+- [ ] **Commenter-participation** recipients on comment/status events — *deferred (ADR-0019)*
+- [ ] **Real-time push** (websockets) + **email digest** — *outbox/bus seam behind NotificationService*
+- [ ] **Per-notification-type preferences** + explicit watch/follow — *today: one global toggle*
 
 ## Backlog — feature checklist
 

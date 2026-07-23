@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 
 export function TopBar({
   userName,
@@ -25,6 +26,7 @@ export function TopBar({
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-end gap-3 border-b border-border bg-background px-5">
+      <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">

@@ -35,6 +35,9 @@ vi.mock("@/features/admin/services/audit-log.service", () => ({
 vi.mock("@/features/home/services/recent-item.service", () => ({
   RecentItemService: { record: vi.fn() },
 }));
+vi.mock("@/features/notifications/services/notification.service", () => ({
+  NotificationService: { issueAssigned: vi.fn(), issueStatusChanged: vi.fn(), issueCommented: vi.fn() },
+}));
 
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { ProjectService } from "@/features/projects/services/project.service";

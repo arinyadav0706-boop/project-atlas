@@ -16,7 +16,14 @@ vi.mock("@/features/components/repositories/component.repository", () => ({
   },
 }));
 vi.mock("@/features/issues/repositories/issue.repository", () => ({
-  IssueRepository: { findProjectId: vi.fn(), assignIfUnassigned: vi.fn() },
+  IssueRepository: {
+    findProjectId: vi.fn(),
+    assignIfUnassigned: vi.fn(),
+    findNotificationContext: vi.fn(),
+  },
+}));
+vi.mock("@/features/notifications/services/notification.service", () => ({
+  NotificationService: { issueAssigned: vi.fn() },
 }));
 vi.mock("@/features/projects/services/project.service", () => ({
   ProjectService: { getContext: vi.fn(), getMemberRole: vi.fn() },
@@ -61,6 +68,14 @@ describe("ComponentService.create (BR-1 LEAD-only)", () => {
 describe("ComponentService.setForIssue default-assignee (BR-3)", () => {
   beforeEach(() => {
     issues.findProjectId.mockResolvedValue({ id: "i-1", projectId: "p-1" } as never);
+    issues.assignIfUnassigned.mockResolvedValue({ count: 1 } as never);
+    issues.findNotificationContext.mockResolvedValue({
+      id: "i-1",
+      key: "P-1",
+      title: "t",
+      assigneeId: "lead-2",
+      reporterId: "u-rep",
+    } as never);
     projects.getMemberRole.mockResolvedValue("MEMBER");
     repo.setForIssue.mockResolvedValue([] as never);
     repo.listForIssue.mockResolvedValue([] as never);

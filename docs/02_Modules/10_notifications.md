@@ -1,11 +1,20 @@
 # Module: Notifications
 
-**Status:** Draft v1.0 · **Owner:** Founding CTO · **Last Updated:** 2026-07-10
+**Status:** v2.0 (MVP implemented) · **Owner:** Founding CTO · **Last Updated:** 2026-07-23
 
 ## Overview
 
 In-app notifications for the events a user cares about. V1 is in-app only
-— no email digest/push (V2 scope).
+— no email digest/push (V2 scope). Delivery architecture: **ADR-0019**
+(synchronous fan-out at the call site, precomputed per-recipient rows,
+pull-based bell; a future outbox/bus seam behind `NotificationService`).
+
+**MVP triggers built:** `ASSIGNED` (issue create/update + component
+owner auto-assign), `COMMENT_ADDED`, `STATUS_CHANGED` → each fans out to the
+issue's **assignee + reporter** (actor excluded, `notificationsEnabled`
+honored). **Deferred (ADR-0019, backlog):** `MENTIONED` (needs comment
+`@mention` parsing), commenter-participation recipients, real-time push,
+email digest, per-type preferences, explicit watch/follow.
 
 ## Business Rules
 

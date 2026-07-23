@@ -936,19 +936,41 @@ paths:
   /notifications:
     get:
       tags: [notifications]
-      summary: List the current user's notifications, newest first
+      summary: List the current user's notifications, newest first, keyset-paginated
       parameters:
-        - name: unreadOnly
+        - name: cursor
           in: query
-          schema: { type: boolean, default: false }
+          schema: { type: string }
+        - name: take
+          in: query
+          schema: { type: integer, default: 20 }
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/Notification" }
+                type: object
+                required: [items, nextCursor, unreadCount]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Notification" }
+                  nextCursor: { type: string, nullable: true }
+                  unreadCount: { type: integer }
+
+  /notifications/unread-count:
+    get:
+      tags: [notifications]
+      summary: The current user's unread notification count (bell badge poll)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { count: { type: integer } }
 
   /notifications/{notificationId}/read:
     parameters:
@@ -958,20 +980,16 @@ paths:
         schema: { type: string }
     post:
       tags: [notifications]
-      summary: Mark a single notification as read
+      summary: Mark a single notification as read (own only; idempotent)
       responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Notification" }
+        "200": { description: Done }
 
   /notifications/read-all:
     post:
       tags: [notifications]
       summary: Mark all of the current user's notifications as read
       responses:
-        "204": { description: Done }
+        "200": { description: Done }
 
   /search:
     get:
@@ -1419,6 +1437,10 @@ components:
         message: { type: string }
         isRead: { type: boolean }
         createdAt: { type: string, format: date-time }
+        link:
+          type: string
+          nullable: true
+          description: Resolved target URL (e.g. the issue detail page); null if unresolvable.
 
     BoardResponse:
       type: object
