@@ -95,14 +95,15 @@ describe("ProjectService.create", () => {
   });
 });
 
-describe("RBAC — org ADMIN has no implicit project powers (15_roles.md)", () => {
-  it("rejects a project update from an org ADMIN who is not a project LEAD", async () => {
+describe("RBAC — org ADMIN is an effective project LEAD (ADR-0024)", () => {
+  it("allows a project update from an org ADMIN who is not a project member", async () => {
     repo.findById.mockResolvedValue(baseProject);
-    repo.findMember.mockResolvedValue(null);
+    repo.findMember.mockResolvedValue(null); // no membership row…
+    repo.update.mockResolvedValue({ ...baseProject, name: "Renamed" });
 
-    await expect(
-      ProjectService.update(orgAdminActor, "proj-1", { name: "Renamed" }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    // …but elevated to LEAD, so the update succeeds (ADR-0024).
+    const result = await ProjectService.update(orgAdminActor, "proj-1", { name: "Renamed" });
+    expect(result.name).toBe("Renamed");
   });
 
   it("rejects an update from a plain MEMBER of the project", async () => {

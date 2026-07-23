@@ -34,15 +34,15 @@ import type {
   UpdateIssueInput,
 } from "@/features/issues/validation/issue.schemas";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
+import { elevate, canWriteContent } from "@/features/authorization/permission";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
-// workflow are enforced here, server-side, per the actor's project role.
+// workflow are enforced here, server-side, per the actor's effective project
+// role (permission engine, ADR-0024).
 
 type IssueRow = NonNullable<Awaited<ReturnType<typeof IssueRepository.findDetail>>>;
 
-function canWrite(role: ProjectRoleDto | null): boolean {
-  return role === "MEMBER" || role === "LEAD";
-}
+const canWrite = canWriteContent;
 
 async function resolve(
   projectId: string,
@@ -54,7 +54,9 @@ async function resolve(
   if (!context || context.organizationId !== actor.organizationId) {
     throw new NotFoundError("Project not found.");
   }
-  const role = await ProjectService.getMemberRole(projectId, actor.userId);
+  // Effective role: org admins act as LEAD (ADR-0024). F-1 is already enforced
+  // above, so elevation never crosses tenants.
+  const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
   return { context, role };
 }
 

@@ -13,6 +13,7 @@ import {
 } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
+import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 import type {
   CreateSprintInput,
@@ -31,14 +32,11 @@ import type {
 
 type SprintRow = Awaited<ReturnType<typeof SprintRepository.findById>>;
 
-function canWrite(role: ProjectRoleDto | null): boolean {
-  return role === "MEMBER" || role === "LEAD";
-}
+const canWrite = canWriteContent;
 
-// Only a LEAD manages the sprint lifecycle (create/edit/start/complete, BR-4).
-function canManage(role: ProjectRoleDto | null): boolean {
-  return role === "LEAD";
-}
+// Only a LEAD manages the sprint lifecycle (create/edit/start/complete, BR-4);
+// org admins are effective LEAD (ADR-0024).
+const canManage = canManageProject;
 
 async function resolve(
   projectId: string,
@@ -49,7 +47,7 @@ async function resolve(
   if (!context || context.organizationId !== actor.organizationId) {
     throw new NotFoundError("Project not found.");
   }
-  const role = await ProjectService.getMemberRole(projectId, actor.userId);
+  const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
   return { context, role };
 }
 

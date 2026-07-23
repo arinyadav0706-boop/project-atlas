@@ -5,6 +5,7 @@ import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { NotificationService } from "@/features/notifications/services/notification.service";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { elevate, canManageProject } from "@/features/authorization/permission";
 import type { ComponentDto, ComponentListDto } from "@/features/components/types/component.types";
 import type {
   CreateComponentInput,
@@ -21,7 +22,7 @@ async function resolveProject(actor: Actor, projectId: string) {
   if (!context || context.organizationId !== actor.organizationId) {
     throw new NotFoundError("Project not found.");
   }
-  const role = await ProjectService.getMemberRole(projectId, actor.userId);
+  const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
   return { context, role };
 }
 
@@ -29,8 +30,9 @@ async function requireLead(actor: Actor, projectId: string, context: { status: s
   if (context.status === "ARCHIVED") {
     throw new ConflictError("Archived projects are read-only.");
   }
-  const role = await ProjectService.getMemberRole(projectId, actor.userId);
-  if (role !== "LEAD") {
+  // Effective role: org admins are LEAD (ADR-0024).
+  const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
+  if (!canManageProject(role)) {
     throw new ForbiddenError("Only a project lead can manage components.");
   }
 }

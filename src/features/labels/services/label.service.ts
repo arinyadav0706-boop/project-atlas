@@ -4,6 +4,7 @@ import { ProjectService } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { elevate, canWriteContent } from "@/features/authorization/permission";
 import type { LabelDto, LabelListDto } from "@/features/labels/types/label.types";
 import type {
   CreateLabelInput,
@@ -36,8 +37,9 @@ async function resolveIssueForWrite(actor: Actor, issueId: string) {
   if (context.status === "ARCHIVED") {
     throw new ConflictError("Archived projects are read-only.");
   }
-  const role = await ProjectService.getMemberRole(issue.projectId, actor.userId);
-  if (role !== "MEMBER" && role !== "LEAD") {
+  // Effective role: org admins are LEAD (ADR-0024).
+  const role = elevate(actor, await ProjectService.getMemberRole(issue.projectId, actor.userId));
+  if (!canWriteContent(role)) {
     throw new ForbiddenError("You need to be a project member to change labels.");
   }
   return { issue, context };

@@ -18,6 +18,9 @@ import type {
   UpdateProjectInput,
   UpdateProjectMemberInput,
 } from "@/features/projects/validation/project.schemas";
+// Pure permission engine (ADR-0024) — imported here, not PermissionService,
+// to avoid a cycle (PermissionService depends on ProjectService).
+import { elevate, canManageProject } from "@/features/authorization/permission";
 
 // Business rules from docs/02_Modules/03_projects.md. RBAC is enforced
 // here, server-side, per project role — org ADMIN carries no implicit
@@ -50,8 +53,10 @@ async function requireProject(projectId: string, actor: Actor) {
 }
 
 async function requireLead(projectId: string, actor: Actor) {
+  // Effective role: org admins are LEAD on every project in their org
+  // (ADR-0024). Callers org-scope the project first, so this never crosses F-1.
   const membership = await ProjectRepository.findMember(projectId, actor.userId);
-  if (membership?.role !== "LEAD") {
+  if (!canManageProject(elevate(actor, membership?.role ?? null))) {
     throw new ForbiddenError("Only a project LEAD can perform this action.");
   }
 }
@@ -95,6 +100,8 @@ export const ProjectService = {
   // Whether the actor is LEAD of any live project in their org — the curator
   // signal for org-wide label management (ADR-0018 BR-2).
   async isLeadAnywhere(actor: Actor): Promise<boolean> {
+    // Org admins are effective LEAD on every project (ADR-0024).
+    if (actor.orgRole === "ADMIN") return true;
     const count = await ProjectRepository.countLeadMemberships(
       actor.userId,
       actor.organizationId,
@@ -110,8 +117,9 @@ export const ProjectService = {
       organizationId,
       actor.userId,
     );
+    // myRole reflects the effective role so admins see LEAD controls (ADR-0024).
     return projects.map((project) =>
-      toDto(project, project.members[0]?.role ?? null),
+      toDto(project, elevate(actor, project.members[0]?.role ?? null)),
     );
   },
 
@@ -135,7 +143,7 @@ export const ProjectService = {
   async get(actor: Actor, projectId: string): Promise<ProjectDto> {
     const project = await requireProject(projectId, actor);
     const membership = await ProjectRepository.findMember(projectId, actor.userId);
-    return toDto(project, membership?.role ?? null);
+    return toDto(project, elevate(actor, membership?.role ?? null));
   },
 
   // LEAD-only. Status changes (archive/unarchive) are settings, allowed

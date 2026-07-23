@@ -114,7 +114,7 @@ const ACTIONS: Record<ActionName, (actor: Actor) => Promise<unknown>> = {
 
 // Expected outcome per (role × action). "allow" = resolves; "deny" = Forbidden.
 // Roles: VIEWER, MEMBER, LEAD, non-member (null), and an org ADMIN who holds
-// no project role — 15_roles.md: org ADMIN gets NO implicit project powers.
+// no project role — since ADR-0024 an org ADMIN is an effective LEAD everywhere.
 type Outcome = "allow" | "deny";
 const MATRIX: {
   label: string;
@@ -147,10 +147,12 @@ const MATRIX: {
     expect: { get: "allow", list: "allow", create: "deny", update: "deny", transition: "deny", delete: "deny" },
   },
   {
-    label: "org ADMIN without a project role",
+    // ADR-0024: an org ADMIN is an effective LEAD on every project in its org,
+    // even with no ProjectMember row — so it can do everything a LEAD can.
+    label: "org ADMIN without a project role (effective LEAD, ADR-0024)",
     role: null,
     orgRole: "ADMIN",
-    expect: { get: "allow", list: "allow", create: "deny", update: "deny", transition: "deny", delete: "deny" },
+    expect: { get: "allow", list: "allow", create: "allow", update: "allow", transition: "allow", delete: "allow" },
   },
 ];
 
