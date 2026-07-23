@@ -24,6 +24,8 @@ export function AttachmentsSection({
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const canUpload = initial.canUpload;
+  const maxBytes = initial.maxUploadBytes;
+  const maxMb = Math.floor(maxBytes / 1_000_000);
 
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files);
@@ -33,6 +35,13 @@ export function AttachmentsSection({
       // Sequential keeps ordering deterministic and avoids a burst; the parallel
       // bulk path is a future optimization (ADR-0017 §5).
       for (const file of list) {
+        // Reject oversize files instantly — the server enforces this too, but a
+        // client pre-check avoids a doomed round-trip that the host would refuse
+        // at the edge anyway (the bytes never fit through the upload path).
+        if (file.size > maxBytes) {
+          toast.error(`${file.name} is too large — the limit is ${maxMb} MB.`);
+          continue;
+        }
         const form = new FormData();
         form.append("file", file);
         const res = await fetch(`/api/issues/${issueId}/attachments`, {
@@ -110,7 +119,7 @@ export function AttachmentsSection({
               browse
             </button>
           </p>
-          <p className="text-xs text-muted-foreground">Up to 25 MB each.</p>
+          <p className="text-xs text-muted-foreground">Up to {maxMb} MB each.</p>
           <input
             ref={inputRef}
             type="file"

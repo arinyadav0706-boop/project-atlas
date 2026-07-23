@@ -13,6 +13,7 @@ import { getStorageAdapter } from "@/shared/lib/storage";
 import {
   assertValidUpload,
   sanitizeFileName,
+  MAX_ATTACHMENT_BYTES,
 } from "@/features/attachments/validation/attachment.rules";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
@@ -71,6 +72,7 @@ export const AttachmentService = {
     return {
       items: rows.map((r) => toDto(r, actor, role, context.status)),
       canUpload: canWrite(role) && context.status !== "ARCHIVED",
+      maxUploadBytes: MAX_ATTACHMENT_BYTES,
     };
   },
 
