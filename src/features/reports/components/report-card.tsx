@@ -29,22 +29,39 @@ function VelocityBars({ data }: { data: VelocityData }) {
   if (data.sprints.length === 0) {
     return <Empty>No completed sprints yet.</Empty>;
   }
+  // Bar heights are in PIXELS (scaled to the tallest bar), not percentages —
+  // a % height needs a definite-height parent, which a flex column isn't, so
+  // percentage bars silently collapse. Pixels are unconditionally reliable.
+  const CHART_H = 160;
   const max = Math.max(1, ...data.sprints.map((s) => s.points));
   return (
-    <div className="flex h-48 items-end gap-3">
-      {data.sprints.map((s, i) => (
-        <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-          <span className="text-xs font-medium text-foreground">{s.points}</span>
-          <div
-            className="w-full rounded-t bg-accent transition-all"
-            style={{ height: `${(s.points / max) * 100}%`, minHeight: s.points > 0 ? 4 : 0 }}
-            title={`${s.points} pts · ${s.issues} issues`}
-          />
-          <span className="w-full truncate text-center text-[11px] text-muted-foreground" title={s.name}>
+    <div>
+      <div className="flex items-end gap-3" style={{ height: CHART_H }}>
+        {data.sprints.map((s, i) => {
+          const px = Math.round((s.points / max) * CHART_H);
+          return (
+            <div key={i} className="flex min-w-0 flex-1 flex-col items-center justify-end">
+              <span className="mb-1 text-xs font-medium text-foreground">{s.points}</span>
+              <div
+                className="w-full rounded-t bg-accent transition-all"
+                style={{ height: s.points > 0 ? Math.max(px, 6) : 2 }}
+                title={`${s.points} pts · ${s.issues} issues`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex gap-3">
+        {data.sprints.map((s, i) => (
+          <span
+            key={i}
+            className="min-w-0 flex-1 truncate text-center text-[11px] text-muted-foreground"
+            title={s.name}
+          >
             {s.name}
           </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
