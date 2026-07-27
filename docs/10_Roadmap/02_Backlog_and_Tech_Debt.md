@@ -76,7 +76,7 @@ and product decisions — that would otherwise get lost between modules.
 
 | ID | Item | Pri | 🚩 | Status | Notes |
 |---|---|---|---|---|---|
-| RBAC-1 | Org ADMIN as project admin | — | No | DECIDED (keep as-is) | Founder decision 2026-07-12: admins hold no implicit project powers (`15_roles.md`). Revisit path documented if the company wants it later. |
+| RBAC-1 | Org ADMIN as project admin | — | No | ✅ RESOLVED 2026-07-23 (ADR-0024) | **Reversed the 2026-07-12 decision.** Org `ADMIN` is now an **effective `LEAD` on every project in its own org**, via the single `elevate()` in the permission engine (`15_roles.md` BR-2). Authorization-only (no membership rows), org-scoped (F-1 intact), and excluded from the "≥1 real LEAD" guard. Proven by `permission.integration.test.ts`. |
 | RBAC-2 | Lone-lead handoff gap | P3 | No | OPEN | A single-lead project can't transfer leadership without first adding a 2nd lead. Tied to RBAC-1. |
 
 ## Testing gaps (source: `docs/08_Testing/01_Testing_Strategy.md`)

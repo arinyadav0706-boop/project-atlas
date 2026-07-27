@@ -325,9 +325,11 @@ Full visual: `02_ER_Diagram.md`.
 
 ## 6. Formerly Open Items — Now Decided
 
-- `ProjectRole`/`OrgRole` granularity (§3): **confirmed as-is**, with the
-  explicit founder decision (2026-07-12) that org `ADMIN` carries **no**
-  implicit project-level powers — see `docs/02_Modules/15_roles.md`.
+- `ProjectRole`/`OrgRole` granularity (§3): **confirmed as-is**. The
+  2026-07-12 decision that org `ADMIN` carries no implicit project powers was
+  later **reversed by ADR-0024 (2026-07-23)**: an org `ADMIN` is now an
+  *effective* `LEAD` on every project in its org (authorization-only, no
+  membership rows) — see `docs/02_Modules/15_roles.md`.
 - `description`/`Comment.body` storage format: **founder-confirmed
   (2026-07-12): Markdown source**, sanitized at render. (For reference:
   Jira Cloud uses its proprietary ADF JSON format, Asana a restricted

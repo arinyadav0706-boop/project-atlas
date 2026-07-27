@@ -64,8 +64,10 @@ toggle now (no premature abstraction, rule #10); we only keep the seam.
 
 ### 3. Components are project-scoped, LEAD-managed
 
-- **CRUD**: the **project LEAD** (component config is project config; org
-  ADMIN carries no implicit project power — founder decision, `15_roles.md`).
+- **CRUD**: the **project LEAD** (component config is project config).
+  *(Update — ADR-0024, 2026-07-23: an org ADMIN is now an effective LEAD on every
+  project in its org, so admins may manage components too. The original
+  "no implicit project power" clause was reversed there; see `15_roles.md`.)*
 - **Apply**: any project MEMBER/LEAD on that project (VIEWER cannot).
 - **Default assignee ("owner")**: a component may carry a default assignee.
   When a component is added to an issue that currently has **no assignee**, the

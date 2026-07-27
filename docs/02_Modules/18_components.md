@@ -15,8 +15,10 @@ existing assignee.
 ## Business Rules
 
 - **BR-1 (CRUD)**: create / rename / edit / soft-delete a component requires
-  the **project LEAD** of that project (component config is project config;
-  org ADMIN has no implicit project power — `15_roles.md`).
+  the **effective project LEAD** of that project (component config is project
+  config). Since ADR-0024 an org ADMIN is an effective LEAD on every project in
+  its org, so admins may manage components too — resolved via `elevate()`
+  (`15_roles.md`).
 - **BR-2 (apply)**: any project MEMBER/LEAD may add/remove a component on an
   issue in that project (VIEWER cannot).
 - **BR-3 (default assignee)**: adding a component that has a `ownerId` to an
