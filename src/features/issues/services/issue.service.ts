@@ -20,6 +20,8 @@ import {
 } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type {
+  EpicSummaryDto,
+  IssueChildDto,
   IssueDetailDto,
   IssueListItemDto,
   IssueListPageDto,
@@ -88,14 +90,24 @@ function toListDto(row: {
   };
 }
 
-function toDetailDto(row: IssueRow, actor: Actor, role: ProjectRoleDto | null): IssueDetailDto {
+function toDetailDto(
+  row: IssueRow,
+  actor: Actor,
+  role: ProjectRoleDto | null,
+  children: IssueChildDto[] = [],
+): IssueDetailDto {
   const canDelete =
     role === "LEAD" || row.reporterId === actor.userId || row.assigneeId === actor.userId;
+  const epic: EpicSummaryDto | null = row.epic
+    ? { id: row.epic.id, key: row.epic.key, title: row.epic.title }
+    : null;
   return {
     ...toListDto(row),
     description: row.description,
     reporter: row.reporter,
     epicId: row.epicId,
+    epic,
+    children,
     dueDate: row.dueDate ? row.dueDate.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     canEdit: canWrite(role),
@@ -116,12 +128,24 @@ async function validateAssignee(
   }
 }
 
-// Epic (if set) must be an EPIC-type issue in the same project (BR-4).
+// Hierarchy guards (BR-4, ADR-0026). Single level: a child (Story/Task/Bug) may
+// point to one parent Epic in the same project; an Epic never has a parent, an
+// issue is never its own parent, and cross-project parents are rejected. Cycles
+// are impossible by construction (only non-epics can have a parent).
 async function validateEpic(
   projectId: string,
   epicId: string | null | undefined,
+  self: { type: IssueTypeDto; id?: string },
 ): Promise<void> {
   if (!epicId) return;
+  if (self.type === "EPIC") {
+    throw new ValidationError("An Epic cannot have a parent epic.");
+  }
+  if (self.id && epicId === self.id) {
+    throw new ValidationError("An issue cannot be its own parent.");
+  }
+  // findEpic is scoped to (projectId, type=EPIC) → cross-project and non-epic
+  // parents both fail here.
   const epic = await IssueRepository.findEpic(projectId, epicId);
   if (!epic) {
     throw new ValidationError("Parent epic must be an Epic in this project.");
@@ -179,9 +203,28 @@ export const IssueService = {
     if (!row) throw new NotFoundError("Issue not found.");
     // resolve() enforces the tenant scope (F-1) and yields the caller's role.
     const { role } = await resolve(row.projectId, actor);
+    // Child issues are only meaningful for an Epic — one extra query, and only
+    // for epics (ADR-0026); the parent epic is already on the row (no N+1).
+    const children: IssueChildDto[] =
+      row.type === "EPIC"
+        ? (await IssueRepository.listChildren(row.id)).map((c) => ({
+            id: c.id,
+            key: c.key,
+            title: c.title,
+            type: c.type,
+            status: c.status,
+          }))
+        : [];
     // Best-effort engagement signal for Home's "Continue working" (ADR-0012).
     await RecentItemService.record(actor, "ISSUE", issueId, "VIEWED");
-    return toDetailDto(row, actor, role);
+    return toDetailDto(row, actor, role, children);
+  },
+
+  // A project's epics for the create/edit selector and the board Epic filter
+  // (ADR-0026). Read-only; visible to any org member who can see the project.
+  async listEpics(actor: Actor, projectId: string): Promise<EpicSummaryDto[]> {
+    await resolve(projectId, actor); // existence + tenant scope (F-1)
+    return IssueRepository.listEpics(projectId);
   },
 
   async create(
@@ -197,7 +240,7 @@ export const IssueService = {
       throw new ConflictError("Archived projects are read-only.");
     }
     await validateAssignee(projectId, input.assigneeId);
-    await validateEpic(projectId, input.epicId);
+    await validateEpic(projectId, input.epicId, { type: input.type });
 
     const row = await IssueRepository.createWithKey({
       projectId,
@@ -240,8 +283,30 @@ export const IssueService = {
     if (input.assigneeId !== undefined) {
       await validateAssignee(existing.projectId, input.assigneeId);
     }
+    // Hierarchy integrity on type/parent changes (BR-4, ADR-0026).
+    const effectiveType = input.type ?? (existing.type as IssueTypeDto);
+    // Converting an Epic that still has children to another type would leave
+    // those children under a non-epic parent — block it (fix children first).
+    if (existing.type === "EPIC" && input.type && input.type !== "EPIC") {
+      const children = await IssueRepository.listChildren(existing.id);
+      if (children.length > 0) {
+        throw new ConflictError(
+          "This Epic has child issues — reassign or remove them before changing its type.",
+        );
+      }
+    }
+    // Decide the parent to persist. An explicit epicId is validated against the
+    // effective type; converting an issue INTO an Epic clears any parent it had
+    // (an Epic can never be a child).
+    let epicIdWrite: string | null | undefined = undefined;
     if (input.epicId !== undefined) {
-      await validateEpic(existing.projectId, input.epicId);
+      await validateEpic(existing.projectId, input.epicId, {
+        type: effectiveType,
+        id: existing.id,
+      });
+      epicIdWrite = input.epicId;
+    } else if (effectiveType === "EPIC" && existing.epicId) {
+      epicIdWrite = null;
     }
 
     // Optimistic concurrency (ADR-0011): scalar FKs (assigneeId/epicId) are set
@@ -256,7 +321,7 @@ export const IssueService = {
         ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.priority !== undefined ? { priority: input.priority } : {}),
         ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
-        ...(input.epicId !== undefined ? { epicId: input.epicId } : {}),
+        ...(epicIdWrite !== undefined ? { epicId: epicIdWrite } : {}),
         ...(input.storyPoints !== undefined ? { storyPoints: input.storyPoints } : {}),
         ...(input.dueDate !== undefined
           ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
@@ -508,6 +573,11 @@ export const IssueService = {
     }
     if (context.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
+    }
+    // Deleting an Epic detaches its children (epicId → null) so none are left
+    // pointing at a removed parent — never a cascade, never an orphan (ADR-0026).
+    if (existing.type === "EPIC") {
+      await IssueRepository.detachChildren(existing.id, actor.userId);
     }
     await IssueRepository.softDelete(issueId, actor.userId);
   },

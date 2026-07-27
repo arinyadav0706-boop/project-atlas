@@ -32,12 +32,14 @@ export function BoardFilterBar({
   members,
   labels,
   components,
+  epics,
   filter,
   onChange,
 }: {
   members: { userId: string; name: string }[];
   labels: { id: string; name: string; color: string }[];
   components: { id: string; name: string }[];
+  epics: { id: string; key: string; title: string }[];
   filter: BoardFilter;
   onChange: (next: BoardFilter) => void;
 }) {
@@ -45,6 +47,7 @@ export function BoardFilterBar({
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
     filter.priority !== undefined ||
+    filter.epicId !== undefined ||
     (filter.labelIds?.length ?? 0) > 0 ||
     (filter.componentIds?.length ?? 0) > 0;
 
@@ -120,6 +123,27 @@ export function BoardFilterBar({
           ))}
         </SelectContent>
       </Select>
+
+      {epics.length > 0 && (
+        <Select
+          value={filter.epicId ?? ANY}
+          onValueChange={(v) =>
+            onChange({ ...filter, epicId: v === ANY ? undefined : v })
+          }
+        >
+          <SelectTrigger className="h-8 w-auto min-w-36 text-sm">
+            <SelectValue placeholder="Epic" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value={ANY}>Any epic</SelectItem>
+            {epics.map((e) => (
+              <SelectItem key={e.id} value={e.id}>
+                {e.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {components.length > 0 && (
         <MultiSelect

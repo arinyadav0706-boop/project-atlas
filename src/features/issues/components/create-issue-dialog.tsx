@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { typeLabel, priorityLabel } from "./issue-meta";
+import { EpicSelect } from "./epic-select";
 import type { IssueDetailDto } from "@/features/issues/types/issue.types";
 
 const TYPES = ["TASK", "STORY", "BUG", "EPIC"] as const;
@@ -52,7 +53,7 @@ export function CreateIssueDialog({
 
   const form = useForm<CreateIssueInput>({
     resolver: zodResolver(createIssueSchema),
-    defaultValues: { type: "TASK", title: "", description: "", priority: "MEDIUM", storyPoints: null },
+    defaultValues: { type: "TASK", title: "", description: "", priority: "MEDIUM", storyPoints: null, epicId: null },
   });
 
   useEffect(() => {
@@ -136,7 +137,11 @@ export function CreateIssueDialog({
               <Label htmlFor="issue-type">Type</Label>
               <Select
                 value={form.watch("type")}
-                onValueChange={(v) => form.setValue("type", v as CreateIssueInput["type"])}
+                onValueChange={(v) => {
+                  form.setValue("type", v as CreateIssueInput["type"]);
+                  // An Epic can't have a parent (ADR-0026) — clear any selection.
+                  if (v === "EPIC") form.setValue("epicId", null);
+                }}
               >
                 <SelectTrigger id="issue-type" className="w-full">
                   <SelectValue />
@@ -192,6 +197,19 @@ export function CreateIssueDialog({
               </Select>
             </div>
           </div>
+
+          {form.watch("type") !== "EPIC" && (
+            <div>
+              <Label>
+                Parent epic <span className="font-normal">(optional)</span>
+              </Label>
+              <EpicSelect
+                projectId={projectId}
+                value={form.watch("epicId") ?? null}
+                onChange={(id) => form.setValue("epicId", id)}
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="issue-points">

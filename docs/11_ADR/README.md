@@ -32,3 +32,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0023](0023-feature-flags.md) | Feature Flags — Typed Registry with Per-Org DB Overrides | Accepted |
 | [0024](0024-permission-engine-org-admin-lead.md) | Centralized Permission Engine; Org Admins Are Effective LEAD Everywhere | Accepted |
 | [0025](0025-navigation-two-rail-registry.md) | Navigation — Registry-Driven Two-Rail Sidebar | Accepted |
+| [0026](0026-issue-hierarchy-epic.md) | Issue Hierarchy — Single-Level Epic → Child, Detach-on-Delete | Accepted |

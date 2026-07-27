@@ -73,12 +73,14 @@ export function BoardView({
   members,
   labels,
   components,
+  epics,
 }: {
   projectId: string;
   initialBoard: BoardDto;
   members: { userId: string; name: string }[];
   labels: { id: string; name: string; color: string }[];
   components: { id: string; name: string }[];
+  epics: { id: string; key: string; title: string }[];
 }) {
   const [columns, setColumns] = useState<Columns>(() => toColumns(initialBoard));
   const [counts, setCounts] = useState<IssueStatusCounts>(initialBoard.counts);
@@ -218,6 +220,7 @@ export function BoardView({
         members={members}
         labels={labels}
         components={components}
+        epics={epics}
         filter={filter}
         onChange={setFilter}
       />

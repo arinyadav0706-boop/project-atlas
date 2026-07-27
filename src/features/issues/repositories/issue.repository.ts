@@ -83,7 +83,38 @@ export const IssueRepository = {
       include: {
         assignee: assigneeSelect,
         reporter: assigneeSelect,
+        // Parent epic summary in the same round-trip (no N+1) — ADR-0026.
+        epic: { select: { id: true, key: true, title: true } },
       },
+    });
+  },
+
+  // A project's epics for selectors + the board Epic filter (ADR-0026). Lean
+  // summary, newest first so recent epics surface at the top of the picker.
+  listEpics(projectId: string) {
+    return prisma.issue.findMany({
+      where: { projectId, type: "EPIC", deletedAt: null },
+      select: { id: true, key: true, title: true },
+      orderBy: [{ createdAt: "desc" }],
+    });
+  },
+
+  // An epic's child issues for the detail hierarchy section (ADR-0026). Bounded
+  // to one epic's children; ordered by rank so it reads like the board/backlog.
+  listChildren(epicId: string) {
+    return prisma.issue.findMany({
+      where: { epicId, deletedAt: null },
+      select: { id: true, key: true, title: true, type: true, status: true },
+      orderBy: [{ rank: "asc" }, { id: "asc" }],
+    });
+  },
+
+  // Detach an epic's children on delete (ADR-0026 §2): epicId → null, never a
+  // cascade, never an orphan. Bumps version like any mutation (ADR-0011).
+  detachChildren(epicId: string, actorId: string) {
+    return prisma.issue.updateMany({
+      where: { epicId, deletedAt: null },
+      data: { epicId: null, version: { increment: 1 }, updatedBy: actorId },
     });
   },
 
@@ -176,7 +207,11 @@ export const IssueRepository = {
           rank: rankAppend(last?.rank ?? null, input.creatorId),
           createdBy: input.creatorId,
         },
-        include: { assignee: assigneeSelect, reporter: assigneeSelect },
+        include: {
+          assignee: assigneeSelect,
+          reporter: assigneeSelect,
+          epic: { select: { id: true, key: true, title: true } },
+        },
       });
     });
   },

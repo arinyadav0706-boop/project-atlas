@@ -20,9 +20,22 @@ and Sprint are all views over `Issue`.
 - BR-3 (assignee constraint): `assigneeId`, if set, must be a
   `ProjectMember` of the same project — validated in the service layer
   (not just Zod, since it's a cross-entity check).
-- BR-4 (epic constraint): `epicId`, if set, must reference an `Issue` with
-  `type = EPIC` in the same project; an `EPIC` cannot reference itself or
-  another epic as its own parent.
+- BR-4 (epic/hierarchy constraint — single level, ADR-0026): `epicId`, if set,
+  must reference an `Issue` with `type = EPIC` in the **same project**. Enforced
+  server-side (cross-entity check, not just Zod), and mirrored in the UI:
+  - An `EPIC` **cannot** have a parent (`epicId` must be null for epics) — no
+    Epic-under-Epic nesting.
+  - An issue cannot be its own parent (`epicId !== id`).
+  - Cross-project parenting is rejected (the lookup is scoped to the project).
+  - Cycles are impossible by construction: only non-epics can have a parent and
+    epics cannot, so the depth is at most one.
+- BR-4a (epic delete — detach, ADR-0026): deleting an `EPIC` (soft delete)
+  **detaches its children** (`epicId → null`); children are preserved as
+  independent issues. Never a cascade delete, never an orphaned pointer —
+  consistent with component soft-delete (ADR-0018 BR-6).
+- BR-4b (hierarchy display): the issue detail shows the **parent Epic** (for a
+  child) and the **child issues** (for an Epic), both clickable; the create/edit
+  forms expose a searchable Epic selector for non-epic types only.
 - BR-5 (status transitions — the one fixed V1 workflow, PRD FR-3.2): only
   the transitions below are allowed; anything else returns `422`:
 
