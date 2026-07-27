@@ -115,13 +115,25 @@ export const authConfig: NextAuthConfig = {
       return true;
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user?.email) {
         const dbUser = await UserRepository.findByEmail(user.email);
         if (dbUser) {
           token.userId = dbUser.id;
           token.orgRole = dbUser.orgRole;
           token.organizationId = dbUser.organizationId;
+          token.name = dbUser.name;
+          token.picture = dbUser.avatarUrl ?? null;
+        }
+      }
+      // A profile save (name/avatar) triggers a client session update; re-read
+      // those identity claims so the top bar refreshes without a re-login
+      // (ADR-0027). Only name/avatar are re-read — role/tenant never change here.
+      if (trigger === "update" && token.userId) {
+        const fresh = await UserRepository.findSessionIdentity(token.userId as string);
+        if (fresh) {
+          token.name = fresh.name;
+          token.picture = fresh.avatarUrl ?? null;
         }
       }
       return token;
@@ -132,6 +144,8 @@ export const authConfig: NextAuthConfig = {
         session.user.id = token.userId as string;
         session.user.orgRole = token.orgRole as string;
         session.user.organizationId = token.organizationId as string;
+        if (token.name) session.user.name = token.name;
+        session.user.image = (token.picture as string | null) ?? null;
       }
       return session;
     },

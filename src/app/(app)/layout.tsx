@@ -3,6 +3,7 @@ import { getSession, getActor } from "@/features/authentication/services/actor.s
 import { FeatureFlagService } from "@/features/admin/services/feature-flag.service";
 import { Sidebar } from "@/shared/components/app-shell/sidebar";
 import { TopBar } from "@/shared/components/app-shell/top-bar";
+import { AppProviders } from "./providers";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // getSession fails closed (returns null on error) and is request-cached, so
@@ -21,16 +22,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     : false;
 
   return (
-    <div className="flex h-screen">
-      <Sidebar isOrgAdmin={session.user.orgRole === "ADMIN"} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar
-          userName={session.user.name ?? session.user.email ?? "User"}
-          userImage={session.user.image}
-          searchEnabled={searchEnabled}
-        />
-        <main className="flex-1 overflow-y-auto bg-background p-6">{children}</main>
+    <AppProviders>
+      <div className="flex h-screen">
+        <Sidebar isOrgAdmin={session.user.orgRole === "ADMIN"} />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <TopBar
+            userName={session.user.name ?? session.user.email ?? "User"}
+            userImage={session.user.image}
+            searchEnabled={searchEnabled}
+          />
+          <main className="flex-1 overflow-y-auto bg-background p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </AppProviders>
   );
 }

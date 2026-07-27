@@ -35,17 +35,23 @@ paths:
   /users/me:
     get:
       tags: [profile]
-      summary: Get the current authenticated user's profile
+      summary: Get the current authenticated user's own profile (16_profile.md)
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/User" }
+              schema: { $ref: "#/components/schemas/ProfileDto" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     patch:
       tags: [profile]
-      summary: Update own profile (name, avatar, notification preferences)
+      summary: Update own display name and/or in-app notification toggle
+      description: >
+        Self-service only. The request body accepts ONLY `name` and
+        `notificationsEnabled` (16_profile.md BR-3) — privileged fields such as
+        orgRole/isActive are not part of this schema and are rejected.
       requestBody:
+        required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/UpdateProfileInput" }
@@ -54,7 +60,65 @@ paths:
           description: Updated
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/User" }
+              schema: { $ref: "#/components/schemas/ProfileDto" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /users/me/avatar:
+    post:
+      tags: [profile]
+      summary: Upload/replace own avatar (image, ≤ 2 MB) via the storage adapter
+      description: Multipart image upload (16_profile.md BR-4, ADR-0027).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Avatar updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfileDto" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      tags: [profile]
+      summary: Remove own avatar
+      responses:
+        "200":
+          description: Avatar removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfileDto" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /users/{userId}/avatar:
+    get:
+      tags: [profile]
+      summary: Serve a user's avatar image bytes (org-scoped proxy)
+      description: >
+        Returns the stored avatar bytes for a user in the caller's own
+        organization (16_profile.md BR-4/F-1). This is the URL rendered in
+        <img> across the app. 404 if the user is outside the caller's org or
+        has no avatar.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Image bytes
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /admin/users:
     get:
@@ -1226,6 +1290,16 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
     Error:
@@ -1287,12 +1361,41 @@ components:
         notificationsEnabled: { type: boolean }
         createdAt: { type: string, format: date-time }
 
+    ProfileDto:
+      type: object
+      description: The caller's own profile (16_profile.md). Access fields are read-only.
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        notificationsEnabled: { type: boolean }
+        orgRole: { $ref: "#/components/schemas/OrgRole" }
+        memberships:
+          type: array
+          items: { $ref: "#/components/schemas/ProfileMembership" }
+      required: [id, name, email, avatarUrl, notificationsEnabled, orgRole, memberships]
+
+    ProfileMembership:
+      type: object
+      description: A project the user belongs to and their role in it (read-only).
+      properties:
+        projectId: { type: string }
+        projectKey: { type: string }
+        projectName: { type: string }
+        role: { $ref: "#/components/schemas/ProjectRole" }
+      required: [projectId, projectKey, projectName, role]
+
     UpdateProfileInput:
       type: object
+      minProperties: 1
+      additionalProperties: false
+      description: >
+        Self-service fields only (16_profile.md BR-3). At least one property
+        required; no other keys accepted.
       properties:
-        name: { type: string }
+        name: { type: string, minLength: 1, maxLength: 100 }
         notificationsEnabled: { type: boolean }
-        avatarUrl: { type: string, nullable: true }
 
     InviteUserInput:
       type: object

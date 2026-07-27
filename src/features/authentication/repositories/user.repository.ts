@@ -16,6 +16,15 @@ export const UserRepository = {
     });
   },
 
+  // The identity claims mirrored into the JWT so the top bar reflects a profile
+  // edit without a re-login (ADR-0027) — re-read on the session `update` trigger.
+  findSessionIdentity(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, avatarUrl: true },
+    });
+  },
+
   findAuthAccount(provider: AuthProvider, providerAccountId: string) {
     return prisma.authAccount.findUnique({
       where: { provider_providerAccountId: { provider, providerAccountId } },
