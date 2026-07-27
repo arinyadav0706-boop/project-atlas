@@ -14,6 +14,7 @@ import {
 import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
+import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 import type {
   CreateSprintInput,
@@ -387,10 +388,21 @@ export const SprintService = {
       throw new ConflictError("The list changed — refresh and try the move again.");
     }
 
+    // Group-by-epic drop out of a sprint into a backlog epic group (ADR-0026):
+    // reassign the parent only when landing in the backlog; a move INTO a sprint
+    // never changes the epic. Validated with the shared hierarchy guard.
+    const epicIdWrite = input.sprintId === null ? input.epicId : undefined;
+    if (epicIdWrite !== undefined) {
+      await assertValidEpicParent(existing.projectId, epicIdWrite, {
+        type: existing.type,
+        id: existing.id,
+      });
+    }
+
     const row = await IssueRepository.moveToSprintWithVersion(
       issueId,
       input.expectedVersion,
-      { sprintId: input.sprintId, rank },
+      { sprintId: input.sprintId, rank, epicId: epicIdWrite },
       actor.userId,
     );
     if (!row) {
@@ -418,6 +430,8 @@ function toCardDto(row: {
   updatedAt: Date;
   version: number;
   assignee: IssueListItemDto["assignee"];
+  epicId?: string | null;
+  epic?: { key: string } | null;
 }): IssueListItemDto {
   return {
     id: row.id,
@@ -431,5 +445,7 @@ function toCardDto(row: {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     assignee: row.assignee,
+    epicId: row.epicId ?? null,
+    epicKey: row.epic?.key,
   };
 }

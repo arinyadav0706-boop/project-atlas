@@ -37,6 +37,7 @@ import type {
 } from "@/features/issues/validation/issue.schemas";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent } from "@/features/authorization/permission";
+import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
 // workflow are enforced here, server-side, per the actor's effective project
@@ -128,29 +129,9 @@ async function validateAssignee(
   }
 }
 
-// Hierarchy guards (BR-4, ADR-0026). Single level: a child (Story/Task/Bug) may
-// point to one parent Epic in the same project; an Epic never has a parent, an
-// issue is never its own parent, and cross-project parents are rejected. Cycles
-// are impossible by construction (only non-epics can have a parent).
-async function validateEpic(
-  projectId: string,
-  epicId: string | null | undefined,
-  self: { type: IssueTypeDto; id?: string },
-): Promise<void> {
-  if (!epicId) return;
-  if (self.type === "EPIC") {
-    throw new ValidationError("An Epic cannot have a parent epic.");
-  }
-  if (self.id && epicId === self.id) {
-    throw new ValidationError("An issue cannot be its own parent.");
-  }
-  // findEpic is scoped to (projectId, type=EPIC) → cross-project and non-epic
-  // parents both fail here.
-  const epic = await IssueRepository.findEpic(projectId, epicId);
-  if (!epic) {
-    throw new ValidationError("Parent epic must be an Epic in this project.");
-  }
-}
+// Hierarchy guards (BR-4, ADR-0026) live in one shared helper, reused by the
+// backlog/sprint epic-reassignment moves too.
+const validateEpic = assertValidEpicParent;
 
 export const IssueService = {
   async list(
@@ -535,10 +516,20 @@ export const IssueService = {
 
     const rank = this.rankOrConflict(before?.rank ?? null, after?.rank ?? null, actor.userId);
 
+    // Group-by-epic drag (ADR-0026): a backlog drop into a different epic group
+    // reassigns the parent in the SAME atomic, version-checked write as the
+    // reorder — no second round-trip, no duplicate move logic.
+    if (input.epicId !== undefined) {
+      await assertValidEpicParent(existing.projectId, input.epicId, {
+        type: existing.type as IssueTypeDto,
+        id: existing.id,
+      });
+    }
+
     const row = await IssueRepository.reorderWithVersion(
       existing.id,
       input.expectedVersion,
-      { rank },
+      { rank, ...(input.epicId !== undefined ? { epicId: input.epicId } : {}) },
       actor.userId,
     );
     if (!row) {
