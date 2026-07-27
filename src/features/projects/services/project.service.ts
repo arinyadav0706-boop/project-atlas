@@ -22,9 +22,9 @@ import type {
 // to avoid a cycle (PermissionService depends on ProjectService).
 import { elevate, canManageProject } from "@/features/authorization/permission";
 
-// Business rules from docs/02_Modules/03_projects.md. RBAC is enforced
-// here, server-side, per project role — org ADMIN carries no implicit
-// project powers (founder decision, 15_roles.md).
+// Business rules from docs/02_Modules/03_projects.md. RBAC is enforced here,
+// server-side, on the caller's EFFECTIVE project role via elevate() — an org
+// ADMIN is an effective LEAD on every project in its org (ADR-0024, 15_roles.md).
 
 type ProjectRecord = NonNullable<
   Awaited<ReturnType<typeof ProjectRepository.findById>>

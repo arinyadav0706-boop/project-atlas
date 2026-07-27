@@ -1,7 +1,9 @@
 // The authenticated caller context every mutating service method receives
-// (Coding Standards §7). Project-level roles are resolved per-project by
-// each service — deliberately not carried here, since org ADMIN grants no
-// implicit project powers (founder decision, docs/02_Modules/15_roles.md).
+// (Coding Standards §7). Project-level roles are resolved per-project by each
+// service via elevate() — deliberately not carried here, since the effective
+// role is project-dependent: an org ADMIN elevates to LEAD on every project in
+// its org (ADR-0024, docs/02_Modules/15_roles.md), everyone else uses their
+// membership role.
 export interface Actor {
   userId: string;
   orgRole: "ADMIN" | "MEMBER";

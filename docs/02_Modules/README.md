@@ -23,12 +23,13 @@ Acceptance Criteria, Validation, Future Scope — see
 | 15 | Roles | [15_roles.md](15_roles.md) |
 | 16 | Profile | [16_profile.md](16_profile.md) |
 
-Two design questions were flagged here during authoring; both are now
-**decided by founders (2026-07-12)**:
+Two design questions were flagged here during authoring; both were decided by
+founders (2026-07-12), and the first was later revised:
 
-- Org `ADMIN` does **not** implicitly act as project `LEAD` — org
-  administration and project leadership are strictly separate powers.
-  Every project's authority belongs to its `LEAD`(s). See `15_roles.md`.
+- Org `ADMIN` **is an effective project `LEAD`** on every project in its org
+  (**ADR-0024, 2026-07-23**, reversing the original 2026-07-12 "strictly
+  separate powers" decision). The elevation is authorization-only (no
+  membership rows) and never crosses tenants (F-1). See `15_roles.md`.
 - `Issue.description`/`Comment.body` are stored as **Markdown source**,
   sanitized at render time. Rationale: Jira uses its proprietary ADF
   (JSON) and Asana a restricted HTML subset — both exist to serve
