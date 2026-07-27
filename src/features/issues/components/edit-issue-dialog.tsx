@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { typeLabel, priorityLabel } from "./issue-meta";
+import { EpicSelect } from "./epic-select";
 import type { IssueDetailDto } from "@/features/issues/types/issue.types";
 
 const TYPES = ["TASK", "STORY", "BUG", "EPIC"] as const;
@@ -58,6 +59,7 @@ export function EditIssueDialog({
       priority: issue.priority,
       assigneeId: issue.assignee?.id ?? null,
       storyPoints: issue.storyPoints ?? null,
+      epicId: issue.epicId ?? null,
     },
   });
 
@@ -110,7 +112,10 @@ export function EditIssueDialog({
               <Label htmlFor="edit-type">Type</Label>
               <Select
                 value={form.watch("type")}
-                onValueChange={(v) => form.setValue("type", v as UpdateIssueInput["type"])}
+                onValueChange={(v) => {
+                  form.setValue("type", v as UpdateIssueInput["type"]);
+                  if (v === "EPIC") form.setValue("epicId", null);
+                }}
               >
                 <SelectTrigger id="edit-type" className="w-full">
                   <SelectValue />
@@ -166,6 +171,20 @@ export function EditIssueDialog({
               </Select>
             </div>
           </div>
+
+          {form.watch("type") !== "EPIC" && (
+            <div>
+              <Label>
+                Parent epic <span className="font-normal">(optional)</span>
+              </Label>
+              <EpicSelect
+                projectId={issue.projectId}
+                value={form.watch("epicId") ?? null}
+                onChange={(id) => form.setValue("epicId", id)}
+                excludeId={issue.id}
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="edit-points">

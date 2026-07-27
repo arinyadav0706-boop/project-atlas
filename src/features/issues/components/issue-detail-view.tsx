@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -106,6 +107,8 @@ export function IssueDetailView({
             <p className="text-sm italic text-muted-foreground">No description.</p>
           )}
         </div>
+
+        <HierarchySection projectId={projectId} issue={issue} />
       </div>
 
       <aside className="space-y-6">
@@ -261,6 +264,62 @@ export function IssueDetailView({
         </DialogContent>
       </Dialog>
     </motion.div>
+  );
+}
+
+// Hierarchy (ADR-0026): a child shows its parent epic; an epic shows its child
+// issues. Rendered only when there's something to show, so it stays quiet.
+function HierarchySection({
+  projectId,
+  issue,
+}: {
+  projectId: string;
+  issue: IssueDetailDto;
+}) {
+  const isEpic = issue.type === "EPIC";
+  if (!isEpic && !issue.epic) return null;
+
+  return (
+    <div className="mt-8">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {isEpic ? "Child issues" : "Parent epic"}
+      </h2>
+
+      {!isEpic && issue.epic && (
+        <Link
+          href={`/projects/${projectId}/issues/${issue.epic.id}`}
+          className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+        >
+          <IssueTypeIcon type="EPIC" />
+          <span className="font-mono text-xs text-muted-foreground">{issue.epic.key}</span>
+          <span className="min-w-0 flex-1 truncate text-foreground">{issue.epic.title}</span>
+        </Link>
+      )}
+
+      {isEpic &&
+        (issue.children.length === 0 ? (
+          <p className="text-sm italic text-muted-foreground">No child issues yet.</p>
+        ) : (
+          <ul className="divide-y divide-border/60 rounded-md border border-border">
+            {issue.children.map((child) => (
+              <li key={child.id}>
+                <Link
+                  href={`/projects/${projectId}/issues/${child.id}`}
+                  className="flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+                >
+                  <IssueTypeIcon type={child.type} />
+                  <span className="font-mono text-xs text-muted-foreground">{child.key}</span>
+                  <span className="min-w-0 flex-1 truncate text-foreground">{child.title}</span>
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <StatusDot status={child.status} />
+                    {statusLabel(child.status)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </div>
   );
 }
 

@@ -36,6 +36,25 @@ export interface IssueListItemDto {
   // them (Home, list, backlog) stay untouched; the Board populates them.
   labels?: { id: string; name: string; color: string }[];
   components?: { id: string; name: string }[];
+  // Parent epic key for the card's epic badge (ADR-0026). Optional — populated
+  // by the Board mapper; other list mappers leave it undefined.
+  epicKey?: string;
+}
+
+// Parent-epic summary shown on a child's detail (ADR-0026).
+export interface EpicSummaryDto {
+  id: string;
+  key: string;
+  title: string;
+}
+
+// A child issue shown on an epic's detail (ADR-0026).
+export interface IssueChildDto {
+  id: string;
+  key: string;
+  title: string;
+  type: IssueTypeDto;
+  status: IssueStatusDto;
 }
 
 // Per-status totals for the filter chips (ALL = sum). Always present so the
@@ -54,6 +73,11 @@ export interface IssueDetailDto extends IssueListItemDto {
   description: string | null;
   reporter: IssueAssigneeDto | null;
   epicId: string | null;
+  // Hierarchy (ADR-0026): the parent epic (for a child) and the child issues
+  // (for an epic). `epic` is null when the issue has no parent; `children` is
+  // empty for non-epics (and populated only on the detail GET).
+  epic: EpicSummaryDto | null;
+  children: IssueChildDto[];
   dueDate: string | null;
   createdAt: string;
   // The viewer's permissions on this issue, resolved server-side so the UI

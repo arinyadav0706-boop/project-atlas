@@ -57,8 +57,14 @@ export function BoardCard({
         <PriorityIcon priority={item.priority} className="mt-0.5 shrink-0" />
       </div>
 
-      {((item.labels?.length ?? 0) > 0 || (item.components?.length ?? 0) > 0) && (
+      {(item.epicKey || (item.labels?.length ?? 0) > 0 || (item.components?.length ?? 0) > 0) && (
         <div className="mt-2 flex flex-wrap gap-1">
+          {item.epicKey && (
+            <span className="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <IssueTypeIcon type="EPIC" className="h-2.5 w-2.5" />
+              {item.epicKey}
+            </span>
+          )}
           {item.components?.map((component) => (
             <span
               key={component.id}

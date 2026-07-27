@@ -9,6 +9,9 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     countByStatus: vi.fn(),
     findDetail: vi.fn(),
     findEpic: vi.fn(),
+    listEpics: vi.fn(),
+    listChildren: vi.fn(),
+    detachChildren: vi.fn(),
     createWithKey: vi.fn(),
     updateWithVersion: vi.fn(),
     setStatusWithVersion: vi.fn(),
@@ -500,5 +503,135 @@ describe("delete", () => {
     await expect(IssueService.delete(actor, "issue-1")).rejects.toBeInstanceOf(
       ForbiddenError,
     );
+  });
+});
+
+describe("epic hierarchy (ADR-0026)", () => {
+  it("creates a child under a valid epic and persists epicId", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.findEpic.mockResolvedValue({ id: "epic-1" } as never);
+    repo.createWithKey.mockResolvedValue(issueRow({ epicId: "epic-1" }) as never);
+    const dto = await IssueService.create(actor, "proj-1", {
+      type: "TASK",
+      title: "child",
+      priority: "MEDIUM",
+      epicId: "epic-1",
+    });
+    expect(repo.findEpic).toHaveBeenCalledWith("proj-1", "epic-1");
+    expect(repo.createWithKey).toHaveBeenCalledWith(
+      expect.objectContaining({ epicId: "epic-1" }),
+    );
+    expect(dto.epicId).toBe("epic-1");
+  });
+
+  it("rejects creating an Epic that has a parent epic", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    await expect(
+      IssueService.create(actor, "proj-1", {
+        type: "EPIC",
+        title: "epic",
+        priority: "MEDIUM",
+        epicId: "epic-1",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.createWithKey).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-epic / cross-project parent (findEpic returns null)", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.findEpic.mockResolvedValue(null);
+    await expect(
+      IssueService.create(actor, "proj-1", {
+        type: "TASK",
+        title: "child",
+        priority: "MEDIUM",
+        epicId: "not-an-epic",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("update: assigns and removes an epic", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.findDetail.mockResolvedValue(issueRow() as never);
+    repo.findEpic.mockResolvedValue({ id: "epic-1" } as never);
+    repo.updateWithVersion.mockResolvedValue(issueRow({ epicId: "epic-1" }) as never);
+    await IssueService.update(actor, "issue-1", { epicId: "epic-1", expectedVersion: 0 });
+    expect(repo.updateWithVersion).toHaveBeenCalledWith(
+      "issue-1",
+      0,
+      expect.objectContaining({ epicId: "epic-1" }),
+      "user-1",
+    );
+
+    // Remove (epicId: null) — no findEpic lookup needed.
+    repo.updateWithVersion.mockResolvedValue(issueRow({ epicId: null }) as never);
+    await IssueService.update(actor, "issue-1", { epicId: null, expectedVersion: 0 });
+    expect(repo.updateWithVersion).toHaveBeenLastCalledWith(
+      "issue-1",
+      0,
+      expect.objectContaining({ epicId: null }),
+      "user-1",
+    );
+  });
+
+  it("update: rejects making an issue its own parent", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.findDetail.mockResolvedValue(issueRow() as never); // id issue-1
+    await expect(
+      IssueService.update(actor, "issue-1", { epicId: "issue-1", expectedVersion: 0 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("update: rejects converting an Epic that still has children to another type", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    repo.findDetail.mockResolvedValue(issueRow({ type: "EPIC" }) as never);
+    repo.listChildren.mockResolvedValue([{ id: "c1" }] as never);
+    await expect(
+      IssueService.update(actor, "issue-1", { type: "TASK", expectedVersion: 0 }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("delete: detaches an epic's children before soft delete", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    repo.findDetail.mockResolvedValue(issueRow({ type: "EPIC" }) as never);
+    repo.detachChildren.mockResolvedValue({ count: 2 } as never);
+    repo.softDelete.mockResolvedValue(issueRow() as never);
+    await IssueService.delete(actor, "issue-1");
+    expect(repo.detachChildren).toHaveBeenCalledWith("issue-1", "user-1");
+    expect(repo.softDelete).toHaveBeenCalledWith("issue-1", "user-1");
+  });
+
+  it("delete: a non-epic does not touch detachChildren", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    repo.findDetail.mockResolvedValue(issueRow({ type: "TASK" }) as never);
+    repo.softDelete.mockResolvedValue(issueRow() as never);
+    await IssueService.delete(actor, "issue-1");
+    expect(repo.detachChildren).not.toHaveBeenCalled();
+  });
+
+  it("get: an epic returns its child issues; a child returns its parent", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    // Epic → children populated.
+    repo.findDetail.mockResolvedValue(issueRow({ type: "EPIC" }) as never);
+    repo.listChildren.mockResolvedValue([
+      { id: "c1", key: "ENG-2", title: "child", type: "TASK", status: "TODO" },
+    ] as never);
+    const epicDto = await IssueService.get(actor, "issue-1");
+    expect(epicDto.children).toHaveLength(1);
+    expect(epicDto.children[0]?.key).toBe("ENG-2");
+
+    // Child → parent epic summary from the row include; no children query.
+    repo.findDetail.mockResolvedValue(
+      issueRow({ type: "TASK", epicId: "epic-1", epic: { id: "epic-1", key: "ENG-1", title: "Epic" } }) as never,
+    );
+    const childDto = await IssueService.get(actor, "issue-1");
+    expect(childDto.epic).toMatchObject({ id: "epic-1", key: "ENG-1" });
+    expect(childDto.children).toEqual([]);
+  });
+
+  it("listEpics returns the project's epics", async () => {
+    repo.listEpics.mockResolvedValue([{ id: "epic-1", key: "ENG-1", title: "Epic" }] as never);
+    const epics = await IssueService.listEpics(actor, "proj-1");
+    expect(epics).toEqual([{ id: "epic-1", key: "ENG-1", title: "Epic" }]);
   });
 });

@@ -33,6 +33,7 @@ function toCardDto(row: CardRow): IssueListItemDto {
     assignee: row.assignee,
     labels: row.labels.map((il) => il.label),
     components: row.components.map((ic) => ic.component),
+    epicKey: row.epic?.key,
   };
 }
 

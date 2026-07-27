@@ -22,6 +22,8 @@ const cardSelect = {
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  // Parent epic key for the card's epic badge (ADR-0026).
+  epic: { select: { id: true, key: true } },
   // Classification chips (ADR-0018) — only live labels/components.
   labels: {
     where: { label: { deletedAt: null } },

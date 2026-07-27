@@ -1058,6 +1058,25 @@ paths:
       responses:
         "200": { description: Done }
 
+  /projects/{projectId}/epics:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [issues]
+      summary: List the project's Epics (for selectors and the board Epic filter, ADR-0026)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  epics:
+                    type: array
+                    items: { $ref: "#/components/schemas/EpicSummary" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /projects/{projectId}/reports:
     parameters:
       - $ref: "#/components/parameters/ProjectIdParam"
@@ -1447,12 +1466,34 @@ components:
         reporterId: { type: string }
         sprintId: { type: string, nullable: true }
         epicId: { type: string, nullable: true }
+        # Hierarchy (ADR-0026), present on the issue detail: the parent Epic
+        # summary (for a child) and the child issues (for an Epic).
+        epic: { $ref: "#/components/schemas/EpicSummary", nullable: true }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/IssueChild" }
         storyPoints: { type: integer, nullable: true }
         rank: { type: string }
         dueDate: { type: string, format: date-time, nullable: true }
         labelIds: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    EpicSummary:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+
+    IssueChild:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/IssueType" }
+        status: { $ref: "#/components/schemas/IssueStatus" }
 
     CreateIssueInput:
       type: object
