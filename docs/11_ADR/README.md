@@ -33,3 +33,4 @@ place — supersede it with a new numbered ADR that links back.
 | [0024](0024-permission-engine-org-admin-lead.md) | Centralized Permission Engine; Org Admins Are Effective LEAD Everywhere | Accepted |
 | [0025](0025-navigation-two-rail-registry.md) | Navigation — Registry-Driven Two-Rail Sidebar | Accepted |
 | [0026](0026-issue-hierarchy-epic.md) | Issue Hierarchy — Single-Level Epic → Child, Detach-on-Delete | Accepted |
+| [0027](0027-profile-self-service-account.md) | Profile — Self-Service Account Settings on the Existing User Row | Accepted |
