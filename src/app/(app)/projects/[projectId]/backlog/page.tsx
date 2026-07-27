@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getActor } from "@/features/authentication/services/actor.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { SprintService } from "@/features/sprints/services/sprint.service";
+import { IssueService } from "@/features/issues/services/issue.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { SprintPlanningView } from "@/features/sprints/components/sprint-planning-view";
 
@@ -16,15 +17,17 @@ export default async function ProjectBacklogPage({
   try {
     // The Backlog page is the planning view (ADR-0014): the current sprint
     // section over the backlog list, drag between them.
-    const [sprintPanel, backlog] = await Promise.all([
+    const [sprintPanel, backlog, epics] = await Promise.all([
       SprintService.getPanel(actor, params.projectId),
       BacklogService.getBacklog(actor, params.projectId, {}),
+      IssueService.listEpics(actor, params.projectId),
     ]);
     return (
       <SprintPlanningView
         projectId={params.projectId}
         initialSprint={sprintPanel}
         initialBacklog={backlog}
+        epics={epics}
       />
     );
   } catch (error) {

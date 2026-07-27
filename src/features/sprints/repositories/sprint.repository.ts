@@ -30,6 +30,9 @@ const cardSelect = {
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  // Parent epic for the row badge (ADR-0026) — sprint issues keep their epic.
+  epicId: true,
+  epic: { select: { key: true } },
 } as const;
 
 export const SprintRepository = {

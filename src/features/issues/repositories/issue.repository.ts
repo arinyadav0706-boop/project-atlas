@@ -285,7 +285,7 @@ export const IssueRepository = {
   async moveToSprintWithVersion(
     id: string,
     expectedVersion: number,
-    data: { sprintId: string | null; rank: string },
+    data: { sprintId: string | null; rank: string; epicId?: string | null },
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({
@@ -293,6 +293,10 @@ export const IssueRepository = {
       data: {
         sprintId: data.sprintId,
         rank: data.rank,
+        // Only reassign the parent epic when the move explicitly carries one
+        // (a group-by-epic drop out of a sprint); otherwise the epic is left
+        // unchanged (an issue keeps its epic while in a sprint) — ADR-0026.
+        ...(data.epicId !== undefined ? { epicId: data.epicId } : {}),
         version: { increment: 1 },
         updatedBy: actorId,
       },
@@ -308,7 +312,7 @@ export const IssueRepository = {
   async reorderWithVersion(
     id: string,
     expectedVersion: number,
-    data: { rank: string; status?: IssueStatus },
+    data: { rank: string; status?: IssueStatus; epicId?: string | null },
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({
@@ -316,6 +320,9 @@ export const IssueRepository = {
       data: {
         rank: data.rank,
         ...(data.status ? { status: data.status } : {}),
+        // Group-by-epic backlog drop reassigns the parent in the same write
+        // (ADR-0026); omitted for ordinary reorders so the epic is untouched.
+        ...(data.epicId !== undefined ? { epicId: data.epicId } : {}),
         version: { increment: 1 },
         updatedBy: actorId,
       },

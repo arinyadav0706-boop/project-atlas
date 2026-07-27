@@ -485,6 +485,10 @@ paths:
                   description: Board-scope only — a column move; runs the workflow check
                 beforeId: { type: string, nullable: true, description: neighbour with the smaller rank (null = list/column start) }
                 afterId: { type: string, nullable: true, description: neighbour with the larger rank (null = list/column end) }
+                epicId:
+                  type: string
+                  nullable: true
+                  description: Backlog-scope only — reassign the parent epic in the same move (group-by-epic drop, ADR-0026); null clears it
                 expectedVersion:
                   type: integer
                   description: Optimistic-concurrency token (ADR-0011)
@@ -1447,6 +1451,10 @@ components:
           description: Target sprint id, or null to return the issue to the backlog
         beforeId: { type: string, nullable: true }
         afterId: { type: string, nullable: true }
+        epicId:
+          type: string
+          nullable: true
+          description: When returning to the backlog, reassign the parent epic in the same move (group-by-epic drop, ADR-0026)
         expectedVersion:
           type: integer
           description: Optimistic-concurrency token (ADR-0011)

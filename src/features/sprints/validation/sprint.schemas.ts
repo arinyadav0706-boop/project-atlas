@@ -35,6 +35,10 @@ export const moveIssueToSprintSchema = z.object({
   sprintId: z.string().nullable(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
+  // Group-by-epic drop out of a sprint into a backlog epic group (ADR-0026):
+  // reassign the parent in the same atomic move. Only meaningful when landing in
+  // the backlog (sprintId=null); null clears the parent ("No epic").
+  epicId: z.string().nullable().optional(),
   // Optimistic concurrency (ADR-0011): the version the client dragged from.
   expectedVersion: z.number().int().min(0),
 });

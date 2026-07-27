@@ -50,6 +50,9 @@ export const reorderIssueSchema = z.object({
   status: issueStatus.optional(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
+  // Group-by-epic backlog drop (ADR-0026): reassign the parent epic in the same
+  // move. Only honoured for scope=backlog; null clears the parent ("No epic").
+  epicId: z.string().nullable().optional(),
   expectedVersion,
 });
 

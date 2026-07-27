@@ -47,6 +47,15 @@ New scopes (e.g. `sprint`) are added without touching existing callers.
 - **BR-6 (return from sprint):** closing a sprint returns its incomplete issues
   to the Backlog (`sprintId = null`) — owned by the Sprint module (`07_sprint.md`
   BR-3); they simply reappear here, ordered by their existing rank.
+- **BR-7 (group by epic — ADR-0026):** a **view toggle** (None | Epic) groups the
+  backlog into a collapsible section per project epic + a **"No epic"** section.
+  Grouping is a *view* only — the backlog stays one rank space (BR-3, ADR-0013);
+  each group shows the backlog filtered to that parent. **Dragging a card into a
+  different epic group reassigns its parent** (`epicId`) **and** repositions it in
+  the **same atomic, version-checked write** as the reorder — the existing
+  `PATCH /issues/{id}/rank` (scope=backlog) and `PATCH /issues/{id}/sprint` each
+  gained an optional `epicId`; no separate move logic. Hierarchy guards apply
+  (an Epic can't be dropped into an epic group — ADR-0026, rejected server-side).
 
 ## Database
 

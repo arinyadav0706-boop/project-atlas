@@ -31,6 +31,8 @@ function toCardDto(row: CardRow): IssueListItemDto {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     assignee: row.assignee,
+    epicId: row.epicId ?? null,
+    epicKey: row.epic?.key,
   };
 }
 

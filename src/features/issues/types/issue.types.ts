@@ -36,9 +36,10 @@ export interface IssueListItemDto {
   // them (Home, list, backlog) stay untouched; the Board populates them.
   labels?: { id: string; name: string; color: string }[];
   components?: { id: string; name: string }[];
-  // Parent epic key for the card's epic badge (ADR-0026). Optional — populated
-  // by the Board mapper; other list mappers leave it undefined.
+  // Parent epic for card badges + backlog grouping (ADR-0026). Optional —
+  // populated by the Board/Backlog/Sprint mappers; others leave it undefined.
   epicKey?: string;
+  epicId?: string | null;
 }
 
 // Parent-epic summary shown on a child's detail (ADR-0026).

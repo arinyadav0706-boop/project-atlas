@@ -44,6 +44,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { BacklogItem } from "@/features/backlog/components/backlog-item";
 import { InlineCreateIssue } from "@/features/backlog/components/inline-create-issue";
+import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
 import {
   CompleteSprintButton,
   CreateSprintButton,
@@ -60,15 +61,36 @@ import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
 const BACKLOG_LIST = "backlog";
 const SPRINT_PREFIX = "sprint:";
-// A list id is either the backlog or a specific sprint's droppable.
-type ListId = typeof BACKLOG_LIST | `sprint:${string}`;
+// Backlog epic-group droppable prefix (ADR-0026): when "Group by epic" is on,
+// the backlog is split into one droppable per epic + a "No epic" group. Every
+// bepic:* list is still the backlog for rank/sprint purposes — it only carries a
+// target epicId. `bepic:none` = the No-epic group.
+const BEPIC_PREFIX = "bepic:";
+const NO_EPIC = "none";
+// A list id is the backlog, a backlog epic-group, or a specific sprint.
+type ListId = typeof BACKLOG_LIST | `sprint:${string}` | `bepic:${string}`;
 
 function sprintListId(sprintId: string): ListId {
   return `${SPRINT_PREFIX}${sprintId}`;
 }
-// The sprint id a list id refers to, or null for the backlog.
+function backlogGroupId(epicId: string | null): ListId {
+  return `${BEPIC_PREFIX}${epicId ?? NO_EPIC}`;
+}
+function isBacklogGroup(listId: string): boolean {
+  return listId.startsWith(BEPIC_PREFIX);
+}
+// Any list that lives in the backlog rank space (the flat backlog or a group).
+function isBacklogList(listId: string): boolean {
+  return listId === BACKLOG_LIST || isBacklogGroup(listId);
+}
+// The target epic of a backlog group list (null for the No-epic group).
+function epicOfGroup(listId: ListId): string | null {
+  const raw = listId.slice(BEPIC_PREFIX.length);
+  return raw === NO_EPIC ? null : raw;
+}
+// The sprint id a list id refers to, or null for any backlog list.
 function sprintIdOf(listId: ListId): string | null {
-  return listId === BACKLOG_LIST ? null : listId.slice(SPRINT_PREFIX.length);
+  return isBacklogList(listId) ? null : listId.slice(SPRINT_PREFIX.length);
 }
 
 const collisionDetection: CollisionDetection = (args) => {
@@ -85,10 +107,12 @@ export function SprintPlanningView({
   projectId,
   initialSprint,
   initialBacklog,
+  epics,
 }: {
   projectId: string;
   initialSprint: SprintPanelDto;
   initialBacklog: BacklogDto;
+  epics: { id: string; key: string; title: string }[];
 }) {
   const router = useRouter();
   const canWrite = initialSprint.canWrite && initialBacklog.canWrite;
@@ -108,6 +132,9 @@ export function SprintPlanningView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTarget, setBulkTarget] = useState("backlog");
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Backlog "Group by epic" view (ADR-0026) — a view preference, local only.
+  const [groupByEpic, setGroupByEpic] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Re-sync from fresh server props after a lifecycle refresh (create/start/
   // complete/delete/edit) — see ADR-0014 follow-up. Guarded by a signature so a
@@ -136,25 +163,37 @@ export function SprintPlanningView({
   );
 
   const readList = useCallback(
-    (listId: ListId): IssueListItemDto[] =>
-      listId === BACKLOG_LIST ? backlogItems : sprintItems[sprintIdOf(listId)!] ?? [],
+    (listId: ListId): IssueListItemDto[] => {
+      if (listId === BACKLOG_LIST) return backlogItems;
+      if (isBacklogGroup(listId)) {
+        const epicId = epicOfGroup(listId);
+        return backlogItems.filter((i) => (i.epicId ?? null) === epicId);
+      }
+      return sprintItems[sprintIdOf(listId)!] ?? [];
+    },
     [backlogItems, sprintItems],
   );
 
   const listOf = useCallback(
     (cardId: string): ListId | null => {
-      if (backlogItems.some((i) => i.id === cardId)) return BACKLOG_LIST;
+      const backlogCard = backlogItems.find((i) => i.id === cardId);
+      if (backlogCard) {
+        // In grouped mode a backlog card belongs to its epic's group droppable.
+        return groupByEpic ? backlogGroupId(backlogCard.epicId ?? null) : BACKLOG_LIST;
+      }
       for (const sid of Object.keys(sprintItems)) {
         if (sprintItems[sid]!.some((i) => i.id === cardId)) return sprintListId(sid);
       }
       return null;
     },
-    [backlogItems, sprintItems],
+    [backlogItems, sprintItems, groupByEpic],
   );
 
   const isListId = useCallback(
     (id: string): id is ListId =>
-      id === BACKLOG_LIST || (id.startsWith(SPRINT_PREFIX) && sprintIdOf(id as ListId) !== null),
+      id === BACKLOG_LIST ||
+      isBacklogGroup(id) ||
+      (id.startsWith(SPRINT_PREFIX) && sprintIdOf(id as ListId) !== null),
     [],
   );
 
@@ -177,83 +216,95 @@ export function SprintPlanningView({
 
       const from = listOf(activeId);
       if (!from) return;
-      const to: ListId | null = isListId(overId) ? overId : listOf(overId);
+      const to: ListId | null = isListId(overId) ? (overId as ListId) : listOf(overId);
       if (!to) return;
 
       const moved = readList(from).find((i) => i.id === activeId);
       if (!moved) return;
 
+      // Neighbours within the DESTINATION's visible list (a sprint, the flat
+      // backlog, or a single epic group — readList scopes it), active removed.
+      const destVisible = readList(to).filter((i) => i.id !== activeId);
+      const insertAt = isListId(overId)
+        ? destVisible.length
+        : (() => {
+            const idx = destVisible.findIndex((i) => i.id === overId);
+            return idx >= 0 ? idx : destVisible.length;
+          })();
+      const beforeId = destVisible[insertAt - 1]?.id ?? null;
+      const afterId = destVisible[insertAt]?.id ?? null;
+
+      const destSprintId = sprintIdOf(to); // null for any backlog list
+      // Reassign the parent epic only when grouped and landing in a backlog
+      // group; otherwise the epic is left unchanged (undefined = don't touch).
+      const destEpicId: string | null | undefined =
+        groupByEpic && isBacklogList(to) ? epicOfGroup(to) : undefined;
+
       const backlogSnapshot = backlogItems;
       const sprintSnapshot = sprintItems;
-
-      // Build the optimistic layout across the (possibly two) affected lists.
-      const srcItems = readList(from).filter((i) => i.id !== activeId);
-      const destBase = from === to ? srcItems : [...readList(to)];
-      const insertAt = isListId(overId)
-        ? destBase.length
-        : (() => {
-            const idx = destBase.findIndex((i) => i.id === overId);
-            return idx >= 0 ? idx : destBase.length;
-          })();
-      destBase.splice(insertAt, 0, moved);
-
-      const writeLists = (
-        setB: (v: IssueListItemDto[]) => void,
-        setS: (updater: (m: Record<string, IssueListItemDto[]>) => Record<string, IssueListItemDto[]>) => void,
-      ) => {
-        // Compute the next state for both lists in one pass.
-        const nextFor = (listId: ListId) => (listId === to ? destBase : listId === from ? srcItems : null);
-        if (from === BACKLOG_LIST || to === BACKLOG_LIST) {
-          const b = nextFor(BACKLOG_LIST);
-          if (b) setB(b);
-        }
-        setS((m) => {
-          const copy = { ...m };
-          for (const sid of Object.keys(copy)) {
-            const lid = sprintListId(sid);
-            const n = nextFor(lid);
-            if (n) copy[sid] = n;
-          }
-          return copy;
-        });
+      const movedNew: IssueListItemDto = {
+        ...moved,
+        epicId: destEpicId !== undefined ? destEpicId : moved.epicId,
       };
-      writeLists(setBacklogItems, setSprintItems);
 
-      const beforeId = destBase[insertAt - 1]?.id ?? null;
-      const afterId = destBase[insertAt + 1]?.id ?? null;
+      // Optimistic reconstruction of the FULL arrays (one rank space for the
+      // backlog, ADR-0013). Insert relative to the destination neighbours so the
+      // global order matches the rank the server will assign.
+      const withoutActive = (list: IssueListItemDto[]) => list.filter((i) => i.id !== activeId);
+      const insertRelative = (list: IssueListItemDto[]) => {
+        const copy = withoutActive(list);
+        let at = copy.length;
+        if (beforeId) {
+          const bi = copy.findIndex((i) => i.id === beforeId);
+          if (bi >= 0) at = bi + 1;
+        } else if (afterId) {
+          const ai = copy.findIndex((i) => i.id === afterId);
+          if (ai >= 0) at = ai;
+        } else {
+          at = 0; // empty destination group → front of the backlog
+        }
+        copy.splice(at, 0, movedNew);
+        return copy;
+      };
+
+      const nextSprints: Record<string, IssueListItemDto[]> = {};
+      for (const sid of Object.keys(sprintItems)) nextSprints[sid] = withoutActive(sprintItems[sid]!);
+      let nextBacklog = withoutActive(backlogItems);
+      if (destSprintId === null) nextBacklog = insertRelative(backlogItems);
+      else nextSprints[destSprintId] = insertRelative(sprintItems[destSprintId] ?? []);
+
+      setBacklogItems(nextBacklog);
+      setSprintItems(nextSprints);
+
       const rollback = () => {
         setBacklogItems(backlogSnapshot);
         setSprintItems(sprintSnapshot);
       };
 
       try {
-        const touchesSprint = from !== BACKLOG_LIST || to !== BACKLOG_LIST;
+        const touchesSprint = !isBacklogList(from) || !isBacklogList(to);
+        const epicField = destEpicId !== undefined ? { epicId: destEpicId } : {};
         const updated = touchesSprint
           ? await apiRequest<{ version: number }>(`/api/issues/${activeId}/sprint`, {
               method: "PATCH",
-              body: {
-                sprintId: sprintIdOf(to),
-                beforeId,
-                afterId,
-                expectedVersion: moved.version,
-              },
+              body: { sprintId: destSprintId, beforeId, afterId, ...epicField, expectedVersion: moved.version },
             })
           : await apiRequest<{ version: number }>(`/api/issues/${activeId}/rank`, {
               method: "PATCH",
-              body: { scope: "backlog", beforeId, afterId, expectedVersion: moved.version },
+              body: { scope: "backlog", beforeId, afterId, ...epicField, expectedVersion: moved.version },
             });
 
-        // Refresh the moved card's version in whichever list it now lives in.
+        // Refresh the moved card's version wherever it now lives.
         const bump = (list: IssueListItemDto[]) =>
           list.map((i) => (i.id === activeId ? { ...i, version: updated.version } : i));
-        if (to === BACKLOG_LIST) setBacklogItems(bump);
-        else setSprintItems((m) => ({ ...m, [sprintIdOf(to)!]: bump(m[sprintIdOf(to)!] ?? []) }));
+        if (destSprintId === null) setBacklogItems(bump);
+        else setSprintItems((m) => ({ ...m, [destSprintId]: bump(m[destSprintId] ?? []) }));
       } catch (error) {
         rollback();
         toast.error(error instanceof Error ? error.message : "Couldn't move that issue.");
       }
     },
-    [backlogItems, sprintItems, listOf, readList, isListId],
+    [backlogItems, sprintItems, listOf, readList, isListId, groupByEpic],
   );
 
   const loadMore = useCallback(async () => {
@@ -273,6 +324,32 @@ export function SprintPlanningView({
   }, [projectId, nextCursor, loadingMore]);
 
   const onChanged = useCallback(() => router.refresh(), [router]);
+
+  const toggleCollapse = useCallback((id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Backlog epic groups (ADR-0026): one per project epic (a drop target even
+  // when empty) + a trailing "No epic" group. Items are the backlog filtered by
+  // parent — the backlog stays one rank space (ADR-0013); this is a view.
+  const backlogGroups = epics
+    .map((e) => ({
+      listId: backlogGroupId(e.id),
+      epicKey: e.key as string | null,
+      title: e.title,
+      items: backlogItems.filter((i) => (i.epicId ?? null) === e.id),
+    }))
+    .concat({
+      listId: backlogGroupId(null),
+      epicKey: null,
+      title: "No epic",
+      items: backlogItems.filter((i) => !i.epicId),
+    });
 
   // Planned-sprint queue order (FUT-8). Reorder = swap two planned sprints and
   // send the full planning order (ACTIVE ids first — they always sort first).
@@ -453,16 +530,51 @@ export function SprintPlanningView({
 
       {/* Backlog section */}
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-foreground">Backlog</h2>
-        <DroppableList
-          listId={BACKLOG_LIST}
-          projectId={projectId}
-          items={backlogItems}
-          canWrite={canWrite}
-          emptyText="The backlog is empty — new issues land here until they're scheduled."
-          renderLeading={rowLeading}
-          renderTrailing={(item) => rowMenu(item, null)}
-        />
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Backlog</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Group by</span>
+            <Select
+              value={groupByEpic ? "epic" : "none"}
+              onValueChange={(v) => setGroupByEpic(v === "epic")}
+            >
+              <SelectTrigger className="h-8 w-24 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="epic">Epic</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {groupByEpic ? (
+          <div className="flex flex-col gap-3">
+            {backlogGroups.map((g) => (
+              <BacklogGroup
+                key={g.listId}
+                group={g}
+                collapsed={collapsedGroups.has(g.listId)}
+                onToggle={() => toggleCollapse(g.listId)}
+                projectId={projectId}
+                canWrite={canWrite}
+                renderLeading={rowLeading}
+                renderTrailing={(item) => rowMenu(item, null)}
+              />
+            ))}
+          </div>
+        ) : (
+          <DroppableList
+            listId={BACKLOG_LIST}
+            projectId={projectId}
+            items={backlogItems}
+            canWrite={canWrite}
+            emptyText="The backlog is empty — new issues land here until they're scheduled."
+            renderLeading={rowLeading}
+            renderTrailing={(item) => rowMenu(item, null)}
+          />
+        )}
         {canWrite && <InlineCreateIssue projectId={projectId} onCreated={onChanged} />}
         {nextCursor && (
           <div className="mt-4 flex justify-center">
@@ -695,6 +807,7 @@ function DroppableList({
   items,
   canWrite,
   emptyText,
+  showEpic = true,
   renderLeading,
   renderTrailing,
 }: {
@@ -703,6 +816,9 @@ function DroppableList({
   items: IssueListItemDto[];
   canWrite: boolean;
   emptyText: string;
+  // Suppress the per-row epic badge where the surrounding group already names
+  // the epic (grouped backlog). Shown by default (sprints, flat backlog).
+  showEpic?: boolean;
   renderLeading?: (item: IssueListItemDto) => React.ReactNode;
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
@@ -722,6 +838,7 @@ function DroppableList({
             projectId={projectId}
             item={item}
             canWrite={canWrite}
+            showEpic={showEpic}
             leading={renderLeading?.(item)}
             trailing={renderTrailing?.(item)}
           />
@@ -729,6 +846,64 @@ function DroppableList({
       </SortableContext>
       {items.length === 0 && (
         <p className="px-1 py-6 text-center text-xs text-muted-foreground">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
+// A collapsible backlog epic group (ADR-0026): header (epic key/title or "No
+// epic" + count) over a droppable list. Rows omit the epic badge — the header
+// already states it. Dropping a card here reassigns its parent epic.
+function BacklogGroup({
+  group,
+  collapsed,
+  onToggle,
+  projectId,
+  canWrite,
+  renderLeading,
+  renderTrailing,
+}: {
+  group: { listId: ListId; epicKey: string | null; title: string; items: IssueListItemDto[] };
+  collapsed: boolean;
+  onToggle: () => void;
+  projectId: string;
+  canWrite: boolean;
+  renderLeading?: (item: IssueListItemDto) => React.ReactNode;
+  renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface/20 p-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className="mb-2 flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "-rotate-90")} />
+        {group.epicKey ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <IssueTypeIcon type="EPIC" className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-mono text-xs text-muted-foreground">{group.epicKey}</span>
+            <span className="truncate text-sm font-medium text-foreground">{group.title}</span>
+          </span>
+        ) : (
+          <span className="text-sm font-medium text-foreground">No epic</span>
+        )}
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{group.items.length}</span>
+      </button>
+      {!collapsed && (
+        <DroppableList
+          listId={group.listId}
+          projectId={projectId}
+          items={group.items}
+          canWrite={canWrite}
+          showEpic={false}
+          emptyText={
+            group.epicKey ? "Drag issues here to add them to this epic." : "Issues with no epic."
+          }
+          renderLeading={renderLeading}
+          renderTrailing={renderTrailing}
+        />
       )}
     </div>
   );

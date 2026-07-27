@@ -16,6 +16,9 @@ const cardSelect = {
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  // Parent epic for backlog grouping + row badge (ADR-0026).
+  epicId: true,
+  epic: { select: { key: true } },
 } as const;
 
 // Keyset pagination — never return an unbounded set (Performance doc, standard

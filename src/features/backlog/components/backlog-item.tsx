@@ -22,6 +22,7 @@ export function BacklogItem({
   item,
   canWrite,
   overlay = false,
+  showEpic = true,
   leading,
   trailing,
 }: {
@@ -29,6 +30,9 @@ export function BacklogItem({
   item: IssueListItemDto;
   canWrite: boolean;
   overlay?: boolean;
+  // Show the parent-epic badge (ADR-0026). Off inside a grouped epic section
+  // where the group header already states the epic.
+  showEpic?: boolean;
   // Optional control rendered at the row's start (e.g. a bulk-select checkbox).
   leading?: React.ReactNode;
   // Optional control rendered at the row's end (e.g. a "…" actions menu).
@@ -74,6 +78,12 @@ export function BacklogItem({
       >
         {item.title}
       </Link>
+      {showEpic && item.epicKey && (
+        <span className="hidden shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent sm:inline-flex">
+          <IssueTypeIcon type="EPIC" className="h-2.5 w-2.5" />
+          {item.epicKey}
+        </span>
+      )}
       <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
         <StatusDot status={item.status} />
         {statusLabel(item.status)}
