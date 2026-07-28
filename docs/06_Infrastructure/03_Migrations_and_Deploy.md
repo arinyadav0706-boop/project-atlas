@@ -42,7 +42,13 @@ up; only new builds fail).
 
 ### Baseline runbook (run once, locally, with `DIRECT_URL` pointed at prod)
 
-1. **Inspect** what prod actually has, so you resolve honestly (don't guess):
+1. **Inspect** what prod actually has, so you resolve honestly (don't guess).
+   The full read-only inspection is scripted in
+   **`scripts/prod-baseline-inspect.sql`** — run it against prod (Supabase SQL
+   editor, or `psql "$DIRECT_URL" -f scripts/prod-baseline-inspect.sql`). It
+   covers migration history, the perf indexes, the `rank` column
+   (existence/collation/uniqueness + a duplicate check), the newer additive
+   tables/columns, and the FTS indexes. The core queries:
    ```sql
    -- migration history (likely empty or partial):
    SELECT migration_name, finished_at FROM "_prisma_migrations" ORDER BY started_at;
