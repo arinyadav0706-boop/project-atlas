@@ -80,10 +80,12 @@ See `docs/04_API/openapi.yaml`.
 Screen #17 in `docs/05_UI/02_Screens_and_Information_Architecture.md`: reached
 from the top-bar account menu ("Profile"). A single settings page:
 
-- **Identity card** — avatar with upload / replace / remove, display-name field,
-  read-only email. Save is disabled until something changes; inline validation.
-- **Notifications card** — one "In-app notifications" switch with a plain-language
-  description of what it gates.
+- **Identity card** — avatar with upload / replace / remove, name field,
+  read-only email. "Save changes" governs the **name only** and is disabled until
+  it changes; inline validation.
+- **Notifications card** — one "In-app notifications" switch that **saves itself
+  on flip** (optimistic, reverted on failure) — it is not tied to the identity
+  "Save changes" button, so its intent is unambiguous.
 - **Access card (read-only)** — org role badge + a list of the user's project
   memberships and their role in each, each a deep link to that project. This is
   informational, mirroring what an ADMIN sees, so a user understands their own
