@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import {
   DropdownMenu,
@@ -22,7 +22,15 @@ export function TopBar({
   // server-side in the app layout.
   searchEnabled?: boolean;
 }) {
-  const initials = userName
+  // Prefer the live client session over the server-rendered props so a profile
+  // edit (name/avatar) reflects here immediately after the page calls
+  // useSession().update() — no re-login, no full navigation (ADR-0027). The
+  // props are the SSR fallback for the first paint before the session loads.
+  const { data: session } = useSession();
+  const name = session?.user?.name ?? userName;
+  const image = session?.user?.image ?? userImage;
+
+  const initials = name
     .split(" ")
     .map((part) => part[0])
     .slice(0, 2)
@@ -37,7 +45,7 @@ export function TopBar({
         <DropdownMenuTrigger asChild>
           <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={userImage ?? undefined} alt={userName} />
+              <AvatarImage src={image ?? undefined} alt={name} />
               <AvatarFallback className="text-xs font-medium">
                 {initials}
               </AvatarFallback>
@@ -45,7 +53,7 @@ export function TopBar({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">{userName}</div>
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">{name}</div>
           <DropdownMenuItem asChild>
             <a href="/profile">Profile</a>
           </DropdownMenuItem>

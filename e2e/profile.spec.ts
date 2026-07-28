@@ -27,7 +27,7 @@ test("edit name + notifications toggle, and it persists", async ({ page }) => {
 
   const stamp = Date.now().toString(36);
   const newName = `Kavya ${stamp}`;
-  const nameField = page.getByLabel("Display name");
+  const nameField = page.getByLabel("Name", { exact: true });
   await nameField.fill(newName);
 
   // Flip the notifications switch and remember its new state.
@@ -42,7 +42,7 @@ test("edit name + notifications toggle, and it persists", async ({ page }) => {
 
   // Reload → both changes stuck.
   await page.reload();
-  await expect(page.getByLabel("Display name")).toHaveValue(newName);
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(newName);
   await expect(page.getByRole("switch", { name: /in-app notifications/i })).toHaveAttribute(
     "aria-checked",
     after!,
@@ -60,8 +60,10 @@ test("upload and remove an avatar", async ({ page }) => {
   });
   await expect(page.getByText(/avatar updated/i)).toBeVisible({ timeout: 15000 });
 
-  // The avatar image now renders (the proxy URL).
+  // The avatar image now renders (the proxy URL) on the page…
   await expect(page.locator('img[src*="/avatar"]').first()).toBeVisible({ timeout: 15000 });
+  // …and the top-bar avatar updates live via the session refresh (ADR-0027).
+  await expect(page.locator('header img[src*="/avatar"]')).toBeVisible({ timeout: 15000 });
 
   // Remove it.
   await page.getByRole("button", { name: /remove avatar/i }).click();
