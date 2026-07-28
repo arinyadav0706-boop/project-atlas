@@ -23,10 +23,13 @@ outrun the schema. Local `npm run build` stays `next build` only.
 **Requirements in the Vercel project env:** `DIRECT_URL` (unpooled, port 5432)
 must be set — `migrate deploy` cannot run through PgBouncer.
 
-> **This script is deliberately NOT in `package.json` yet.** Adding it before the
-> baseline below would make the *next* deploy's `migrate deploy` fail against
-> un-baselined prod and block new deploys. Add it as **step 6**, only after the
-> baseline is green. That ordering is the whole point of this document.
+> **Ordering matters — do the baseline BEFORE this reaches a deploying branch.**
+> The `vercel-build` script now exists in `package.json`, but it only takes
+> effect once merged to the deploying branch (`main`) *and* redeployed. Merging
+> it before the baseline below is green would make that deploy's `migrate deploy`
+> fail against un-baselined prod and block new deploys. So: run the baseline
+> first, confirm `migrate status` is clean, and only then merge the branch
+> carrying this script. That ordering is the whole point of this document.
 
 ## ⚠️ One-time prerequisite: baseline production FIRST
 
