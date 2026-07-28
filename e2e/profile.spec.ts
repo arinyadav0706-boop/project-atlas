@@ -18,27 +18,28 @@ const PNG_1PX = Buffer.from(
   "base64",
 );
 
-test("edit name + notifications toggle, and it persists", async ({ page }) => {
+test("save name via button and flip notifications instantly; both persist", async ({ page }) => {
   await signIn(page, "kavya.iyer@consint.ai");
   await page.goto("/profile");
 
   // Email is read-only.
   await expect(page.getByLabel("Email")).toBeDisabled();
 
+  // Name is saved via the "Save changes" button.
   const stamp = Date.now().toString(36);
   const newName = `Kavya ${stamp}`;
-  const nameField = page.getByLabel("Name", { exact: true });
-  await nameField.fill(newName);
+  await page.getByLabel("Name", { exact: true }).fill(newName);
+  await page.getByRole("button", { name: /save changes/i }).click();
+  await expect(page.getByText(/name updated/i)).toBeVisible({ timeout: 15000 });
 
-  // Flip the notifications switch and remember its new state.
+  // The notifications switch is its own save — flipping it persists immediately,
+  // no button press.
   const toggle = page.getByRole("switch", { name: /in-app notifications/i });
   const before = await toggle.getAttribute("aria-checked");
   await toggle.click();
+  await expect(page.getByText(/notifications (on|off)/i)).toBeVisible({ timeout: 15000 });
   const after = await toggle.getAttribute("aria-checked");
   expect(after).not.toBe(before);
-
-  await page.getByRole("button", { name: /save changes/i }).click();
-  await expect(page.getByText(/profile updated/i)).toBeVisible({ timeout: 15000 });
 
   // Reload → both changes stuck.
   await page.reload();

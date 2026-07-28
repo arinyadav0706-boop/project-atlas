@@ -42,41 +42,56 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(profile.notificationsEnabled);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl);
   const [saving, setSaving] = useState(false);
+  const [notifBusy, setNotifBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
 
   const trimmed = name.trim();
   const nameError = updateProfileSchema.safeParse({ name }).success
     ? null
     : "Name must be 1–100 characters.";
-  const dirty =
-    trimmed !== profile.name || notificationsEnabled !== profile.notificationsEnabled;
+  // "Save changes" governs the name only; the notifications switch saves itself.
+  const dirty = trimmed !== profile.name;
   const canSave = dirty && !nameError && !saving;
 
   async function onSave() {
     if (!canSave) return;
     setSaving(true);
     try {
-      // Send only what changed (BR-3: schema accepts nothing privileged anyway).
-      const body: { name?: string; notificationsEnabled?: boolean } = {};
-      if (trimmed !== profile.name) body.name = trimmed;
-      if (notificationsEnabled !== profile.notificationsEnabled) {
-        body.notificationsEnabled = notificationsEnabled;
-      }
       const updated = await apiRequest<ProfileDto>("/api/users/me", {
         method: "PATCH",
-        body,
+        body: { name: trimmed },
       });
       setName(updated.name);
-      setNotificationsEnabled(updated.notificationsEnabled);
       // Refresh the JWT-backed session so the top bar reflects the new name
       // (ADR-0027), then re-render server components reading the User row.
       await updateSession();
       router.refresh();
-      toast.success("Profile updated.");
+      toast.success("Name updated.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't save your profile.");
+      toast.error(error instanceof Error ? error.message : "Couldn't save your name.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // The switch is its own save: flipping it persists immediately (optimistic,
+  // reverted on failure) — no dependency on the "Save changes" button.
+  async function onToggleNotifications(next: boolean) {
+    if (notifBusy) return;
+    setNotificationsEnabled(next); // optimistic
+    setNotifBusy(true);
+    try {
+      const updated = await apiRequest<ProfileDto>("/api/users/me", {
+        method: "PATCH",
+        body: { notificationsEnabled: next },
+      });
+      setNotificationsEnabled(updated.notificationsEnabled);
+      toast.success(next ? "Notifications on." : "Notifications off.");
+    } catch (error) {
+      setNotificationsEnabled(!next); // revert
+      toast.error(error instanceof Error ? error.message : "Couldn't update notifications.");
+    } finally {
+      setNotifBusy(false);
     }
   }
 
@@ -224,13 +239,11 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
           </div>
           <Switch
             checked={notificationsEnabled}
-            onCheckedChange={setNotificationsEnabled}
+            onCheckedChange={onToggleNotifications}
+            disabled={notifBusy}
             aria-label="In-app notifications"
           />
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Changes to this toggle are saved with “Save changes” above.
-        </p>
       </section>
 
       {/* Access (read-only) */}
