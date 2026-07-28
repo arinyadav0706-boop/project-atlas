@@ -185,7 +185,7 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
 
           <div className="flex-1 space-y-4">
             <div>
-              <Label htmlFor="profile-name">Display name</Label>
+              <Label htmlFor="profile-name">Name</Label>
               <Input
                 id="profile-name"
                 value={name}
