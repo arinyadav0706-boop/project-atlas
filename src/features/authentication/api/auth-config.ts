@@ -8,6 +8,7 @@ import { env, getAllowedEmailDomains } from "@/shared/lib/env";
 import { UserRepository } from "@/features/authentication/repositories/user.repository";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { credentialsSchema } from "@/features/authentication/validation/credentials.schema";
+import { checkRateLimit, clientIp, RateLimitRules } from "@/shared/lib/rate-limit";
 
 // ADR-0003 (SSO-first, password fallback) + ADR-0005 (deferred, config-
 // driven domain restriction). See docs/02_Modules/01_authentication.md.
@@ -55,9 +56,24 @@ export const authConfig: NextAuthConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(rawCredentials) {
+      async authorize(rawCredentials, request) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
+
+        // Rate-limit brute force / password spraying by IP+email BEFORE any DB
+        // lookup or bcrypt compare (ADR-0028). Exceeding the bucket fails like
+        // any invalid credential — no signal that the account exists.
+        const ip = request?.headers ? clientIp(request.headers) : "unknown";
+        const identifier = `${ip}:${parsed.data.email.toLowerCase()}`;
+        const { allowed } = await checkRateLimit(
+          "auth",
+          identifier,
+          RateLimitRules.authAttempt,
+        );
+        if (!allowed) {
+          await rejectAndLog("SIGNIN_RATE_LIMITED", parsed.data.email);
+          return null;
+        }
 
         const user = await UserRepository.findByEmail(parsed.data.email);
         if (!user || !user.passwordHash || !user.isActive) return null;

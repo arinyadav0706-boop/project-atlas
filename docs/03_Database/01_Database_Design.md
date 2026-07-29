@@ -275,6 +275,23 @@ Unique `(organizationId, key)`. "Reset to default" hard-deletes the override
 row (a config override, not audited domain data — the audit trail of the change
 itself lives in `AuditLog`).
 
+### 2.17 RateLimit
+**Operational, not a domain entity** (ADR-0028, security finding F1). A
+DB-backed fixed-window counter that throttles credential login (per IP+email)
+and search (per user), with a reusable helper for other endpoints. Portable
+(plain Postgres, no Redis) and atomic under concurrency (`INSERT … ON CONFLICT
+(key) DO UPDATE SET count = count + 1 RETURNING count`).
+
+| Field | Type | Notes |
+|---|---|---|
+| key | String (PK) | `"bucket:identifier:windowStart"` — one row per window |
+| count | Int | hits in this window |
+| expiresAt | DateTime | window end; indexed for purge |
+
+**Explicit exception to the audit-fields / soft-delete convention (CLAUDE.md
+rule 9):** rows are ephemeral operational state, carry no audit fields, and are
+**hard-deleted** on expiry (opportunistic `DELETE WHERE expiresAt < now()`).
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`
