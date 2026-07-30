@@ -72,3 +72,25 @@ rule**, enforced in the Auth.js `signIn` callback via an
     environment and confirm the Entra app registration is bound to the
     company's real tenant — tracked as a Phase 7 (Hardening) / Phase 8
     (Internal GA) checklist item in `docs/10_Roadmap/01_Development_Roadmap.md`.
+
+## Amendment — 2026-07-29 (security finding F6): provisioning fails closed
+
+The original "pre-signoff" default (unset `ALLOWED_EMAIL_DOMAINS` → any
+successfully-authenticated identity may sign in) also silently **auto-created**
+a new org member for any Google/Microsoft account on first login. The security
+assessment (F6) flagged this: if SSO is enabled in production without the
+allowlist set, *anyone on the internet with a Google account* self-registers
+into the org.
+
+**Change:** auto-provisioning is now gated on the allowlist and **fails closed**
+(`canAutoProvisionSsoUser`, `src/features/authentication/services/provisioning.ts`):
+
+- **No allowlist configured → SSO is invite-only.** Existing users (created via
+  the admin invite flow, or before a restriction) can still sign in; an *unknown*
+  SSO identity is **rejected**, not created (logged `SIGNIN_REJECTED_NO_PROVISIONING`).
+- **Allowlist configured → auto-provision only emails whose domain is on it.**
+  The existing domain-restriction check (which rejects non-allowed domains for
+  *all* sign-ins) is unchanged.
+
+This makes a forgotten/missing config safe by default (no open registration)
+while preserving the "one-line config to open a trusted domain" ergonomics.
