@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { toHttpStatus } from "@/shared/lib/errors";
+import { RateLimitError, toHttpStatus } from "@/shared/lib/errors";
 
 // The single place domain errors become HTTP responses (Coding Standards
 // §6) — every Route Handler wraps its body in handleRoute instead of
@@ -49,8 +49,13 @@ export async function handleRoute(
       );
     }
     const known = error as Error;
-    return withTiming(
-      NextResponse.json({ error: known.name, message: known.message }, { status }),
+    const response = NextResponse.json(
+      { error: known.name, message: known.message },
+      { status },
     );
+    if (error instanceof RateLimitError) {
+      response.headers.set("Retry-After", String(error.retryAfterSec));
+    }
+    return withTiming(response);
   }
 }

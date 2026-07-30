@@ -37,11 +37,24 @@ export class UnauthorizedError extends Error {
   }
 }
 
+// Thrown when a caller exceeds a rate-limit bucket (ADR-0028). Carries the
+// seconds until the window resets so the Route Handler can set Retry-After.
+export class RateLimitError extends Error {
+  constructor(
+    public readonly retryAfterSec: number,
+    message = "Too many requests — please slow down and try again shortly.",
+  ) {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}
+
 export function toHttpStatus(error: unknown): number {
   if (error instanceof UnauthorizedError) return 401;
   if (error instanceof ForbiddenError) return 403;
   if (error instanceof NotFoundError) return 404;
   if (error instanceof ValidationError) return 422;
   if (error instanceof ConflictError) return 409;
+  if (error instanceof RateLimitError) return 429;
   return 500;
 }

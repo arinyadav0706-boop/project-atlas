@@ -534,6 +534,19 @@ model AuditLog {
 // per-org overrides; the flag catalog is a typed code registry, so a flag with
 // no row here takes its registry default. Gates behavior/visibility, never
 // tenant isolation or RBAC.
+// Fixed-window rate-limit counters (ADR-0028). Ephemeral operational state,
+// NOT a domain entity: an explicit, documented exception to the audit-fields /
+// soft-delete convention (CLAUDE.md rule 9) — rows are hard-deleted on expiry.
+// `key` is "bucket:identifier:windowStart"; one row per window.
+model RateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("rate_limits")
+}
+
 model FeatureFlag {
   id             String       @id @default(cuid())
   organizationId String
