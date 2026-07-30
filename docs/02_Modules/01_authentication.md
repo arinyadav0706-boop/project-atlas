@@ -12,9 +12,13 @@ policy — see ADR-0005 — not enforced at launch.
 
 ## Business Rules
 
-- BR-1: A user record is created (or matched by email) on first successful
-  sign-in via any provider; the `Organization` link is fixed (V1 has one
-  org).
+- BR-1: A user record is matched by email on sign-in. A **new** record is
+  auto-created only for an SSO identity whose email domain is on
+  `ALLOWED_EMAIL_DOMAINS` (security finding F6, ADR-0005 amendment). With no
+  allowlist configured, SSO is **invite-only** — an unknown SSO identity is
+  rejected (`SIGNIN_REJECTED_NO_PROVISIONING`), never silently added — so a
+  missing config fails closed instead of opening public self-registration. The
+  `Organization` link is fixed (V1 has one org).
 - BR-2: New users default to `orgRole = MEMBER`. The first `ADMIN` is
   created via a one-time seed/bootstrap script (Phase 3), not through the
   UI (there is no UI path to create the first admin from nothing).

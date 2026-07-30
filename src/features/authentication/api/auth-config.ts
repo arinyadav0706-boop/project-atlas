@@ -9,6 +9,7 @@ import { UserRepository } from "@/features/authentication/repositories/user.repo
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { credentialsSchema } from "@/features/authentication/validation/credentials.schema";
 import { checkRateLimit, clientIp, RateLimitRules } from "@/shared/lib/rate-limit";
+import { canAutoProvisionSsoUser } from "@/features/authentication/services/provisioning";
 
 // ADR-0003 (SSO-first, password fallback) + ADR-0005 (deferred, config-
 // driven domain restriction). See docs/02_Modules/01_authentication.md.
@@ -97,6 +98,12 @@ export const authConfig: NextAuthConfig = {
       let dbUser = await UserRepository.findByEmail(user.email);
 
       if (!dbUser && account?.provider !== "credentials") {
+        // F6: auto-provision a NEW SSO identity only when its domain is
+        // explicitly trusted. With no allowlist set, SSO is invite-only —
+        // fail closed rather than silently admit any Google/MS account.
+        if (!canAutoProvisionSsoUser(user.email, allowedDomains)) {
+          return rejectAndLog("SIGNIN_REJECTED_NO_PROVISIONING", user.email);
+        }
         const org = await UserRepository.findDefaultOrganization();
         if (!org) return false;
         dbUser = await UserRepository.createFromProvider({
