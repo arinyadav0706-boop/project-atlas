@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { ProfileService } from "@/features/profile/services/profile.service";
 
 type Params = { params: { userId: string } };
@@ -12,8 +11,7 @@ type Params = { params: { userId: string } };
 // cache-busting token, so a long private cache is safe (a new upload = new URL).
 export async function GET(_request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     const { mimeType, body } = await ProfileService.getAvatarBytes(actor, params.userId);
     return new NextResponse(new Uint8Array(body), {
       status: 200,

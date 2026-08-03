@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 
 type Params = { params: { projectId: string } };
@@ -12,8 +11,7 @@ type Params = { params: { projectId: string } };
 // scope=backlog (ADR-0013).
 export async function GET(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     const url = request.nextUrl.searchParams;
     const takeParam = url.get("take");
     return NextResponse.json(

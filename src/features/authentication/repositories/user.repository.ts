@@ -16,6 +16,16 @@ export const UserRepository = {
     });
   },
 
+  // Live account state, re-read on every authenticated request so session
+  // revocation and role changes take effect immediately (F2, ADR-0029) — not
+  // only when a 30-day JWT happens to expire. PK lookup, request-cached.
+  findActorState(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { isActive: true, orgRole: true, organizationId: true },
+    });
+  },
+
   // The identity claims mirrored into the JWT so the top bar reflects a profile
   // edit without a re-login (ADR-0027) — re-read on the session `update` trigger.
   findSessionIdentity(userId: string) {

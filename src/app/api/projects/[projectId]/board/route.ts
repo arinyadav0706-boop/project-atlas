@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { BoardService } from "@/features/board/services/board.service";
 import { boardFilterSchema } from "@/features/board/validation/board.schemas";
 
@@ -11,8 +10,7 @@ type Params = { params: { projectId: string } };
 // grouped into the four status columns and ordered by rank (05_board.md).
 export async function GET(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     const q = request.nextUrl.searchParams;
     const labelIds = q.getAll("labelIds");
     const componentIds = q.getAll("componentIds");

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
 import { IssueService } from "@/features/issues/services/issue.service";
 import { createIssueSchema } from "@/features/issues/validation/issue.schemas";
 import type {
@@ -13,8 +12,7 @@ type Params = { params: { projectId: string } };
 
 export async function GET(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     const url = request.nextUrl.searchParams;
     const takeParam = url.get("take");
     return NextResponse.json(
@@ -31,8 +29,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
 export async function POST(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireMutationActor();
     const input = createIssueSchema.parse(await request.json());
     const issue = await IssueService.create(actor, params.projectId, input);
     return NextResponse.json(issue, { status: 201 });

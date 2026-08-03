@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError, ValidationError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { ValidationError } from "@/shared/lib/errors";
+import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
 
 type Params = { params: { issueId: string } };
@@ -10,8 +10,7 @@ type Params = { params: { issueId: string } };
 // (09_attachments.md BR-5). Returns { items, canUpload } so the UI can gate.
 export async function GET(_request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     return NextResponse.json(await AttachmentService.list(actor, params.issueId));
   });
 }
@@ -20,8 +19,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 // The route only decodes the wire format; size/MIME/RBAC live in the service.
 export async function POST(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireMutationActor();
 
     const form = await request.formData();
     const file = form.get("file");

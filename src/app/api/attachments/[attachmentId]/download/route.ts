@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
 
 type Params = { params: { attachmentId: string } };
@@ -11,8 +10,7 @@ type Params = { params: { attachmentId: string } };
 // through the service's tenant + role check.
 export async function GET(_request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
 
     const { fileName, mimeType, body } = await AttachmentService.download(
       actor,
