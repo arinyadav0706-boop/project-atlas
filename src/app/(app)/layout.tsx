@@ -9,22 +9,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // getSession fails closed (returns null on error) and is request-cached, so
   // the layout and the page it wraps share a single JWT verification.
   const session = await getSession();
-  if (!session) {
+  // getActor re-reads live account state (F2, ADR-0029), so a deactivated user
+  // is bounced here mid-session, not only when their JWT expires.
+  const actor = await getActor();
+  if (!session || !actor) {
     redirect("/sign-in");
   }
 
   // The command palette is gated by a feature flag (ADR-0023) — evaluated
   // server-side here (flags are never a client boundary) and passed down. This
   // is the end-to-end proof that the flag platform gates real features.
-  const actor = await getActor();
-  const searchEnabled = actor
-    ? await FeatureFlagService.isEnabled(actor, "platform.commandPalette")
-    : false;
+  const searchEnabled = await FeatureFlagService.isEnabled(
+    actor,
+    "platform.commandPalette",
+  );
 
   return (
     <AppProviders>
       <div className="flex h-screen">
-        <Sidebar isOrgAdmin={session.user.orgRole === "ADMIN"} />
+        <Sidebar isOrgAdmin={actor.orgRole === "ADMIN"} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar
             userName={session.user.name ?? session.user.email ?? "User"}

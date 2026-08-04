@@ -33,7 +33,10 @@ async function rejectAndLog(reason: string, email: string) {
 }
 
 export const authConfig: NextAuthConfig = {
-  session: { strategy: "jwt" },
+  // F2 (ADR-0029): the per-request recheck in getActor is the primary revocation
+  // control; maxAge bounds a *stolen* token's lifetime (was the 30-day default),
+  // and updateAge slides the window so active users aren't logged out mid-day.
+  session: { strategy: "jwt", maxAge: 60 * 60 * 12, updateAge: 60 * 60 },
   // Required for any deployment fronted by a reverse proxy / load balancer
   // (Docker on Azure, per ADR-0004) where the request host isn't Vercel's
   // auto-detected one. Without this, Auth.js rejects the request as an

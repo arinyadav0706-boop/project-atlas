@@ -1,9 +1,16 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/features/authentication/services/actor.service", () => ({
-  getActor: vi.fn(),
-}));
+vi.mock("@/features/authentication/services/actor.service", async () => {
+  const { UnauthorizedError } = await import("@/shared/lib/errors");
+  const getActor = vi.fn();
+  const requireActor = async () => {
+    const a = await getActor();
+    if (!a) throw new UnauthorizedError();
+    return a;
+  };
+  return { getActor, requireActor, requireMutationActor: requireActor };
+});
 vi.mock("@/features/sprints/services/sprint.service", () => ({
   SprintService: { moveIssue: vi.fn() },
 }));

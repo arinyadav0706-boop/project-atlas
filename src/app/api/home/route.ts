@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { HomeService } from "@/features/home/services/home.service";
 
 // GET /api/home — the composed Home payload (ADR-0012, 02_home.md). The
@@ -9,8 +8,7 @@ import { HomeService } from "@/features/home/services/home.service";
 // whole HomeDto for client refetch / future clients.
 export async function GET() {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     return NextResponse.json(await HomeService.getHome(actor));
   });
 }

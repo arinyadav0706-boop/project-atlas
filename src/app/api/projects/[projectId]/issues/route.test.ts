@@ -3,9 +3,16 @@ import { NextRequest } from "next/server";
 
 // API contract tests for the issues collection route: auth guard, Zod
 // validation, success codes, and domain-error → HTTP mapping via handleRoute.
-vi.mock("@/features/authentication/services/actor.service", () => ({
-  getActor: vi.fn(),
-}));
+vi.mock("@/features/authentication/services/actor.service", async () => {
+  const { UnauthorizedError } = await import("@/shared/lib/errors");
+  const getActor = vi.fn();
+  const requireActor = async () => {
+    const a = await getActor();
+    if (!a) throw new UnauthorizedError();
+    return a;
+  };
+  return { getActor, requireActor, requireMutationActor: requireActor };
+});
 vi.mock("@/features/issues/services/issue.service", () => ({
   IssueService: { list: vi.fn(), create: vi.fn() },
 }));

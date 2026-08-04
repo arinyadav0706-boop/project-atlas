@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { requireActor } from "@/features/authentication/services/actor.service";
 import { IssueService } from "@/features/issues/services/issue.service";
 
 type Params = { params: { projectId: string } };
@@ -11,8 +10,7 @@ type Params = { params: { projectId: string } };
 // the project can read it.
 export async function GET(_request: Request, { params }: Params) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireActor();
     return NextResponse.json({ epics: await IssueService.listEpics(actor, params.projectId) });
   });
 }

@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { UnauthorizedError, ValidationError } from "@/shared/lib/errors";
-import { getActor } from "@/features/authentication/services/actor.service";
+import { ValidationError } from "@/shared/lib/errors";
+import { requireMutationActor } from "@/features/authentication/services/actor.service";
 import { ProfileService } from "@/features/profile/services/profile.service";
 
 // POST /api/users/me/avatar — multipart image upload (16_profile.md BR-4). The
 // route only decodes the wire format; size/MIME live in the service.
 export async function POST(request: NextRequest) {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireMutationActor();
 
     const form = await request.formData();
     const file = form.get("file");
@@ -28,8 +27,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/users/me/avatar — remove own avatar (BR-4).
 export async function DELETE() {
   return handleRoute(async () => {
-    const actor = await getActor();
-    if (!actor) throw new UnauthorizedError();
+    const actor = await requireMutationActor();
     return NextResponse.json(await ProfileService.removeAvatar(actor));
   });
 }
