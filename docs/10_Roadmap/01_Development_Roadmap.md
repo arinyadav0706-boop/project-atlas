@@ -46,6 +46,13 @@ not duplicated here to avoid the two documents drifting apart. Summary:
   view, Time Tracking, public REST API + Webhooks, Slack integration,
   GitHub integration, Wiki/Docs — plus the ADR-0006-driven business
   scope: multi-tenant SaaS conversion and self-hosted packaging.
+  **The V2 build is sequenced and expanded around a "Management Visibility
+  Layer" (time tracking → teams/hierarchy → workload → dashboards → daily
+  execution → views → custom workflows) in
+  `docs/00_Product/05_V2_Management_Visibility_Layer.md`** — the response to
+  enterprise feedback that V1 "looks basic": it lacks the workload/reporting
+  insight management buys the tool for. That doc also defines the matrix
+  org model (teams/reporting lines orthogonal to project membership).
 - **V3 theme**: platform maturity/defensibility — Portfolio/rollup views,
   Goals/OKR tracking, Workload view, Forms-based intake, Approval
   workflows, AI Assistant, Marketplace/plugin ecosystem, advanced
