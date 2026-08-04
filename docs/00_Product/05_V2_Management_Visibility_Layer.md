@@ -95,7 +95,13 @@ Ordered so each unlocks the next. Each is a feature module under
 the service layer, Zod validation, portable (ADR-0004). Docs-first (a module
 spec + ADRs) before code, per CLAUDE.md.
 
-### Epic 1 — Time & effort tracking *(the keystone)*
+### Epic 1 — Time & effort tracking *(the keystone)* ✅ SHIPPED 2026-07-29
+> Built end-to-end: `Issue.estimateMinutes` + `WorkLog` model/migration, the
+> `time-tracking` feature (types/validation/repository/service/DTOs), API
+> (`/issues/{id}/worklogs`, `/issues/{id}/estimate`, `/worklogs/{id}`), the issue
+> Time Tracking panel, and full unit + integration coverage. ADR-0030,
+> `docs/02_Modules/19_time_tracking.md`.
+
 - **What:** `estimateMinutes` on issues; a `WorkLog` (issueId, userId, minutes,
   loggedAt, note). Estimate vs actual.
 - **Why first:** you cannot show workload or meaningful reports without effort

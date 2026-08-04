@@ -127,6 +127,24 @@ export const IssueRepository = {
     });
   },
 
+  // projectId + current estimate, for the time-tracking summary (ADR-0030).
+  findProjectAndEstimate(id: string) {
+    return prisma.issue.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, projectId: true, estimateMinutes: true },
+    });
+  },
+
+  // Set/clear the estimate (time-tracking, BR-5). Deliberately NOT OCC-bound to
+  // the issue-edit version — estimate is orthogonal to the edit path.
+  setEstimate(id: string, estimateMinutes: number | null, actorId: string) {
+    return prisma.issue.update({
+      where: { id },
+      data: { estimateMinutes, updatedBy: actorId },
+      select: { id: true, estimateMinutes: true },
+    });
+  },
+
   // Batch id -> projectId, for building links to many issues at once (e.g. the
   // notification list resolves each ISSUE notification's detail-page URL).
   findProjectIdsByIds(ids: string[]) {

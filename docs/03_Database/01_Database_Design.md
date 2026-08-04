@@ -292,6 +292,27 @@ and search (per user), with a reusable helper for other endpoints. Portable
 rule 9):** rows are ephemeral operational state, carry no audit fields, and are
 **hard-deleted** on expiry (opportunistic `DELETE WHERE expiresAt < now()`).
 
+### 2.18 WorkLog + `Issue.estimateMinutes`
+**Time tracking** (V2 Epic 1, ADR-0030, `docs/02_Modules/19_time_tracking.md`).
+Estimate lives on the issue; actual time is per-user work logs.
+
+- `Issue.estimateMinutes Int?` — original estimate in minutes (owned by the
+  time-tracking service, not the issue-edit path; not OCC-bound).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| issueId | String (FK → Issue) | |
+| userId | String (FK → User) | who logged the time |
+| minutes | Int | 1…1440 per log (BR-2) |
+| workDate | Date | day the work was done (≠ createdAt) |
+| note | String? | optional |
+| version | Int | OCC (ADR-0011) for author edits |
+| + audit fields, deletedAt | | soft delete; author or LEAD (BR-4) |
+
+Indexes: `(issueId, deletedAt)` (issue panel), `(userId, workDate)` (V2 workload
+aggregation). RBAC/BRs in `19_time_tracking.md`.
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`
