@@ -91,6 +91,13 @@ async function main(): Promise<void> {
     });
     idMap.set(a.id, user.id);
   }
+  // The owner accounts may be moving in from another org where they already
+  // belong to a team. TeamMembership is unique on userId (one team per user),
+  // so sever any old link before assigning their VERUS team — the previous
+  // org is being left behind (ADR-0033 login model).
+  await prisma.teamMembership.deleteMany({
+    where: { userId: { in: d.admins.map((a) => rid(a.id)) } },
+  });
   console.log(`  admins             ${d.admins.length} (upserted)`);
 
   await insertMany<Prisma.UserCreateManyInput>(
