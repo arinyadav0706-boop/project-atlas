@@ -214,15 +214,22 @@ export const TeamService = {
     });
   },
 
-  // Manager visibility (ADR-0032): the set of user ids the actor manages —
-  // members of every team they manage plus all descendant teams, plus the actor.
-  // Org-scoped (F-1); no new infra; O(teams). Consumed by Workload (Epic 3).
-  async getManagedUserIds(actor: Actor): Promise<Set<string>> {
+  // The teams the actor manages: those they manage directly plus every
+  // descendant (ADR-0032). Org-scoped (F-1); O(teams). Workload (module 21)
+  // uses this as its team scope, so the hierarchy rule lives in one place.
+  async getManagedTeamIds(actor: Actor): Promise<string[]> {
     const rows = await TeamRepository.hierarchyRows(actor.organizationId);
     const roots = rows.filter((r) => r.managerId === actor.userId).map((r) => r.id);
+    if (roots.length === 0) return [];
+    return [...descendants(roots, rows)];
+  },
+
+  // Manager visibility (ADR-0032): the set of user ids the actor manages —
+  // members of every team they manage plus all descendant teams, plus the actor.
+  async getManagedUserIds(actor: Actor): Promise<Set<string>> {
+    const managedTeamIds = await this.getManagedTeamIds(actor);
     const result = new Set<string>([actor.userId]);
-    if (roots.length === 0) return result;
-    const managedTeamIds = [...descendants(roots, rows)];
+    if (managedTeamIds.length === 0) return result;
     const memberships = await TeamRepository.membershipsByTeamIds(managedTeamIds);
     for (const m of memberships) result.add(m.userId);
     return result;
