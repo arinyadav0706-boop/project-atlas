@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, FolderKanban, ShieldCheck, Network } from "lucide-react";
+import { House, FolderKanban, ShieldCheck, Network, GaugeCircle } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LogoMark } from "@/shared/components/brand/logo";
 
@@ -23,10 +23,14 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  // "My Team" appears for managers (ADR-0032); Admin for org admins.
+  // "My Team" appears for managers (ADR-0032); Workload for managers and org
+  // admins (21_workload.md BR-8); Admin for org admins.
   const items = [
     ...navItems,
     ...(managesTeam ? [{ href: "/my-team", label: "My team", icon: Network }] : []),
+    ...(managesTeam || isOrgAdmin
+      ? [{ href: "/workload", label: "Workload", icon: GaugeCircle }]
+      : []),
     ...(isOrgAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
   ];
 

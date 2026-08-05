@@ -53,6 +53,9 @@ and product decisions — that would otherwise get lost between modules.
 | PERF-11 | Home: streamed `<Suspense>` widgets, capped + parallel | P2 | — | ✅ DONE | Home module — each section its own streamed Suspense, bounded, one membership query per request (ADR-0012). |
 | PERF-12 | Read replicas for read-heavy endpoints | P4 | No | OPEN | Large scale. |
 | PERF-13 | Move `RecentItem` upserts off the request hot path (queue) | P3 | No | OPEN | Home engagement signal is recorded synchronously (best-effort, guarded) on issue view/edit; queue it at volume — same treatment as audit (PERF-10). |
+| PERF-14 | Workload: move aggregation SQL-side if teams outgrow app-side grouping | P4 | No | OPEN | ADR-0034. `WorkloadService.rowsForTeam` fetches one team's open issues then groups their work logs in the application — two bounded reads, fine at ~10–15 people per team (a few hundred issues). If teams get much larger, replace with one `SELECT … GROUP BY assigneeId` aggregate; the DTO and the pure `capacity.ts` maths stay unchanged. |
+| WL-1 | Workload: per-person capacity (part-time, leave calendar) | P3 | No | OPEN | ADR-0034 BR-5 deliberately uses a code constant `WEEKLY_CAPACITY_MINUTES` (40 h) instead of inventing a `User` column (rules 2/10). A real capacity model wants working hours, leave and part-time factors — propose the schema in a doc first, then swap the constant; the aggregation does not change. |
+| WL-2 | Workload: optional descendant-team roll-up + reassign from the row | P4 | No | OPEN | ADR-0034 BR-7 shows one team's direct members (a parent roll-up is unbounded and unreadable — Engineering is 91 people). Add behind an explicit toggle if managers ask. Drag-to-reassign from a workload row is the natural follow-on once roll-up exists. |
 
 ## Database & infrastructure
 
