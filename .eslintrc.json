@@ -26,7 +26,7 @@
   },
   "overrides": [
     {
-      "files": ["**/*.repository.ts", "prisma/seed.ts", "src/shared/lib/db.ts"],
+      "files": ["**/*.repository.ts", "prisma/seed.ts", "prisma/verus/*.ts", "src/shared/lib/db.ts"],
       "rules": {
         "no-restricted-imports": "off"
       }

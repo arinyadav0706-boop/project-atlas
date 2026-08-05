@@ -14,6 +14,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "seed:verus": "tsx prisma/verus/seed.ts",
+    "seed:verus:teardown": "tsx prisma/verus/teardown.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
