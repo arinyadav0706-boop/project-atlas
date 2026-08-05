@@ -71,9 +71,21 @@ describe("scope (BR-8)", () => {
     );
   });
 
-  it("defaults to the first team in scope when none is given", async () => {
-    repo.teamsWithCounts.mockResolvedValue([team("t1", "Alpha"), team("t2", "Beta")] as never);
+  it("defaults to the LARGEST team in scope, not the alphabetically first (BR-12)", async () => {
+    repo.teamsWithCounts.mockResolvedValue([
+      team("t1", "Core Services", 1), // sorts first, but nearly empty
+      team("t2", "Mobile Squad", 17),
+    ] as never);
     const res = await WorkloadService.getWorkload(manager);
+    expect(res.selectedTeamId).toBe("t2");
+  });
+
+  it("still honours an explicitly requested team", async () => {
+    repo.teamsWithCounts.mockResolvedValue([
+      team("t1", "Core Services", 1),
+      team("t2", "Mobile Squad", 17),
+    ] as never);
+    const res = await WorkloadService.getWorkload(manager, "t1");
     expect(res.selectedTeamId).toBe("t1");
   });
 });

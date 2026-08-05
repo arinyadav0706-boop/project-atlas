@@ -59,7 +59,9 @@ const velocity: ReportDefinition = {
 const statusBreakdown: ReportDefinition = {
   id: "status-breakdown",
   name: "Status breakdown",
-  description: "How the project's open work is distributed across statuses.",
+  // Counts every live issue, Done included — see docs/12_Metrics §Status
+  // breakdown. Saying "open work" here would misdescribe the donut.
+  description: "How the project's issues are distributed across statuses.",
   category: "flow",
   chartType: "donut",
   async compute(projectId) {

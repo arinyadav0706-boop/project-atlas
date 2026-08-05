@@ -57,9 +57,13 @@ export const WorkloadService = {
       return { teams, selectedTeamId: null, rows: [], totals: { ...EMPTY_TOTALS } };
     }
 
+    // Default to the biggest team in scope: an org chart has thin parent teams
+    // ("Engineering · 1 person") that would otherwise be the landing view purely
+    // because they sort first alphabetically (BR-12).
+    const largest = teams.reduce((best, t) => (t.memberCount > best.memberCount ? t : best), teams[0]!);
     // A team outside the caller's scope (or org) is indistinguishable from one
     // that doesn't exist (BR-9, F-1).
-    const selectedTeamId = teamId ?? teams[0]!.id;
+    const selectedTeamId = teamId ?? largest.id;
     if (!teams.some((t) => t.id === selectedTeamId)) {
       throw new NotFoundError("Team not found.");
     }

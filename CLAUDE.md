@@ -70,6 +70,7 @@ to this stack. Full context: `docs/00_Product/`, `docs/01_Architecture/`.
 | What are this module's business rules? | `docs/02_Modules/<module>.md` (Phase 2) |
 | What's the current program phase / what's next? | `docs/10_Roadmap/01_Development_Roadmap.md` |
 | What have we deferred / what's the go-live checklist? | `docs/10_Roadmap/02_Backlog_and_Tech_Debt.md` |
+| How is this number calculated? (workload, velocity, cycle time…) | `docs/12_Metrics/01_Metric_Definitions.md` |
 | How do we keep it fast/scalable? (pagination, indexes, budgets) | `docs/01_Architecture/05_Performance_and_Scalability.md` |
 
 ## Commit style
