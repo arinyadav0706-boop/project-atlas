@@ -22,6 +22,12 @@ export function parseDuration(raw: string): number | null {
   return total > 0 ? total : null;
 }
 
+// Split total minutes into { hours, minutes } for the H/M input fields.
+export function splitMinutes(total: number): { hours: number; minutes: number } {
+  const abs = Math.abs(Math.round(total));
+  return { hours: Math.floor(abs / 60), minutes: abs % 60 };
+}
+
 // Format minutes as "1h 30m" (omitting zero parts). 0 -> "0m".
 export function formatDuration(minutes: number): string {
   const sign = minutes < 0 ? "-" : "";

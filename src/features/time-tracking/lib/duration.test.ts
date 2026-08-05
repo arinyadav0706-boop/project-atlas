@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseDuration, formatDuration } from "@/features/time-tracking/lib/duration";
+import { parseDuration, formatDuration, splitMinutes } from "@/features/time-tracking/lib/duration";
+
+describe("splitMinutes", () => {
+  it("splits total minutes into hours + minutes", () => {
+    expect(splitMinutes(0)).toEqual({ hours: 0, minutes: 0 });
+    expect(splitMinutes(9)).toEqual({ hours: 0, minutes: 9 });
+    expect(splitMinutes(90)).toEqual({ hours: 1, minutes: 30 });
+    expect(splitMinutes(125)).toEqual({ hours: 2, minutes: 5 });
+  });
+});
 
 describe("parseDuration", () => {
   it("parses bare minutes", () => {

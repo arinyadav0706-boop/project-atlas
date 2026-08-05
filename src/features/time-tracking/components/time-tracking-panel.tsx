@@ -6,7 +6,7 @@ import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { parseDuration, formatDuration } from "@/features/time-tracking/lib/duration";
+import { formatDuration, splitMinutes } from "@/features/time-tracking/lib/duration";
 import type {
   TimeSummaryDto,
   WorkLogDto,
@@ -14,6 +14,65 @@ import type {
 } from "@/features/time-tracking/types/time-tracking.types";
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
+
+// Two number fields (Hours + Minutes) — structured entry, no free-text parsing,
+// and still allows odd values like 9m (a 15-min dropdown wouldn't). Returns the
+// combined total in minutes to the parent via onChange.
+function DurationFields({
+  hours,
+  minutes,
+  onHours,
+  onMinutes,
+  idPrefix,
+}: {
+  hours: string;
+  minutes: string;
+  onHours: (v: string) => void;
+  onMinutes: (v: string) => void;
+  idPrefix: string;
+}) {
+  return (
+    <div className="flex items-end gap-1.5">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        Hours
+        <Input
+          id={`${idPrefix}-h`}
+          aria-label="Hours"
+          type="number"
+          min={0}
+          inputMode="numeric"
+          placeholder="0"
+          value={hours}
+          onChange={(e) => onHours(e.target.value)}
+          className="h-8 w-16"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        Minutes
+        <Input
+          id={`${idPrefix}-m`}
+          aria-label="Minutes"
+          type="number"
+          min={0}
+          max={59}
+          inputMode="numeric"
+          placeholder="0"
+          value={minutes}
+          onChange={(e) => onMinutes(e.target.value)}
+          className="h-8 w-16"
+        />
+      </label>
+    </div>
+  );
+}
+
+// Combine the two fields into whole minutes (minutes field may exceed 59; we
+// normalize, e.g. 90m → 1h 30m).
+function toMinutes(hours: string, minutes: string): number {
+  const h = Math.max(0, Math.floor(Number(hours) || 0));
+  const m = Math.max(0, Math.floor(Number(minutes) || 0));
+  return h * 60 + m;
+}
 
 // Time Tracking panel on the issue detail page (19_time_tracking.md). Estimate
 // vs logged vs remaining, a log-time form, and the editable log list. Writers
@@ -30,7 +89,6 @@ export function TimeTrackingPanel({
   const [summary, setSummary] = useState<TimeSummaryDto>(initial.summary);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Refetch the first page after any mutation so the summary (Σ) stays exact.
   async function reload() {
     try {
       const page = await apiRequest<WorkLogPageDto>(`/api/issues/${issueId}/worklogs`);
@@ -38,7 +96,7 @@ export function TimeTrackingPanel({
       setNextCursor(page.nextCursor);
       setSummary(page.summary);
     } catch {
-      /* a reload failure leaves the last-known state; next action retries */
+      /* leave last-known state; next action retries */
     }
   }
 
@@ -105,7 +163,8 @@ function SummaryBar({
   onEstimate: (s: TimeSummaryDto) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [hours, setHours] = useState("");
+  const [mins, setMins] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { estimateMinutes, loggedMinutes, remainingMinutes } = summary;
@@ -117,20 +176,18 @@ function SummaryBar({
         ? 100
         : 0;
 
+  function openEditor() {
+    const s = estimateMinutes === null ? { hours: 0, minutes: 0 } : splitMinutes(estimateMinutes);
+    setHours(s.hours ? String(s.hours) : "");
+    setMins(s.minutes ? String(s.minutes) : "");
+    setEditing(true);
+  }
+
   async function saveEstimate() {
     if (busy) return;
-    const trimmed = draft.trim();
-    let estimate: number | null;
-    if (trimmed === "") {
-      estimate = null; // clear
-    } else {
-      const parsed = parseDuration(trimmed);
-      if (parsed === null) {
-        toast.error('Enter a duration like "1h 30m", "90m", or leave blank to clear.');
-        return;
-      }
-      estimate = parsed;
-    }
+    const total = toMinutes(hours, mins);
+    // Empty (0) clears the estimate.
+    const estimate = total > 0 ? total : null;
     setBusy(true);
     try {
       const next = await apiRequest<TimeSummaryDto>(`/api/issues/${issueId}/estimate`, {
@@ -153,20 +210,13 @@ function SummaryBar({
         <Metric label="Logged" value={formatDuration(loggedMinutes)} />
         <Metric
           label={over ? "Over by" : "Remaining"}
-          value={
-            remainingMinutes === null
-              ? "—"
-              : formatDuration(Math.abs(remainingMinutes))
-          }
+          value={remainingMinutes === null ? "—" : formatDuration(Math.abs(remainingMinutes))}
           tone={over ? "over" : "normal"}
         />
         {canEdit && !editing && (
           <button
             type="button"
-            onClick={() => {
-              setDraft(estimateMinutes === null ? "" : formatDuration(estimateMinutes));
-              setEditing(true);
-            }}
+            onClick={openEditor}
             className="text-xs text-muted-foreground hover:text-foreground focus-visible:underline focus-visible:outline-none"
           >
             {estimateMinutes === null ? "Set estimate" : "Edit estimate"}
@@ -175,13 +225,13 @@ function SummaryBar({
       </div>
 
       {editing && (
-        <div className="mt-2 flex items-center gap-2">
-          <Input
-            aria-label="Estimate"
-            placeholder='e.g. "1h 30m" (blank to clear)'
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="h-8 max-w-[200px]"
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <DurationFields
+            idPrefix="estimate"
+            hours={hours}
+            minutes={mins}
+            onHours={setHours}
+            onMinutes={setMins}
           />
           <Button size="sm" onClick={saveEstimate} loading={busy}>
             Save
@@ -189,6 +239,7 @@ function SummaryBar({
           <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
             Cancel
           </Button>
+          <span className="pb-1.5 text-xs text-muted-foreground">Leave both at 0 to clear.</span>
         </div>
       )}
 
@@ -200,10 +251,7 @@ function SummaryBar({
           aria-valuemin={0}
           aria-valuemax={100}
         >
-          <div
-            className={over ? "h-full bg-destructive" : "h-full bg-accent"}
-            style={{ width: `${pct}%` }}
-          />
+          <div className={over ? "h-full bg-destructive" : "h-full bg-accent"} style={{ width: `${pct}%` }} />
         </div>
       )}
     </div>
@@ -230,16 +278,17 @@ function Metric({
 }
 
 function LogForm({ issueId, onLogged }: { issueId: string; onLogged: () => void }) {
-  const [duration, setDuration] = useState("");
+  const [hours, setHours] = useState("");
+  const [mins, setMins] = useState("");
   const [date, setDate] = useState(TODAY());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     if (busy) return;
-    const minutes = parseDuration(duration);
-    if (minutes === null) {
-      toast.error('Enter a duration like "1h 30m", "90m", or "1.5h".');
+    const minutes = toMinutes(hours, mins);
+    if (minutes <= 0) {
+      toast.error("Enter how long you worked (hours and/or minutes).");
       return;
     }
     if (minutes > 1440) {
@@ -252,7 +301,8 @@ function LogForm({ issueId, onLogged }: { issueId: string; onLogged: () => void 
         method: "POST",
         body: { minutes, workDate: date, note: note.trim() || undefined },
       });
-      setDuration("");
+      setHours("");
+      setMins("");
       setNote("");
       setDate(TODAY());
       onLogged();
@@ -265,16 +315,7 @@ function LogForm({ issueId, onLogged }: { issueId: string; onLogged: () => void 
 
   return (
     <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-4">
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Duration
-        <Input
-          aria-label="Duration"
-          placeholder="1h 30m"
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          className="h-8 w-28"
-        />
-      </label>
+      <DurationFields idPrefix="log" hours={hours} minutes={mins} onHours={setHours} onMinutes={setMins} />
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Date
         <Input
@@ -296,7 +337,7 @@ function LogForm({ issueId, onLogged }: { issueId: string; onLogged: () => void 
           className="h-8"
         />
       </label>
-      <Button size="sm" onClick={submit} loading={busy} disabled={!duration.trim()}>
+      <Button size="sm" onClick={submit} loading={busy} disabled={toMinutes(hours, mins) <= 0}>
         Log time
       </Button>
     </div>
@@ -304,16 +345,27 @@ function LogForm({ issueId, onLogged }: { issueId: string; onLogged: () => void 
 }
 
 function LogRow({ log, onChanged }: { log: WorkLogDto; onChanged: () => void }) {
+  const initial = splitMinutes(log.minutes);
   const [editing, setEditing] = useState(false);
-  const [duration, setDuration] = useState(formatDuration(log.minutes));
+  const [hours, setHours] = useState(String(initial.hours || ""));
+  const [mins, setMins] = useState(String(initial.minutes || ""));
   const [date, setDate] = useState(log.workDate);
   const [note, setNote] = useState(log.note ?? "");
   const [busy, setBusy] = useState(false);
 
+  function openEditor() {
+    const s = splitMinutes(log.minutes);
+    setHours(s.hours ? String(s.hours) : "");
+    setMins(s.minutes ? String(s.minutes) : "");
+    setDate(log.workDate);
+    setNote(log.note ?? "");
+    setEditing(true);
+  }
+
   async function save() {
     if (busy) return;
-    const minutes = parseDuration(duration);
-    if (minutes === null) {
+    const minutes = toMinutes(hours, mins);
+    if (minutes <= 0) {
       toast.error("Enter a valid duration.");
       return;
     }
@@ -355,9 +407,15 @@ function LogRow({ log, onChanged }: { log: WorkLogDto; onChanged: () => void }) 
       <div className="min-w-0 flex-1">
         {editing ? (
           <div className="flex flex-wrap items-end gap-2">
-            <Input aria-label="Duration" value={duration} onChange={(e) => setDuration(e.target.value)} className="h-8 w-24" />
-            <Input aria-label="Work date" type="date" value={date} max={TODAY()} onChange={(e) => setDate(e.target.value)} className="h-8 w-40" />
-            <Input aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} className="h-8 flex-1" placeholder="Note" />
+            <DurationFields idPrefix={`edit-${log.id}`} hours={hours} minutes={mins} onHours={setHours} onMinutes={setMins} />
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Date
+              <Input aria-label="Work date" type="date" value={date} max={TODAY()} onChange={(e) => setDate(e.target.value)} className="h-8 w-40" />
+            </label>
+            <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+              Note
+              <Input aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} className="h-8" placeholder="Note" />
+            </label>
             <Button size="sm" onClick={save} loading={busy}>Save</Button>
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>Cancel</Button>
           </div>
@@ -375,12 +433,7 @@ function LogRow({ log, onChanged }: { log: WorkLogDto; onChanged: () => void }) 
                 {log.canEdit && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setDuration(formatDuration(log.minutes));
-                      setDate(log.workDate);
-                      setNote(log.note ?? "");
-                      setEditing(true);
-                    }}
+                    onClick={openEditor}
                     className="text-muted-foreground hover:text-foreground focus-visible:underline focus-visible:outline-none"
                   >
                     Edit
