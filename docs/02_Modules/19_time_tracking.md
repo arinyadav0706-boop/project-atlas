@@ -22,7 +22,9 @@ report reads this data. Inspired by Jira (Tempo) + ClickUp. Self-contained
 - **BR-4** The **author or a project LEAD** may delete a log (soft delete).
 - **BR-5** Estimate is `estimateMinutes` on the issue, integer 0…100000,
   nullable (unset = no estimate). **LEAD-only** (planning decision; org ADMIN
-  elevates). Last-write-wins (not OCC-bound to the issue edit version).
+  elevates). Settable at **issue creation** (the create dialog shows the field
+  only to leads) or later via `PUT /issues/{id}/estimate`; both enforce LEAD.
+  Last-write-wins (not OCC-bound to the issue edit version).
 - **BR-6** Per-issue summary = `{ estimateMinutes, loggedMinutes (Σ non-deleted
   logs), remainingMinutes (estimate − logged, may be negative = over) }`.
 - **BR-7** All reads/writes are org-scoped (F-1) and audited

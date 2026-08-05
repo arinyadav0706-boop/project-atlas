@@ -22,6 +22,10 @@ export default async function ProjectIssuesPage({
     const canWrite =
       project.status === "ACTIVE" &&
       (project.myRole === "LEAD" || project.myRole === "MEMBER");
+    // Estimate is LEAD-only (ADR-0030 BR-5); org admins elevate to LEAD (ADR-0024).
+    const canSetEstimate =
+      project.status === "ACTIVE" &&
+      (project.myRole === "LEAD" || actor.orgRole === "ADMIN");
     return (
       <IssuesView
         projectId={params.projectId}
@@ -30,6 +34,7 @@ export default async function ProjectIssuesPage({
         counts={page.counts}
         members={members.map((m) => ({ userId: m.userId, name: m.name }))}
         canWrite={canWrite}
+        canSetEstimate={canSetEstimate}
       />
     );
   } catch (error) {

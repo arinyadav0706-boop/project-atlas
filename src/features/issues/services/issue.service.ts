@@ -36,7 +36,7 @@ import type {
   UpdateIssueInput,
 } from "@/features/issues/validation/issue.schemas";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
-import { elevate, canWriteContent } from "@/features/authorization/permission";
+import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
 import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
@@ -220,6 +220,11 @@ export const IssueService = {
     if (context.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
     }
+    // Estimate is a LEAD-only planning decision (ADR-0030 BR-5). A non-lead who
+    // sends one is rejected, mirroring the dedicated estimate endpoint.
+    if (input.estimateMinutes != null && !canManageProject(role)) {
+      throw new ForbiddenError("Only a project lead can set the estimate.");
+    }
     await validateAssignee(projectId, input.assigneeId);
     await validateEpic(projectId, input.epicId, { type: input.type });
 
@@ -234,6 +239,7 @@ export const IssueService = {
       epicId: input.epicId ?? null,
       storyPoints: input.storyPoints ?? null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      estimateMinutes: input.estimateMinutes ?? null,
       creatorId: actor.userId,
     });
     await RecentItemService.record(actor, "ISSUE", row.id, "EDITED");
