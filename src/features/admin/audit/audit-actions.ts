@@ -9,6 +9,12 @@ export const AuditAction = {
   USER_INVITED: "USER_INVITED",
   USER_ROLE_CHANGED: "USER_ROLE_CHANGED",
   USER_STATUS_CHANGED: "USER_STATUS_CHANGED",
+  // Teams & Hierarchy (20_teams.md).
+  TEAM_CREATED: "TEAM_CREATED",
+  TEAM_UPDATED: "TEAM_UPDATED",
+  TEAM_DELETED: "TEAM_DELETED",
+  TEAM_MEMBER_ADDED: "TEAM_MEMBER_ADDED",
+  TEAM_MEMBER_REMOVED: "TEAM_MEMBER_REMOVED",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

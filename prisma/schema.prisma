@@ -135,8 +135,53 @@ model Organization {
   labels       Label[]
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
+  teams        Team[]
 
   @@map("organizations")
+}
+
+// The people axis (ADR-0031, docs/02_Modules/20_teams.md): a reporting team with
+// an optional manager and optional parent (nesting). Orthogonal to ProjectMember.
+model Team {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  managerId      String?
+  manager        User?        @relation("TeamManager", fields: [managerId], references: [id])
+  parentTeamId   String?
+  parentTeam     Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  childTeams     Team[]       @relation("TeamHierarchy")
+  memberships    TeamMembership[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([organizationId, deletedAt])
+  @@index([parentTeamId])
+  @@index([managerId])
+  @@map("teams")
+}
+
+// Team membership link (ADR-0031). One team per user in V2 (unique userId).
+// A pure link row: it carries who/when added, but removal is a HARD delete
+// (audited in AuditLog) so the unique(userId) stays clean for re-adds — an
+// explicit, documented exception to soft-delete (CLAUDE.md rule 9).
+model TeamMembership {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  userId    String
+  user      User     @relation("TeamMembershipUser", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([userId])
+  @@index([teamId])
+  @@map("team_memberships")
 }
 
 model User {
@@ -169,6 +214,8 @@ model User {
   recentItems        RecentItem[]
   favorites          Favorite[]
   workLogs           WorkLog[]       @relation("WorkLogUser")
+  managedTeams       Team[]          @relation("TeamManager")
+  teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
 
   @@index([organizationId])
   @@map("users")

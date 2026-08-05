@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession, getActor } from "@/features/authentication/services/actor.service";
 import { FeatureFlagService } from "@/features/admin/services/feature-flag.service";
+import { TeamService } from "@/features/teams/services/team.service";
 import { Sidebar } from "@/shared/components/app-shell/sidebar";
 import { TopBar } from "@/shared/components/app-shell/top-bar";
 import { AppProviders } from "./providers";
@@ -19,15 +20,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The command palette is gated by a feature flag (ADR-0023) — evaluated
   // server-side here (flags are never a client boundary) and passed down. This
   // is the end-to-end proof that the flag platform gates real features.
-  const searchEnabled = await FeatureFlagService.isEnabled(
-    actor,
-    "platform.commandPalette",
-  );
+  const [searchEnabled, managesTeam] = await Promise.all([
+    FeatureFlagService.isEnabled(actor, "platform.commandPalette"),
+    TeamService.managesAnyTeam(actor),
+  ]);
 
   return (
     <AppProviders>
       <div className="flex h-screen">
-        <Sidebar isOrgAdmin={actor.orgRole === "ADMIN"} />
+        <Sidebar isOrgAdmin={actor.orgRole === "ADMIN"} managesTeam={managesTeam} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar
             userName={session.user.name ?? session.user.email ?? "User"}

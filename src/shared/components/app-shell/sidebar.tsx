@@ -2,25 +2,33 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, FolderKanban, ShieldCheck } from "lucide-react";
+import { House, FolderKanban, ShieldCheck, Network } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LogoMark } from "@/shared/components/brand/logo";
 
 // App shell — docs/05_UI/02_Screens_and_Information_Architecture.md §1.
-// Admin link visibility (ADMIN-only) is a UX convenience; the security
-// boundary is server-side in the admin module's services (Coding
-// Standards §7).
+// Admin/My-Team link visibility is a UX convenience; the security boundary is
+// server-side in each module's services (Coding Standards §7).
 const navItems = [
   { href: "/home", label: "Home", icon: House },
   { href: "/projects", label: "Projects", icon: FolderKanban },
 ];
 
-export function Sidebar({ isOrgAdmin }: { isOrgAdmin: boolean }) {
+export function Sidebar({
+  isOrgAdmin,
+  managesTeam = false,
+}: {
+  isOrgAdmin: boolean;
+  managesTeam?: boolean;
+}) {
   const pathname = usePathname();
 
-  const items = isOrgAdmin
-    ? [...navItems, { href: "/admin", label: "Admin", icon: ShieldCheck }]
-    : navItems;
+  // "My Team" appears for managers (ADR-0032); Admin for org admins.
+  const items = [
+    ...navItems,
+    ...(managesTeam ? [{ href: "/my-team", label: "My team", icon: Network }] : []),
+    ...(isOrgAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+  ];
 
   // Below md the sidebar collapses to an icon rail so the app stays usable
   // on small screens; a full mobile drawer is tracked as a later pass.

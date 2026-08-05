@@ -12,6 +12,9 @@ export const AdminCapability = {
   VIEW_AUDIT_LOG: "VIEW_AUDIT_LOG",
   // Consumed by User Management (module 14) when it mounts into the console.
   MANAGE_USERS: "MANAGE_USERS",
+  // Teams & Hierarchy (module 20, ADR-0031) — create teams, assign managers,
+  // manage membership.
+  MANAGE_TEAMS: "MANAGE_TEAMS",
 } as const;
 
 export type AdminCapability = (typeof AdminCapability)[keyof typeof AdminCapability];
