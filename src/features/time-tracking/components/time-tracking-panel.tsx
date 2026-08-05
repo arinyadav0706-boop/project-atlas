@@ -7,6 +7,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { formatDuration, splitMinutes } from "@/features/time-tracking/lib/duration";
+import { DurationFields, toMinutes } from "@/features/time-tracking/components/duration-fields";
 import type {
   TimeSummaryDto,
   WorkLogDto,
@@ -14,65 +15,6 @@ import type {
 } from "@/features/time-tracking/types/time-tracking.types";
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
-
-// Two number fields (Hours + Minutes) — structured entry, no free-text parsing,
-// and still allows odd values like 9m (a 15-min dropdown wouldn't). Returns the
-// combined total in minutes to the parent via onChange.
-function DurationFields({
-  hours,
-  minutes,
-  onHours,
-  onMinutes,
-  idPrefix,
-}: {
-  hours: string;
-  minutes: string;
-  onHours: (v: string) => void;
-  onMinutes: (v: string) => void;
-  idPrefix: string;
-}) {
-  return (
-    <div className="flex items-end gap-1.5">
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Hours
-        <Input
-          id={`${idPrefix}-h`}
-          aria-label="Hours"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          placeholder="0"
-          value={hours}
-          onChange={(e) => onHours(e.target.value)}
-          className="h-8 w-16"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Minutes
-        <Input
-          id={`${idPrefix}-m`}
-          aria-label="Minutes"
-          type="number"
-          min={0}
-          max={59}
-          inputMode="numeric"
-          placeholder="0"
-          value={minutes}
-          onChange={(e) => onMinutes(e.target.value)}
-          className="h-8 w-16"
-        />
-      </label>
-    </div>
-  );
-}
-
-// Combine the two fields into whole minutes (minutes field may exceed 59; we
-// normalize, e.g. 90m → 1h 30m).
-function toMinutes(hours: string, minutes: string): number {
-  const h = Math.max(0, Math.floor(Number(hours) || 0));
-  const m = Math.max(0, Math.floor(Number(minutes) || 0));
-  return h * 60 + m;
-}
 
 // Time Tracking panel on the issue detail page (19_time_tracking.md). Estimate
 // vs logged vs remaining, a log-time form, and the editable log list. Writers

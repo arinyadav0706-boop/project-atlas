@@ -41,6 +41,7 @@ export function IssuesView({
   counts,
   members,
   canWrite,
+  canSetEstimate = false,
 }: {
   projectId: string;
   initialItems: IssueListItemDto[];
@@ -48,6 +49,7 @@ export function IssuesView({
   counts: IssueStatusCounts;
   members: { userId: string; name: string }[];
   canWrite: boolean;
+  canSetEstimate?: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [items, setItems] = useState(initialItems);
@@ -187,6 +189,7 @@ export function IssuesView({
             projectId={projectId}
             members={members}
             withHotkey
+            canSetEstimate={canSetEstimate}
             onCreated={onCreated}
           />
         )}
@@ -195,6 +198,7 @@ export function IssuesView({
       {liveCounts.ALL === 0 ? (
         <EmptyState
           canWrite={canWrite}
+          canSetEstimate={canSetEstimate}
           projectId={projectId}
           members={members}
           onCreated={onCreated}
@@ -276,11 +280,13 @@ function initials(name: string) {
 
 function EmptyState({
   canWrite,
+  canSetEstimate,
   projectId,
   members,
   onCreated,
 }: {
   canWrite: boolean;
+  canSetEstimate: boolean;
   projectId: string;
   members: { userId: string; name: string }[];
   onCreated: (issue: IssueDetailDto) => void;
@@ -306,6 +312,7 @@ function EmptyState({
           <CreateIssueDialog
             projectId={projectId}
             members={members}
+            canSetEstimate={canSetEstimate}
             onCreated={onCreated}
           />
         </div>

@@ -166,6 +166,32 @@ describe("create", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it("a LEAD may set an estimate at creation (ADR-0030 BR-5)", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD");
+    repo.createWithKey.mockResolvedValue(issueRow({ key: "ENG-8" }) as never);
+    await IssueService.create(actor, "proj-1", {
+      type: "TASK",
+      title: "x",
+      priority: "MEDIUM",
+      estimateMinutes: 480,
+    });
+    expect(repo.createWithKey).toHaveBeenCalledWith(
+      expect.objectContaining({ estimateMinutes: 480 }),
+    );
+  });
+
+  it("forbids a MEMBER from setting an estimate at creation (BR-5)", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    await expect(
+      IssueService.create(actor, "proj-1", {
+        type: "TASK",
+        title: "x",
+        priority: "MEDIUM",
+        estimateMinutes: 480,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it("allows an org ADMIN with no project role to create (effective LEAD, ADR-0024)", async () => {
     projects.getMemberRole.mockResolvedValue(null); // not a member…
     repo.createWithKey.mockResolvedValue(issueRow({ key: "ENG-9" }) as never);

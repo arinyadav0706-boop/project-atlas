@@ -30,6 +30,7 @@ import {
 } from "@/shared/components/ui/select";
 import { typeLabel, priorityLabel } from "./issue-meta";
 import { EpicSelect } from "./epic-select";
+import { DurationFields, toMinutes } from "@/features/time-tracking/components/duration-fields";
 import type { IssueDetailDto } from "@/features/issues/types/issue.types";
 
 const TYPES = ["TASK", "STORY", "BUG", "EPIC"] as const;
@@ -39,17 +40,23 @@ export function CreateIssueDialog({
   projectId,
   members,
   withHotkey = false,
+  canSetEstimate = false,
   onCreated,
 }: {
   projectId: string;
   members: { userId: string; name: string }[];
   withHotkey?: boolean;
+  // Estimate is a LEAD-only planning decision (ADR-0030 BR-5); the field only
+  // renders for leads. The server enforces it regardless.
+  canSetEstimate?: boolean;
   // Hands the created issue back so the list can insert it in place — no
   // full-page refresh, no second server round-trip (see issues-view).
   onCreated?: (issue: IssueDetailDto) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [estHours, setEstHours] = useState("");
+  const [estMinutes, setEstMinutes] = useState("");
 
   const form = useForm<CreateIssueInput>({
     resolver: zodResolver(createIssueSchema),
@@ -76,6 +83,7 @@ export function CreateIssueDialog({
   async function onSubmit(input: CreateIssueInput) {
     setSubmitting(true);
     try {
+      const estimate = canSetEstimate ? toMinutes(estHours, estMinutes) || null : undefined;
       const issue = await apiRequest<IssueDetailDto>(
         `/api/projects/${projectId}/issues`,
         {
@@ -84,12 +92,15 @@ export function CreateIssueDialog({
             ...input,
             assigneeId: input.assigneeId || null,
             description: input.description || undefined,
+            estimateMinutes: estimate,
           },
         },
       );
       toast.success(`${issue.key} created`);
       setOpen(false);
       form.reset();
+      setEstHours("");
+      setEstMinutes("");
       onCreated?.(issue);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create the issue.");
@@ -234,6 +245,21 @@ export function CreateIssueDialog({
               </p>
             )}
           </div>
+
+          {canSetEstimate && (
+            <div>
+              <Label>
+                Estimate <span className="font-normal">(optional, lead)</span>
+              </Label>
+              <DurationFields
+                idPrefix="create-estimate"
+                hours={estHours}
+                minutes={estMinutes}
+                onHours={setEstHours}
+                onMinutes={setEstMinutes}
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="issue-description">

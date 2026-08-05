@@ -95,7 +95,7 @@ describe("soft delete", () => {
     const issue = await IssueRepository.createWithKey({
       projectId: project.id, type: "TASK", title: "to delete", description: null,
       priority: "MEDIUM", assigneeId: null, reporterId: user.id, epicId: null,
-      storyPoints: null, dueDate: null, creatorId: user.id,
+      storyPoints: null, dueDate: null, estimateMinutes: null, creatorId: user.id,
     });
 
     await IssueRepository.softDelete(issue.id, user.id);
@@ -117,7 +117,7 @@ describe("issue key generation under concurrency", () => {
         IssueRepository.createWithKey({
           projectId: project.id, type: "TASK", title: "race", description: null,
           priority: "MEDIUM", assigneeId: null, reporterId: user.id, epicId: null,
-          storyPoints: null, dueDate: null, creatorId: user.id,
+          storyPoints: null, dueDate: null, estimateMinutes: null, creatorId: user.id,
         }),
       ),
     );

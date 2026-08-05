@@ -192,6 +192,7 @@ export const IssueRepository = {
     epicId: string | null;
     storyPoints: number | null;
     dueDate: Date | null;
+    estimateMinutes: number | null;
     creatorId: string;
   }) {
     return prisma.$transaction(async (tx) => {
@@ -222,6 +223,7 @@ export const IssueRepository = {
           epicId: input.epicId,
           storyPoints: input.storyPoints,
           dueDate: input.dueDate,
+          estimateMinutes: input.estimateMinutes,
           rank: rankAppend(last?.rank ?? null, input.creatorId),
           createdBy: input.creatorId,
         },

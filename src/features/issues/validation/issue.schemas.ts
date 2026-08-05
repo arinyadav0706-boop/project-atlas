@@ -16,6 +16,9 @@ export const createIssueSchema = z.object({
   epicId: z.string().nullable().optional(),
   storyPoints: z.number().int().min(0).max(100).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  // Optional effort estimate in minutes (time tracking, ADR-0030). Server-side
+  // this is LEAD-only — a non-lead who sends it is rejected (BR-5).
+  estimateMinutes: z.number().int().min(0).max(100000).nullable().optional(),
 });
 
 // Optimistic concurrency (ADR-0011): the card version the client is editing
