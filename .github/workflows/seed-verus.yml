@@ -57,11 +57,46 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Cross-region reality check (runner → Supabase). Prints DNS + raw TCP
+      # reachability for the DB host so a connection failure in the seed step
+      # is diagnosable from the log instead of a guess. Prints host/port only,
+      # never credentials.
+      - name: Check database connectivity
+        run: |
+          HOST=$(node -e "console.log(new URL(process.env.DATABASE_URL).hostname)")
+          PORT=$(node -e "const u=new URL(process.env.DATABASE_URL); console.log(u.port || 5432)")
+          echo "DB host: $HOST:$PORT"
+          echo "--- DNS ---"
+          nslookup "$HOST" || echo "DNS lookup FAILED"
+          echo "--- TCP (15s limit) ---"
+          if timeout 15 bash -c "cat < /dev/null > /dev/tcp/$HOST/$PORT"; then
+            echo "TCP connection OK"
+          else
+            echo "::error::TCP connection to $HOST:$PORT FAILED — the runner cannot reach Supabase at all."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
 
       - name: Generate Prisma client
         run: npx prisma generate
+
+      # GitHub runners sit far from the Mumbai DB; Prisma's default 5s
+      # connect_timeout is too tight for the pooler handshake. Extend it
+      # (and pool_timeout) on the URL without logging the secret.
+      - name: Extend connection timeouts
+        run: |
+          node -e "
+            const u = new URL(process.env.DATABASE_URL);
+            u.searchParams.set('connect_timeout', '30');
+            u.searchParams.set('pool_timeout', '30');
+            require('fs').appendFileSync(process.env.GITHUB_ENV, 'DATABASE_URL=' + u.toString() + '\n');
+            const d = new URL(process.env.DIRECT_URL);
+            d.searchParams.set('connect_timeout', '30');
+            d.searchParams.set('pool_timeout', '30');
+            require('fs').appendFileSync(process.env.GITHUB_ENV, 'DIRECT_URL=' + d.toString() + '\n');
+          "
 
       - name: Seed VERUS
         if: ${{ inputs.action == 'seed' }}
