@@ -1,0 +1,74 @@
+name: Seed VERUS demo data
+
+# Manual, one-click seed/teardown of the VERUS demo org (ADR-0033) run from
+# GitHub's servers — which CAN reach Supabase — so no local setup is needed.
+# It only ever creates/deletes the single org id `verus-demo-org`.
+#
+# Prereq (one time): add a repository secret named DATABASE_URL with your
+# Supabase connection string (copy the same value your Vercel project uses).
+# Optionally add DIRECT_URL too; if absent, DATABASE_URL is reused.
+#
+# Run it: Actions tab → "Seed VERUS demo data" → Run workflow →
+#   action = seed (or teardown), and type VERUS in the confirm box.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [seed, teardown]
+        default: seed
+        required: true
+      confirm:
+        description: 'Type VERUS to confirm you are writing to this database'
+        type: string
+        required: true
+
+concurrency:
+  group: seed-verus
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
+    steps:
+      - name: Guard — confirmation phrase
+        run: |
+          if [ "${{ inputs.confirm }}" != "VERUS" ]; then
+            echo "::error::Confirmation failed. Type VERUS in the confirm box to proceed."
+            exit 1
+          fi
+
+      - name: Guard — DATABASE_URL secret is set
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Repository secret DATABASE_URL is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Seed VERUS
+        if: ${{ inputs.action == 'seed' }}
+        env:
+          SEED_VERUS: confirm
+        run: npm run seed:verus
+
+      - name: Teardown VERUS
+        if: ${{ inputs.action == 'teardown' }}
+        run: npm run seed:verus:teardown
