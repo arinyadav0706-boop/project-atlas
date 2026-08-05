@@ -71,6 +71,8 @@ to this stack. Full context: `docs/00_Product/`, `docs/01_Architecture/`.
 | What's the current program phase / what's next? | `docs/10_Roadmap/01_Development_Roadmap.md` |
 | What have we deferred / what's the go-live checklist? | `docs/10_Roadmap/02_Backlog_and_Tech_Debt.md` |
 | How is this number calculated? (workload, velocity, cycle time…) | `docs/12_Metrics/01_Metric_Definitions.md` |
+| How should a chart look / behave? | `docs/05_UI/03_Data_Visualisation.md` |
+| What do Jira/ClickUp/Asana do about this? | `docs/00_Product/06_Competitive_Landscape.md` |
 | How do we keep it fast/scalable? (pagination, indexes, budgets) | `docs/01_Architecture/05_Performance_and_Scalability.md` |
 
 ## Commit style

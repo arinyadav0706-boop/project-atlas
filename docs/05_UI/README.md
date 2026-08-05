@@ -8,3 +8,4 @@
 Per-screen interaction detail for each module lives in that module's
 `docs/02_Modules/<module>.md §UI`, referencing this shared IA rather than
 repeating it.
+| `03_Data_Visualisation.md` | The chart standard: the in-house SVG chart kit, rules (absolute scale, nothing tooltip-only, never colour alone), per-chart specs, colour semantics. |
