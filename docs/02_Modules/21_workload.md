@@ -28,6 +28,7 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 | BR-8 | **Who may look** (server-side, service layer): a manager may inspect any team they manage plus all its descendants (ADR-0032); an org admin holding `MANAGE_TEAMS` may inspect any team in the organization. Everyone else has an empty scope and sees the empty state. |
 | BR-9 | **Tenant isolation (F-1).** A `teamId` outside the caller's organization — or outside their scope — resolves to `NotFoundError`, never a leak. |
 | BR-10 | Rows sort by remaining effort descending, so the most loaded person is first; ties break by name. |
+| BR-12 | With no `teamId` given, the view opens on the **largest team in scope** (most direct members). An org chart carries thin parent teams ("Engineering · 1 person"); landing on one because it sorts first alphabetically wastes the first screen. The picker itself stays alphabetical for scanning. |
 | BR-11 | The person drill-in lists that person's open issues (key, title, project, status, priority, remaining), most-remaining first, capped at 50, and is subject to the same scope check as the summary. |
 
 ## 3. Database
@@ -40,7 +41,7 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/workload?teamId=<id>` | Scope (selectable teams) + the selected team's rows and totals. `teamId` omitted → the first team in scope. |
+| `GET` | `/api/workload?teamId=<id>` | Scope (selectable teams) + the selected team's rows and totals. `teamId` omitted → the largest team in scope (BR-12). |
 | `GET` | `/api/workload/users/{userId}` | That person's open issues (drill-in), scope-checked. |
 
 `WorkloadDto`:
