@@ -28,10 +28,10 @@ import {
   PROJECTS,
   FIRST_NAMES,
   LAST_NAMES,
-  EPIC_THEMES,
   VERBS,
   NOUNS,
   ROLES,
+  CONTEXTS,
   BUG_PROBLEMS,
   TASK_TEMPLATES,
   DESCRIPTIONS,
@@ -85,7 +85,7 @@ const PRIORITY_WEIGHTS: ReadonlyArray<readonly [IssuePriority, number]> = [
   ["HIGH", 22],
   ["HIGHEST", 8],
 ];
-const NON_EPIC_TYPE_WEIGHTS: ReadonlyArray<readonly [IssueType, number]> = [
+const NON_EPIC_TYPE_WEIGHTS: ReadonlyArray<readonly [Exclude<IssueType, "EPIC">, number]> = [
   ["STORY", 42],
   ["TASK", 36],
   ["BUG", 22],
@@ -100,18 +100,18 @@ const SPRINT_GOALS = [
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const pad = (n: number, w = 3): string => String(n).padStart(w, "0");
 
-function issueTitle(rng: Prng, type: IssueType): string {
+// Epics carry curated per-project names (see ProjectSpec.epics); everything else
+// is composed from the word banks, with a context clause on roughly half of them
+// so the cross-product stays far larger than the issue count.
+function issueTitle(rng: Prng, type: Exclude<IssueType, "EPIC">): string {
   const noun = rng.pick(NOUNS);
-  switch (type) {
-    case "STORY":
-      return `As a ${rng.pick(ROLES)}, I can ${rng.pick(VERBS)} the ${noun}`;
-    case "TASK":
-      return rng.pick(TASK_TEMPLATES).replace("{noun}", noun);
-    case "BUG":
-      return `${cap(noun)} ${rng.pick(BUG_PROBLEMS)}`;
-    case "EPIC":
-      return rng.pick(EPIC_THEMES);
-  }
+  const base =
+    type === "STORY"
+      ? `As a ${rng.pick(ROLES)}, I can ${rng.pick(VERBS)} the ${noun}`
+      : type === "TASK"
+        ? rng.pick(TASK_TEMPLATES).replace("{noun}", noun)
+        : `${cap(noun)} ${rng.pick(BUG_PROBLEMS)}`;
+  return rng.bool(0.5) ? `${base} ${rng.pick(CONTEXTS)}` : base;
 }
 
 export function generateVerus(): VerusDataset {
@@ -295,7 +295,7 @@ export function generateVerus(): VerusDataset {
     }
 
     // ---- Issues ----
-    const epicCount = Math.max(6, Math.round(spec.issueCount * 0.04));
+    const epicCount = spec.epics.length;
     const projectEpicIds: string[] = [];
     let keyNo = 0;
 
@@ -315,7 +315,7 @@ export function generateVerus(): VerusDataset {
         projectId,
         key,
         type: "EPIC",
-        title: `${issueTitle(rng, "EPIC")} (${spec.name})`,
+        title: spec.epics[i]!,
         description: rng.pick(DESCRIPTIONS) || null,
         status: rng.weighted(STATUS_WEIGHTS),
         priority: rng.weighted(PRIORITY_WEIGHTS),
