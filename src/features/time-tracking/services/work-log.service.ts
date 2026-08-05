@@ -13,7 +13,7 @@ import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
-import { elevate, canWriteContent } from "@/features/authorization/permission";
+import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
 import type {
   TimeSummaryDto,
   WorkLogDto,
@@ -119,13 +119,15 @@ export const WorkLogService = {
     const nextCursor = hasMore ? (items.at(-1)?.id ?? null) : null;
     const logged = await WorkLogRepository.sumMinutesByIssue(issueId);
 
-    const canLog = canWrite(role) && context.status !== "ARCHIVED";
+    const writableProject = context.status !== "ARCHIVED";
     return {
       items: items.map((r) => toDto(r, actor, role, context.status)),
       nextCursor,
       summary: buildSummary(issue.estimateMinutes, logged),
-      canLog,
-      canSetEstimate: canLog,
+      // Any member logs their OWN time; only a LEAD sets the planning estimate
+      // (BR-1/BR-5) — a member can't inflate their own budget.
+      canLog: canWrite(role) && writableProject,
+      canSetEstimate: canManageProject(role) && writableProject,
     };
   },
 
@@ -208,7 +210,11 @@ export const WorkLogService = {
     const issue = await IssueRepository.findProjectAndEstimate(issueId);
     if (!issue) throw new NotFoundError("Issue not found.");
     const { context, role } = await resolve(issue.projectId, actor);
-    if (!canWrite(role)) throw new ForbiddenError("You need to be a project member to set the estimate.");
+    // BR-5: the estimate is a planning decision — LEAD only (org admin elevates,
+    // ADR-0024). Members log actual time but can't set/inflate the budget.
+    if (!canManageProject(role)) {
+      throw new ForbiddenError("Only a project lead can set the estimate.");
+    }
     if (context.status === "ARCHIVED") throw new ConflictError("Archived projects are read-only.");
 
     await IssueRepository.setEstimate(issueId, input.estimateMinutes, actor.userId);

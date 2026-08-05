@@ -11,8 +11,9 @@ report reads this data. Inspired by Jira (Tempo) + ClickUp. Self-contained
 
 ## Business Rules
 - **BR-1** Any project MEMBER or LEAD (org ADMIN elevates to LEAD, ADR-0024) may
-  log time on, and set the estimate of, an issue they can see. VIEWER may read
-  but not write. Archived projects are read-only.
+  **log their own time** on an issue they can see. VIEWER may read but not write.
+  Archived projects are read-only. **Setting the estimate is LEAD-only** (BR-5) —
+  a member must not be able to inflate their own budget.
 - **BR-2** A work log is `{minutes, workDate, note?}` by one user. Minutes is a
   positive integer ≤ 1440 (a single log ≤ 24h). `workDate` may not be in the
   future.
@@ -20,8 +21,8 @@ report reads this data. Inspired by Jira (Tempo) + ClickUp. Self-contained
   another user's recorded time is never allowed.
 - **BR-4** The **author or a project LEAD** may delete a log (soft delete).
 - **BR-5** Estimate is `estimateMinutes` on the issue, integer 0…100000,
-  nullable (unset = no estimate). Setting it is last-write-wins (not OCC-bound to
-  the issue edit version).
+  nullable (unset = no estimate). **LEAD-only** (planning decision; org ADMIN
+  elevates). Last-write-wins (not OCC-bound to the issue edit version).
 - **BR-6** Per-issue summary = `{ estimateMinutes, loggedMinutes (Σ non-deleted
   logs), remainingMinutes (estimate − logged, may be negative = over) }`.
 - **BR-7** All reads/writes are org-scoped (F-1) and audited

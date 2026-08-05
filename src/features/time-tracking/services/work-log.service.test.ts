@@ -166,11 +166,19 @@ describe("delete", () => {
 });
 
 describe("setEstimate", () => {
-  it("sets the estimate and returns the refreshed summary", async () => {
+  it("a LEAD sets the estimate and gets the refreshed summary", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD" as never);
     issues.setEstimate.mockResolvedValue({ id: "issue-1", estimateMinutes: 300 } as never);
     logs.sumMinutesByIssue.mockResolvedValue(120 as never);
     const summary = await WorkLogService.setEstimate(actor, "issue-1", { estimateMinutes: 300 });
     expect(summary).toEqual({ estimateMinutes: 300, loggedMinutes: 120, remainingMinutes: 180 });
+  });
+
+  it("forbids a MEMBER (estimate is a LEAD planning decision, BR-5)", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER" as never);
+    await expect(
+      WorkLogService.setEstimate(actor, "issue-1", { estimateMinutes: 300 }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("forbids a VIEWER", async () => {

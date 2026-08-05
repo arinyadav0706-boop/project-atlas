@@ -48,7 +48,7 @@ async function seed(tag: string, status: "ACTIVE" | "ARCHIVED" = "ACTIVE") {
 describe("logging + summary", () => {
   it("sums logged minutes and computes remaining against the estimate", async () => {
     const s = await seed("wa");
-    await WorkLogService.setEstimate(s.actor(s.member), s.issue.id, { estimateMinutes: 240 });
+    await WorkLogService.setEstimate(s.actor(s.lead), s.issue.id, { estimateMinutes: 240 });
     await WorkLogService.create(s.actor(s.member), s.issue.id, { minutes: 90, workDate: "2026-07-20" });
     await WorkLogService.create(s.actor(s.lead), s.issue.id, { minutes: 60, workDate: "2026-07-21" });
 
@@ -61,7 +61,7 @@ describe("logging + summary", () => {
 
   it("reports negative remaining when over the estimate", async () => {
     const s = await seed("wb");
-    await WorkLogService.setEstimate(s.actor(s.member), s.issue.id, { estimateMinutes: 60 });
+    await WorkLogService.setEstimate(s.actor(s.lead), s.issue.id, { estimateMinutes: 60 });
     await WorkLogService.create(s.actor(s.member), s.issue.id, { minutes: 90, workDate: "2026-07-20" });
     const page = await WorkLogService.list(s.actor(s.member), s.issue.id);
     expect(page.summary.remainingMinutes).toBe(-30);
