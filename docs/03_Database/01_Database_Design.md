@@ -341,6 +341,20 @@ Indexes: `(organizationId, deletedAt)`, `(parentTeamId)`, `(managerId)`.
 **hard delete** (audited in `AuditLog`) so `unique(userId)` stays clean on re-add.
 Manager visibility (`getManagedUserIds`) walks `parentTeamId` — see ADR-0032.
 
+### 2.20 Organization working week (ADR-0034 amendment)
+
+`Organization` carries the working-time basis for every capacity metric:
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `workingMinutesPerDay` | `Int` | `480` | Minutes in a working day. Stored in minutes so a 7.5-hour day is exact; edited in hours in the admin UI. |
+| `workingDaysPerWeek` | `Int` | `5` | Working days in a week (1–7). |
+
+`weeklyCapacity = workingMinutesPerDay × workingDaysPerWeek`. Both columns are
+additive with defaults (migration `20260805210000_org_working_week`), so
+existing rows keep the previous 40-hour behaviour. Consumed by Workload
+(module 21); see `docs/12_Metrics/01_Metric_Definitions.md`.
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`

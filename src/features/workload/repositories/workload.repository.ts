@@ -4,6 +4,14 @@ import { prisma } from "@/shared/lib/db";
 // Scope/RBAC and all arithmetic live in the service + lib/capacity.
 
 export const WorkloadRepository = {
+  // The org's working week — the basis of every capacity figure (ADR-0034).
+  workingWeek(organizationId: string) {
+    return prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { workingMinutesPerDay: true, workingDaysPerWeek: true },
+    });
+  },
+
   // Teams in the org with their direct-member counts, for the picker.
   teamsWithCounts(organizationId: string, teamIds?: string[]) {
     return prisma.team.findMany({

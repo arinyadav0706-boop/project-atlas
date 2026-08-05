@@ -41,11 +41,10 @@ across all projects, and visible to the people who manage that team.
    `remaining = max(estimateMinutes − loggedMinutes, 0)`, summed. Work already
    logged is no longer ahead of you; using the raw estimate would double-count
    a nearly-finished issue.
-2. **Reference = a fixed 40-hour week** (`WEEKLY_CAPACITY_MINUTES = 2400`), a
-   documented constant in code — *not* a database field. The headline number is
-   **weeks of queued work** (`remaining ÷ 2400`), which is honest about its own
-   precision and needs no schema change. Per-person capacity is logged in the
-   backlog for when a doc requires it.
+2. **Reference = the organization's own working week** (see the amendment
+   below). The headline number is **weeks of queued work**
+   (`remaining ÷ weeklyCapacity`), which is honest about its own precision.
+   Per-person capacity remains backlog WL-1.
 3. **Status bands** (pure function, unit-tested): `IDLE` (no open issues),
    `LIGHT` (< 0.5 weeks), `BALANCED` (0.5–2 weeks), `OVERLOADED` (> 2 weeks).
    Two weeks of queued work is the "needs rebalancing" line.
@@ -93,3 +92,50 @@ across all projects, and visible to the people who manage that team.
     get much larger.
 - **Follow-up actions required:**
   - Backlog: per-person capacity/leave; SQL-side aggregation if team sizes grow.
+
+
+---
+
+## Amendment (2026-08-05): the working week is per organization
+
+**Status:** Accepted · supersedes the fixed constant in Decision §2.
+
+### Context
+
+The original decision used one hardcoded 40-hour week to avoid inventing a
+schema field for capacity. That was right about per-*person* capacity and wrong
+about the *organization*: EAGLES is sold to companies that work 8 hours over 6
+days, 9 hours over 5, or 7.5 over 5. A hardcoded week silently mis-states every
+capacity figure for all of them, and no admin setting could fix it.
+
+This is a different question from WL-1. Per-person capacity needs leave
+calendars and part-time factors — genuinely complex, still deferred. A company's
+standard week is two integers and a settings field.
+
+### Decision
+
+Store the working week on `Organization`:
+
+- `workingMinutesPerDay Int @default(480)`
+- `workingDaysPerWeek Int @default(5)`
+
+`weeklyCapacity = workingMinutesPerDay × workingDaysPerWeek`. Both columns are
+additive with defaults, so existing rows keep today's behaviour exactly.
+
+- Admins edit it in **Admin → Organization** in hours per day and days per week;
+  the database keeps minutes so half-hour days are exact.
+- The bands (0.5 weeks / 2 weeks) are unchanged and now relative to *that*
+  company's week — "two weeks queued" means two of their weeks.
+- Every screen that shows a capacity figure states the basis
+  ("Based on a 8h × 5 days = 40h week"), so no number is unexplained.
+- A misconfigured or unreadable organization falls back to 40 hours rather than
+  dividing by zero.
+
+### Consequences
+
+- Positive: correct for a 6-day company on day one; a single setting rather than
+  a code change; the arithmetic stays in one pure, tested function.
+- Trade-off: still one week for everyone in the organization. Part-time and
+  leave remain WL-1.
+- Changing the setting re-bands everyone immediately — intended, and the change
+  is written to the audit log like any other org setting.

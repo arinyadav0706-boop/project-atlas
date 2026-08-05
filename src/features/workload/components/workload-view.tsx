@@ -30,6 +30,9 @@ const STATUS_META: Record<WorkloadStatus, { label: string; dot: string; bar: str
   IDLE: { label: "No open work", dot: "bg-muted-foreground/30", bar: "bg-muted-foreground/20" },
 };
 
+// Most urgent first — the whole point of the page is spotting the top group.
+const SECTION_ORDER: WorkloadStatus[] = ["OVERLOADED", "BALANCED", "LIGHT", "IDLE"];
+
 function hours(minutes: number): string {
   return minutes === 0 ? "—" : formatDuration(minutes);
 }
@@ -82,21 +85,19 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
         {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="People" value={String(totals.people)} />
         <Stat label="Open issues" value={String(totals.openIssues)} />
         <Stat label="Work remaining" value={hours(totals.remainingMinutes)} />
         <Stat label="Overloaded" value={String(totals.overloaded)} emphasise={totals.overloaded > 0} />
-        <Stat label="No open work" value={String(totals.idle)} />
       </div>
 
       {totals.unestimated > 0 && (
         <p className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            {totals.unestimated} open {totals.unestimated === 1 ? "issue has" : "issues have"} no
-            estimate, so the totals below understate the real load. Estimates are set by a project
-            lead on the issue.
+            {totals.unestimated} of these {totals.openIssues} open issues have no estimate, so the
+            figures below understate the real load.
           </span>
         </p>
       )}
@@ -106,12 +107,34 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
           This team has no members yet.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {data.rows.map((row) => (
-            <PersonRow key={row.userId} row={row} />
-          ))}
+        // Grouped by status so the eye lands on the people who need attention
+        // instead of scanning 17 near-identical rows.
+        <div className="flex flex-col gap-5">
+          {SECTION_ORDER.map((status) => {
+            const rows = data.rows.filter((r) => r.status === status);
+            if (rows.length === 0) return null;
+            return (
+              <section key={status}>
+                <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)} aria-hidden />
+                  {STATUS_META[status].label}
+                  <span className="font-normal normal-case">({rows.length})</span>
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {rows.map((row) => (
+                    <PersonRow key={row.userId} row={row} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
+
+      <p className="mt-6 text-xs text-muted-foreground">
+        Based on a {data.workingWeek.label}. Two of those weeks queued counts as overloaded.
+        An admin can change it in Admin → Organization.
+      </p>
     </div>
   );
 }
@@ -187,33 +210,27 @@ function PersonRow({ row }: { row: WorkloadRowDto }) {
         </Avatar>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{row.name}</span>
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} aria-hidden />
-            <span className="text-xs text-muted-foreground">{meta.label}</span>
-          </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          {/* Status is the section heading, so the row shows the name only. */}
+          <span className="truncate text-sm font-medium text-foreground">{row.name}</span>
+          <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn("h-full rounded-full", meta.bar)}
               style={{ width: `${loadFraction(row.weeksOfWork) * 100}%` }}
             />
+            {/* The one-week mark: makes "how full is this bar" readable at a glance. */}
+            <span className="absolute inset-y-0 left-1/2 w-px bg-background/70" aria-hidden />
           </div>
         </div>
 
-        <div className="hidden w-28 shrink-0 text-right sm:block">
-          <div className="text-sm font-medium text-foreground">{hours(row.remainingMinutes)}</div>
+        <div className="w-32 shrink-0 text-right">
+          <div className="text-sm font-medium text-foreground">
+            {row.openIssues === 0 ? "—" : `${row.weeksOfWork} wk`}
+          </div>
           <div className="text-xs text-muted-foreground">
-            {row.weeksOfWork > 0 ? `${row.weeksOfWork} wk queued` : "nothing queued"}
+            {row.openIssues === 0
+              ? "no open issues"
+              : `${hours(row.remainingMinutes)} · ${row.openIssues} issues`}
           </div>
-        </div>
-
-        <div className="w-24 shrink-0 text-right">
-          <div className="text-sm text-foreground">
-            {row.openIssues} {row.openIssues === 1 ? "issue" : "issues"}
-          </div>
-          {row.unestimated > 0 && (
-            <div className="text-xs text-muted-foreground">{row.unestimated} unestimated</div>
-          )}
         </div>
       </button>
 

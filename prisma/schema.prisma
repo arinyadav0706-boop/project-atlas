@@ -124,6 +124,14 @@ model Organization {
   name   String
   domain String
 
+  // Working-time basis for every capacity metric (ADR-0034 amendment). A
+  // 6-day/8-hour company and a 5-day/9-hour company must not share one
+  // hardcoded week, and EAGLES is sold to both. Weekly capacity =
+  // workingMinutesPerDay × workingDaysPerWeek. Defaults to a 40-hour week, so
+  // the column is purely additive for existing rows.
+  workingMinutesPerDay Int @default(480)
+  workingDaysPerWeek   Int @default(5)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   createdBy String?

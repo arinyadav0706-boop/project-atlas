@@ -22,7 +22,7 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 | BR-2 | **Open** means `status ≠ DONE` and `deletedAt IS NULL`, in a live (non-deleted) project of the caller's organization. Done work never counts as load. |
 | BR-3 | **Cross-project by construction.** Every project in the organization is included; there is no project filter. A person's load is the sum of what they owe everywhere. |
 | BR-4 | **Unestimated work is counted, never guessed.** An open issue with no estimate increments `openIssues` and `unestimated`, and contributes **0** to remaining effort. No default estimate is ever imputed. |
-| BR-5 | **Weeks of work** = `remainingMinutes ÷ WEEKLY_CAPACITY_MINUTES` (2400 = 8 h × 5 d), a code constant, not a stored field (ADR-0034). |
+| BR-5 | **Weeks of work** = `remainingMinutes ÷ weeklyCapacity`, where `weeklyCapacity = Organization.workingMinutesPerDay × Organization.workingDaysPerWeek` (default 8 h × 5 d = 40 h). Set per organization in Admin → Organization (ADR-0034 amendment); a 6-day company gets 6-day weeks. Every view states the basis it used. |
 | BR-6 | **Status bands:** `IDLE` (no open issues) · `LIGHT` (< 0.5 weeks) · `BALANCED` (0.5–2 weeks) · `OVERLOADED` (> 2 weeks). |
 | BR-7 | **Scope = one team's direct members.** Selecting a parent team does not roll up descendants; each descendant team is separately selectable. |
 | BR-8 | **Who may look** (server-side, service layer): a manager may inspect any team they manage plus all its descendants (ADR-0032); an org admin holding `MANAGE_TEAMS` may inspect any team in the organization. Everyone else has an empty scope and sees the empty state. |
@@ -33,7 +33,11 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 
 ## 3. Database
 
-**No schema change.** Workload reads existing tables only:
+Workload adds two columns to `Organization` (ADR-0034 amendment, migration
+`20260805210000_org_working_week`, additive with defaults):
+`workingMinutesPerDay` (default 480) and `workingDaysPerWeek` (default 5).
+
+Otherwise it reads existing tables only:
 `Team`, `TeamMembership`, `User`, `Issue` (`assigneeId`, `status`,
 `estimateMinutes`), `WorkLog` (`minutes`), `Project` (`organizationId`).
 
@@ -69,12 +73,16 @@ Route `/workload`, reached from the sidebar (shown to team managers and org
 admins — a convenience; the boundary is server-side).
 
 - **Team picker** — the teams in scope, with member counts.
-- **Summary strip** — people, open issues, total remaining, overloaded count,
-  idle count.
-- **Person rows** — avatar, name, team-relative bar (full bar = 2 weeks, the
-  rebalancing line), weeks of work, open-issue count, and an `N unestimated`
-  chip when estimates are missing. Status is conveyed by a coloured band **and**
-  a text label, never colour alone (accessibility).
+- **Summary strip** — people, open issues, total remaining, overloaded count.
+- **Grouped rows** — people are grouped under status headings (Overloaded →
+  Balanced → Has room → No open work) with a count each, so the eye lands on
+  who needs attention instead of scanning N near-identical rows. Status is
+  therefore carried by the heading (text **and** colour, never colour alone).
+- **Person rows** — avatar, name, a bar whose full width is the 2-week
+  rebalancing line with a tick at one week, and two figures only: weeks queued,
+  and `remaining · N issues` beneath it.
+- **Basis footnote** — "Based on a 8h × 5 days = 40h week", so no figure on the
+  page is unexplained (BR-5).
 - **Drill-in** — expanding a row loads that person's open issues, each linking
   to the issue detail page where it can be reassigned.
 - **Empty states** — no scope ("You don't manage a team yet"), empty team, and
@@ -97,14 +105,20 @@ admins — a convenience; the boundary is server-side).
 
 ## 7. Validation
 
-`teamId` and `userId` are `cuid`-shaped strings validated by Zod at the route
-boundary; scope is re-checked in the service for every request (never trusted
-from the client).
+`teamId` and `userId` are validated by Zod at the route boundary as **opaque
+bounded strings** (1–64 chars) — deliberately *not* `.cuid()`, which would
+reject seeded and migrated ids that EAGLES did not mint itself. Id format is
+not a security control here: scope and tenant are re-checked in the service on
+every request, and an unknown id 404s.
+
+Org working-week settings are validated in `admin.schemas.ts`:
+`workingHoursPerDay` 1–24 and `workingDaysPerWeek` an integer 1–7, so a typo
+cannot make every capacity figure meaningless.
 
 ## 8. Future Scope
 
-- Per-person capacity (part-time, leave calendar) — replaces the constant in
-  BR-5 without touching the aggregation. Logged in the backlog.
+- Per-person capacity (part-time, leave calendar) — refines BR-5's org-wide
+  week without touching the aggregation. Backlog WL-1.
 - Optional roll-up of descendant teams behind an explicit toggle.
 - Forecasting ("when will this team be clear?") once velocity lands.
 - Drag-to-reassign directly from the workload row.

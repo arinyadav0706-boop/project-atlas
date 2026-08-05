@@ -11,6 +11,19 @@ export const updateOrganizationSchema = z.object({
     .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Enter a valid domain, e.g. example.com")
     .optional()
     .or(z.literal("")),
+  // Working week (ADR-0034 amendment) — the basis of every capacity figure.
+  // Bounded so a typo can't make the whole workload page meaningless.
+  workingHoursPerDay: z.coerce
+    .number()
+    .min(1, "At least 1 hour")
+    .max(24, "A day has 24 hours")
+    .optional(),
+  workingDaysPerWeek: z.coerce
+    .number()
+    .int()
+    .min(1, "At least 1 day")
+    .max(7, "A week has 7 days")
+    .optional(),
 });
 export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 

@@ -3,6 +3,7 @@ import type { Actor } from "@/shared/types/actor";
 
 vi.mock("@/features/workload/repositories/workload.repository", () => ({
   WorkloadRepository: {
+    workingWeek: vi.fn(),
     teamsWithCounts: vi.fn(),
     findTeam: vi.fn(),
     teamMembers: vi.fn(),
@@ -36,6 +37,7 @@ const user = (id: string, name: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  repo.workingWeek.mockResolvedValue({ workingMinutesPerDay: 480, workingDaysPerWeek: 5 } as never);
   repo.teamsWithCounts.mockResolvedValue([team("t1", "Payments")] as never);
   repo.teamMembers.mockResolvedValue([] as never);
   repo.openIssuesForUsers.mockResolvedValue([] as never);
@@ -164,6 +166,49 @@ describe("aggregation (BR-1..BR-6)", () => {
   it("skips the work-log query entirely when the team has no open issues", async () => {
     await WorkloadService.getWorkload(manager);
     expect(repo.loggedByIssue).not.toHaveBeenCalled();
+  });
+});
+
+describe("the organization's working week drives the bands (ADR-0034 amendment)", () => {
+  beforeEach(() => {
+    repo.teamMembers.mockResolvedValue([user("u1", "Ana")] as never);
+    // 6000 minutes = 100 hours queued.
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u1", estimateMinutes: 6000 },
+    ] as never);
+  });
+
+  it("calls 100h overloaded at a 40-hour week", async () => {
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.rows[0]!.weeksOfWork).toBe(2.5);
+    expect(res.rows[0]!.status).toBe("OVERLOADED");
+    expect(res.workingWeek.label).toBe("8h × 5 days = 40h week");
+  });
+
+  it("calls the SAME 100h balanced at a 6-day, 8-hour company", async () => {
+    repo.workingWeek.mockResolvedValue({
+      workingMinutesPerDay: 480,
+      workingDaysPerWeek: 6,
+    } as never);
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.rows[0]!.weeksOfWork).toBe(2.1); // 6000 / 2880
+    expect(res.workingWeek.weeklyMinutes).toBe(2880);
+  });
+
+  it("reports a 9-hour, 5-day week", async () => {
+    repo.workingWeek.mockResolvedValue({
+      workingMinutesPerDay: 540,
+      workingDaysPerWeek: 5,
+    } as never);
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.workingWeek.label).toBe("9h × 5 days = 45h week");
+    expect(res.rows[0]!.weeksOfWork).toBe(2.2); // 6000 / 2700
+  });
+
+  it("falls back to a 40-hour week when the org row is unreadable", async () => {
+    repo.workingWeek.mockResolvedValue(null as never);
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.workingWeek.weeklyMinutes).toBe(2400);
   });
 });
 

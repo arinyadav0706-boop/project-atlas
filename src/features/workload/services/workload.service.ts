@@ -4,15 +4,20 @@ import { AdminCapability, hasCapability } from "@/features/admin/authz/capabilit
 import { TeamService } from "@/features/teams/services/team.service";
 import { WorkloadRepository } from "@/features/workload/repositories/workload.repository";
 import {
+  DEFAULT_WORKING_WEEK,
+  describeWorkingWeek,
   remainingMinutes,
+  weeklyCapacityMinutes,
   weeksOfWork,
   workloadStatus,
+  type WorkingWeek,
 } from "@/features/workload/lib/capacity";
 import type {
   WorkloadDto,
   WorkloadIssueDto,
   WorkloadRowDto,
   WorkloadTotalsDto,
+  WorkingWeekDto,
 } from "@/features/workload/types/workload.types";
 
 // Business rules: docs/02_Modules/21_workload.md (ADR-0034). RBAC is enforced
@@ -37,11 +42,32 @@ async function resolveScope(actor: Actor): Promise<string[] | null> {
   return TeamService.getManagedTeamIds(actor);
 }
 
+// The org's configured week, falling back rather than failing if the row is
+// unreadable — a missing setting must never break the whole page.
+async function workingWeekFor(organizationId: string): Promise<WorkingWeek> {
+  const row = await WorkloadRepository.workingWeek(organizationId);
+  if (!row) return DEFAULT_WORKING_WEEK;
+  return { minutesPerDay: row.workingMinutesPerDay, daysPerWeek: row.workingDaysPerWeek };
+}
+
+function toWorkingWeekDto(week: WorkingWeek): WorkingWeekDto {
+  return {
+    minutesPerDay: week.minutesPerDay,
+    daysPerWeek: week.daysPerWeek,
+    weeklyMinutes: weeklyCapacityMinutes(week),
+    label: describeWorkingWeek(week),
+  };
+}
+
 export const WorkloadService = {
   async getWorkload(actor: Actor, teamId?: string): Promise<WorkloadDto> {
-    const scope = await resolveScope(actor);
+    const [scope, week] = await Promise.all([
+      resolveScope(actor),
+      workingWeekFor(actor.organizationId),
+    ]);
+    const workingWeek = toWorkingWeekDto(week);
     if (scope !== null && scope.length === 0) {
-      return { teams: [], selectedTeamId: null, rows: [], totals: { ...EMPTY_TOTALS } };
+      return { teams: [], selectedTeamId: null, rows: [], totals: { ...EMPTY_TOTALS }, workingWeek };
     }
 
     const teamRows = await WorkloadRepository.teamsWithCounts(
@@ -54,7 +80,7 @@ export const WorkloadService = {
       memberCount: t._count.memberships,
     }));
     if (teams.length === 0) {
-      return { teams, selectedTeamId: null, rows: [], totals: { ...EMPTY_TOTALS } };
+      return { teams, selectedTeamId: null, rows: [], totals: { ...EMPTY_TOTALS }, workingWeek };
     }
 
     // Default to the biggest team in scope: an org chart has thin parent teams
@@ -68,7 +94,7 @@ export const WorkloadService = {
       throw new NotFoundError("Team not found.");
     }
 
-    const rows = await this.rowsForTeam(actor, selectedTeamId);
+    const rows = await this.rowsForTeam(actor, selectedTeamId, week);
     const totals = rows.reduce<WorkloadTotalsDto>(
       (acc, r) => ({
         people: acc.people + 1,
@@ -81,12 +107,17 @@ export const WorkloadService = {
       { ...EMPTY_TOTALS },
     );
 
-    return { teams, selectedTeamId, rows, totals };
+    return { teams, selectedTeamId, rows, totals, workingWeek };
   },
 
   // Aggregation for one team's direct members (BR-1..BR-7). Two bounded reads:
   // the team's open issues, then their work logs grouped by issue.
-  async rowsForTeam(actor: Actor, teamId: string): Promise<WorkloadRowDto[]> {
+  async rowsForTeam(
+    actor: Actor,
+    teamId: string,
+    week: WorkingWeek = DEFAULT_WORKING_WEEK,
+  ): Promise<WorkloadRowDto[]> {
+    const weeklyCapacity = weeklyCapacityMinutes(week);
     const members = (await WorkloadRepository.teamMembers(teamId)).map((m) => m.user);
     if (members.length === 0) return [];
 
@@ -123,7 +154,7 @@ export const WorkloadService = {
 
     const rows: WorkloadRowDto[] = members.map((m) => {
       const b = byUser.get(m.id)!;
-      const weeks = weeksOfWork(b.remaining);
+      const weeks = weeksOfWork(b.remaining, weeklyCapacity);
       return {
         userId: m.id,
         name: m.name,

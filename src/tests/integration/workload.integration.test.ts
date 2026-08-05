@@ -173,6 +173,38 @@ describe("aggregation across projects (BR-1, BR-3)", () => {
   });
 });
 
+describe("the organization's working week (ADR-0034 amendment)", () => {
+  it("re-bands the SAME work when the company works 6 days instead of 5", async () => {
+    const s = await seed("wz");
+    // 100 hours queued.
+    await s.issue({ projectId: s.alpha.id, key: "A-1", assigneeId: s.ana.id, estimateMinutes: 6000 });
+
+    let res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
+    let ana = res.rows.find((r) => r.userId === s.ana.id)!;
+    expect(res.workingWeek.label).toBe("8h × 5 days = 40h week");
+    expect(ana.weeksOfWork).toBe(2.5);
+    expect(ana.status).toBe("OVERLOADED");
+
+    await prisma.organization.update({
+      where: { id: s.org.id },
+      data: { workingDaysPerWeek: 6 },
+    });
+
+    res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
+    ana = res.rows.find((r) => r.userId === s.ana.id)!;
+    expect(res.workingWeek.label).toBe("8h × 6 days = 48h week");
+    expect(res.workingWeek.weeklyMinutes).toBe(2880);
+    expect(ana.weeksOfWork).toBe(2.1); // 6000 / 2880
+  });
+
+  it("defaults an untouched organization to a 40-hour week", async () => {
+    const s = await seed("wy");
+    const res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
+    expect(res.workingWeek.minutesPerDay).toBe(480);
+    expect(res.workingWeek.daysPerWeek).toBe(5);
+  });
+});
+
 describe("scope and isolation (BR-7, BR-8, BR-9)", () => {
   it("shows a manager only their team's direct members", async () => {
     const s = await seed("wg");
