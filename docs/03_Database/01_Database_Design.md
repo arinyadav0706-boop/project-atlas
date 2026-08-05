@@ -313,6 +313,34 @@ Estimate lives on the issue; actual time is per-user work logs.
 Indexes: `(issueId, deletedAt)` (issue panel), `(userId, workDate)` (V2 workload
 aggregation). RBAC/BRs in `19_time_tracking.md`.
 
+### 2.19 Team + TeamMembership
+**People axis** (V2 Epic 2, ADR-0031/0032, `docs/02_Modules/20_teams.md`).
+Reporting structure orthogonal to `ProjectMember`.
+
+`Team`:
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| organizationId | String (FK → Organization) | F-1 scope |
+| name | String | 1…80 |
+| managerId | String? (FK → User) | the team's manager (sees its work) |
+| parentTeamId | String? (FK → Team) | nesting; cycle-checked in service |
+| + audit fields, deletedAt | | soft delete; delete re-parents children |
+
+Indexes: `(organizationId, deletedAt)`, `(parentTeamId)`, `(managerId)`.
+
+`TeamMembership` — a link row, one team per user in V2:
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| teamId | String (FK → Team) | |
+| userId | String (FK → User) | **unique** (single team, V2) |
+| createdAt / createdBy | | who added, when |
+
+**Exception to soft-delete (rule 9):** membership is a pure link — removal is a
+**hard delete** (audited in `AuditLog`) so `unique(userId)` stays clean on re-add.
+Manager visibility (`getManagedUserIds`) walks `parentTeamId` — see ADR-0032.
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`
