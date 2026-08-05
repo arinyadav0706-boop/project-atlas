@@ -85,7 +85,12 @@ export function TeamsView({
             <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
           </div>
           <div>
-            <Label>Parent team</Label>
+            <Label>
+              Parent team{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional — only for nested org charts)
+              </span>
+            </Label>
             <TeamSelect teams={teams} value={parentId} onChange={setParentId} placeholder="No parent" />
           </div>
           <div className="flex items-end gap-2 sm:col-span-4">
@@ -248,7 +253,12 @@ function TeamRow({
             <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
           </div>
           <div>
-            <Label>Parent team</Label>
+            <Label>
+              Parent team{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional — only for nested org charts)
+              </span>
+            </Label>
             <TeamSelect teams={otherTeams} value={parentId} onChange={setParentId} placeholder="No parent" />
           </div>
           <div className="flex items-end gap-2 sm:col-span-4">
