@@ -184,15 +184,23 @@ async function main(): Promise<void> {
     d.auditLogs.map((a) => ({ ...a, actorId: ridN(a.actorId) })),
   );
 
+  // Personal navigation signals are unique per (user, entityType, entityId).
+  // An adopted owner account can already carry rows from its previous life, so
+  // clear theirs and let any residual collision be skipped rather than abort a
+  // seed that has already written everything else.
+  const ownerIds = d.admins.map((a) => rid(a.id));
+  await prisma.recentItem.deleteMany({ where: { userId: { in: ownerIds } } });
+  await prisma.favorite.deleteMany({ where: { userId: { in: ownerIds } } });
+
   await insertMany<Prisma.RecentItemCreateManyInput>(
     "recent items",
-    (rows) => prisma.recentItem.createMany({ data: rows }),
+    (rows) => prisma.recentItem.createMany({ data: rows, skipDuplicates: true }),
     d.recentItems.map((r) => ({ ...r, userId: rid(r.userId) })),
   );
 
   await insertMany<Prisma.FavoriteCreateManyInput>(
     "favorites",
-    (rows) => prisma.favorite.createMany({ data: rows }),
+    (rows) => prisma.favorite.createMany({ data: rows, skipDuplicates: true }),
     d.favorites.map((f) => ({ ...f, userId: rid(f.userId) })),
   );
 
