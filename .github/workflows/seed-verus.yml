@@ -43,10 +43,12 @@ jobs:
             exit 1
           fi
 
-      - name: Guard — DATABASE_URL secret is set
+      - name: Guard — a database credential is set
+        env:
+          PW: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Repository secret DATABASE_URL is not set. Add it in Settings → Secrets and variables → Actions."
+          if [ -z "$DATABASE_URL" ] && [ -z "$PW" ]; then
+            echo "::error::Set the repository secret SUPABASE_DB_PASSWORD (just the database password) — or DATABASE_URL — in Settings → Secrets and variables → Actions → Secrets tab."
             exit 1
           fi
 
@@ -56,6 +58,29 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # Preferred path: build the connection string from just the DB password,
+      # eliminating every URL-format footgun (username, port, encoding). Falls
+      # back to the DATABASE_URL secret when the password secret is absent.
+      # The password (raw and URL-encoded) is masked before anything is written.
+      - name: Resolve database URL
+        env:
+          PW: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -n "$PW" ]; then
+            echo "::add-mask::$PW"
+            node -e "
+              const pw = encodeURIComponent(process.env.PW.trim());
+              console.log('::add-mask::' + pw);
+              const url = 'postgresql://postgres.bhmbgytzvkkcrttuydis:' + pw + '@aws-1-ap-south-1.pooler.supabase.com:5432/postgres';
+              const fs = require('fs');
+              fs.appendFileSync(process.env.GITHUB_ENV, 'DATABASE_URL=' + url + '\n');
+              fs.appendFileSync(process.env.GITHUB_ENV, 'DIRECT_URL=' + url + '\n');
+            "
+            echo "Using SUPABASE_DB_PASSWORD via the session pooler (postgres.bhmbgytzvkkcrttuydis @ :5432)"
+          else
+            echo "SUPABASE_DB_PASSWORD not set — using the DATABASE_URL secret as-is"
+          fi
 
       # Cross-region reality check (runner → Supabase). Prints DNS + raw TCP
       # reachability for the DB host so a connection failure in the seed step
