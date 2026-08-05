@@ -2,10 +2,27 @@
 // isolation because these few lines are the whole model.
 import type { WorkloadStatus } from "@/features/workload/types/workload.types";
 
-// The reference working week: 8 h × 5 d. Deliberately a constant, NOT a
-// database field — per-person capacity (part-time, leave) is future scope and
-// would replace this without touching the aggregation (ADR-0034, rule 2).
-export const WEEKLY_CAPACITY_MINUTES = 8 * 60 * 5;
+// A company's working week. Stored per organization (ADR-0034 amendment): a
+// 6-day/8-hour company and a 5-day/9-hour company must not share a hardcoded
+// week. Bands below stay relative to whatever this is, so "2 weeks queued"
+// means two of THAT company's weeks.
+export interface WorkingWeek {
+  minutesPerDay: number;
+  daysPerWeek: number;
+}
+
+// Used only when an organization row is somehow unreadable; the real value
+// comes from Organization.workingMinutesPerDay/workingDaysPerWeek.
+export const DEFAULT_WORKING_WEEK: WorkingWeek = { minutesPerDay: 480, daysPerWeek: 5 };
+
+export function weeklyCapacityMinutes(week: WorkingWeek): number {
+  const minutes = week.minutesPerDay * week.daysPerWeek;
+  // Never divide by zero downstream; a misconfigured org falls back rather
+  // than rendering Infinity weeks of work.
+  return minutes > 0
+    ? minutes
+    : DEFAULT_WORKING_WEEK.minutesPerDay * DEFAULT_WORKING_WEEK.daysPerWeek;
+}
 
 // The line at which a person is "overloaded": more than two weeks queued.
 export const OVERLOADED_WEEKS = 2;
@@ -23,9 +40,11 @@ export function remainingMinutes(
   return Math.max(estimateMinutes - loggedMinutes, 0);
 }
 
-// Weeks of queued work, rounded to one decimal for display stability.
-export function weeksOfWork(remaining: number): number {
-  return Math.round((remaining / WEEKLY_CAPACITY_MINUTES) * 10) / 10;
+// Weeks of queued work, rounded to one decimal for display stability. The
+// status band is computed from this same rounded value, so the label always
+// agrees with the number on screen.
+export function weeksOfWork(remaining: number, weeklyCapacity: number): number {
+  return Math.round((remaining / weeklyCapacity) * 10) / 10;
 }
 
 // Status band (BR-6). `openIssues` distinguishes "nothing assigned" from
@@ -41,4 +60,14 @@ export function workloadStatus(weeks: number, openIssues: number): WorkloadStatu
 // Bar fill 0..1, where a full bar is the overloaded line (2 weeks).
 export function loadFraction(weeks: number): number {
   return Math.max(0, Math.min(weeks / OVERLOADED_WEEKS, 1));
+}
+
+// "8h × 5 days = 40h week" — shown wherever a capacity number appears, so the
+// basis is never a mystery.
+export function describeWorkingWeek(week: WorkingWeek): string {
+  const perDay = week.minutesPerDay / 60;
+  const dayLabel = Number.isInteger(perDay) ? `${perDay}h` : `${perDay.toFixed(1)}h`;
+  const weekly = weeklyCapacityMinutes(week) / 60;
+  const weekLabel = Number.isInteger(weekly) ? `${weekly}h` : `${weekly.toFixed(1)}h`;
+  return `${dayLabel} × ${week.daysPerWeek} days = ${weekLabel} week`;
 }

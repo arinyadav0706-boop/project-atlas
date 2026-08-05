@@ -49,7 +49,7 @@ These terms mean exactly this, everywhere:
 | **Logged** | `SUM(WorkLog.minutes)` for live work logs on the issue. Time actually spent. |
 | **Remaining** | `max(estimate − logged, 0)` for an estimated issue; **0** for an unestimated one, which is counted separately. |
 | **Story points** | `Issue.storyPoints` — relative size, unrelated to clock time. `null` counts as 0 in sums. |
-| **Working week** | `WEEKLY_CAPACITY_MINUTES = 2400` (8 h × 5 d) — a code constant, not a per-person field (ADR-0034). |
+| **Working week** | `Organization.workingMinutesPerDay × Organization.workingDaysPerWeek` — set per organization in Admin → Organization, default 8 h × 5 d = 2400 min (ADR-0034 amendment). A 6-day company's "week" is 6 days. Still org-wide, not per person (backlog WL-1). |
 | **Issue types** | `EPIC`, `STORY`, `TASK`, `BUG`. Unless a metric says otherwise, **all four are included** — epics are issues too, and excluding them silently would understate counts. |
 
 ---
@@ -74,7 +74,8 @@ These terms mean exactly this, everywhere:
   organization. Live, not windowed.
 - **Formulas:**
   - `remainingMinutes = Σ remaining(open issues assigned to them)`
-  - `weeksOfWork = round(remainingMinutes ÷ 2400, 1 dp)`
+  - `weeksOfWork = round(remainingMinutes ÷ weeklyCapacity, 1 dp)`, where
+    `weeklyCapacity` is the organization's configured week
   - `unestimated = count(open issues with estimate = null)`
   - bands: `IDLE` (no open issues) · `LIGHT` (< 0.5 wk) · `BALANCED`
     (0.5–2 wk inclusive) · `OVERLOADED` (> 2 wk)
@@ -83,6 +84,9 @@ These terms mean exactly this, everywhere:
 - **Deliberately not counted:** unestimated issues contribute **no** effort, so
   a team that does not estimate reads as light. The UI states this explicitly
   rather than inflating the number.
+- **Same work, different verdict:** 100 hours queued is 2.5 weeks (Overloaded)
+  at a 40-hour company and 2.1 weeks at a 48-hour one. Every view prints the
+  week it used, so the number is never unexplained.
 - **Where:** `src/features/workload/services/workload.service.ts`,
   `lib/capacity.ts` · **Spec:** `docs/02_Modules/21_workload.md` · **ADR-0034**
 - **Tested:** `workload.service.test.ts`, `workload.integration.test.ts`

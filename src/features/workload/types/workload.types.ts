@@ -35,11 +35,21 @@ export interface WorkloadTotalsDto {
   idle: number;
 }
 
+// The organization's working week, so the UI can state the basis of every
+// number instead of implying a universal 40-hour week.
+export interface WorkingWeekDto {
+  minutesPerDay: number;
+  daysPerWeek: number;
+  weeklyMinutes: number;
+  label: string; // e.g. "8h × 5 days = 40h week"
+}
+
 export interface WorkloadDto {
   teams: WorkloadTeamDto[];
   selectedTeamId: string | null;
   rows: WorkloadRowDto[];
   totals: WorkloadTotalsDto;
+  workingWeek: WorkingWeekDto;
 }
 
 // One row of the person drill-in (BR-11).

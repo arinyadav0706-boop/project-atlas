@@ -4,6 +4,9 @@ export interface OrgSettingsDto {
   id: string;
   name: string;
   domain: string;
+  // Working week (ADR-0034 amendment). Hours for the UI; the DB stores minutes.
+  workingHoursPerDay: number;
+  workingDaysPerWeek: number;
   createdAt: string;
   updatedAt: string;
 }
