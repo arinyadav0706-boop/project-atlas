@@ -4,6 +4,7 @@ import {
   LIGHT_WEEKS,
   OVERLOADED_WEEKS,
   describeWorkingWeek,
+  formatCapacityPercent,
   loadFraction,
   remainingMinutes,
   weeklyCapacityMinutes,
@@ -91,6 +92,23 @@ describe("describeWorkingWeek states the basis of every number", () => {
     expect(describeWorkingWeek({ minutesPerDay: 450, daysPerWeek: 5 })).toBe(
       "7.5h × 5 days = 37.5h week",
     );
+  });
+});
+
+describe("formatCapacityPercent never reports real work as 0%", () => {
+  it("shows <1% for a cell that rounds to zero but holds minutes", () => {
+    // 9 minutes of a 45h week is 0.33% — real work that must not read as none.
+    expect(formatCapacityPercent(9, 0)).toBe("<1%");
+  });
+
+  it("shows a plain 0% for a genuinely empty cell", () => {
+    expect(formatCapacityPercent(0, 0)).toBe("0%");
+  });
+
+  it("leaves ordinary percentages alone", () => {
+    expect(formatCapacityPercent(700, 26)).toBe("26%");
+    expect(formatCapacityPercent(2400, 100)).toBe("100%");
+    expect(formatCapacityPercent(3000, 125)).toBe("125%");
   });
 });
 

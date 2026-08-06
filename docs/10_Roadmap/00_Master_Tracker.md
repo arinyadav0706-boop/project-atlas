@@ -173,10 +173,11 @@ module (can't finish until that ships).
 - [ ] **GL-7** load test ~60 concurrent
 - [x] **GL-8** `STORAGE_*` configured in prod ✅ 2026-07-28
 - [ ] 🚩 **GL-9** VERUS demo data absent from any client-handover DB (ADR-0033) — verify `SELECT count(*) FROM organizations WHERE id='verus-demo-org'` is `0`
+- [ ] 🚩 **GL-10** GitHub Actions stopped running 2026-08-06 16:20 UTC — **every merge since is ungated** while the PR page still shows a green Vercel check
 - [ ] **UX-1** premium re-skin (after MVP functionally complete)
 
-**Honest read: three 🚩 P1 gates remain — GL-1, GL-2, GL-9.** GL-5/6/7 are P2
-config-and-validation. Everything else on this list is closed.
+**Honest read: four 🚩 P1 gates remain — GL-1, GL-2, GL-9, GL-10.** GL-5/6/7
+are P2 config-and-validation. Everything else on this list is closed.
 
 ---
 

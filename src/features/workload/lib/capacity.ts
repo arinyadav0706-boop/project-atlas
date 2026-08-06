@@ -62,6 +62,15 @@ export function loadFraction(weeks: number): number {
   return Math.max(0, Math.min(weeks / OVERLOADED_WEEKS, 1));
 }
 
+// A grid cell holding real minutes must never print "0%". Nine minutes of a
+// 45-hour week rounds to zero, and a cell reading "9m / 0%" tells a manager
+// there is nothing there when there is something — the empty/zero/unknown
+// distinction the visualisation rules insist on
+// (docs/05_UI/03_Data_Visualisation.md §4 rule 6).
+export function formatCapacityPercent(minutes: number, percent: number): string {
+  return minutes > 0 && percent === 0 ? "<1%" : `${percent}%`;
+}
+
 // "8h × 5 days = 40h week" — shown wherever a capacity number appears, so the
 // basis is never a mystery.
 export function describeWorkingWeek(week: WorkingWeek): string {
