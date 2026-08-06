@@ -67,11 +67,20 @@ export function statusDonutOption(
         itemStyle: { borderColor: theme.surface, borderWidth: 2 },
         label: { show: false },
         labelLine: { show: false },
-        data: drawn.map((s) => ({
-          name: s.label,
-          value: s.count,
-          itemStyle: { color: toneColor(theme, s.tone) },
-        })),
+        // Grow slightly on hover instead of recolouring. Each segment restates
+        // its own fill so emphasis never falls back to ECharts' derived colour,
+        // which yields nothing at all when the base colour will not parse — the
+        // segment would blank out under the cursor.
+        emphasis: { scale: true, scaleSize: 4 },
+        data: drawn.map((s) => {
+          const color = toneColor(theme, s.tone);
+          return {
+            name: s.label,
+            value: s.count,
+            itemStyle: { color },
+            emphasis: { itemStyle: { color, borderColor: theme.surface, borderWidth: 2 } },
+          };
+        }),
       },
     ],
   };

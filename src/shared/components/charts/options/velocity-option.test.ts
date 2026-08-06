@@ -100,6 +100,42 @@ describe("velocityOption — theming (no hex anywhere)", () => {
   });
 });
 
+// Regression: with no explicit emphasis, ECharts derives the hover fill by
+// lifting the base colour — and produces *no fill* when that colour will not
+// parse, so the hovered bar vanished. See chart-theme.test.ts for the root
+// cause; this asserts the belt-and-braces half of the fix.
+describe("velocityOption — hover can never blank a bar", () => {
+  it("states the emphasis fill explicitly instead of letting ECharts derive it", () => {
+    const option = asAny(velocityOption(sprints, theme));
+    expect(option.series[0].emphasis.itemStyle.color).toBe(theme.accent);
+  });
+
+  it("keeps the emphasis fill identical to the resting fill", () => {
+    const option = asAny(velocityOption(sprints, theme));
+    expect(option.series[0].emphasis.itemStyle.color).toBe(option.series[0].itemStyle.color);
+  });
+
+  it("follows a custom theme into emphasis too", () => {
+    const custom = { ...theme, accent: "hsl(9, 8%, 7%)" };
+    const option = asAny(velocityOption(sprints, custom));
+    expect(option.series[0].emphasis.itemStyle.color).toBe("hsl(9, 8%, 7%)");
+  });
+});
+
+describe("velocityOption — the average label is readable", () => {
+  it("sits on a filled chip rather than bare over the plot area", () => {
+    const label = asAny(velocityOption(sprints, theme)).series[0].markLine.label;
+    expect(label.backgroundColor).toBe(theme.surface);
+    expect(label.color).toBe(theme.foreground);
+    expect(label.borderColor).toBe(theme.border);
+  });
+
+  it("still omits the line entirely when the average is zero (rule 4)", () => {
+    const zeros = sprints.map((s) => ({ ...s, points: 0 }));
+    expect(asAny(velocityOption(zeros, theme)).series[0].markLine).toBeUndefined();
+  });
+});
+
 describe("velocitySummary — the accessible text", () => {
   it("states every sprint, its points and its issue count", () => {
     const summary = velocitySummary(sprints);
