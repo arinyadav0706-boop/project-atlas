@@ -14,17 +14,32 @@ export interface VelocitySprint {
   issues: number;
 }
 
+// Room reserved on the right for the average callout, which sits OUTSIDE the
+// plot area. Inside, it landed on top of the last bar's value label.
+const AVERAGE_GUTTER = 72;
+
 export function velocityOption(sprints: VelocitySprint[], theme: ChartTheme): EChartsOption {
   const average = mean(sprints.map((s) => s.points));
+  const showsAverage = average !== null && average > 0;
 
   return {
-    grid: { left: 8, right: 12, top: 24, bottom: 8, containLabel: true },
+    grid: {
+      left: 8,
+      right: showsAverage ? AVERAGE_GUTTER : 12,
+      top: 24,
+      bottom: 8,
+      containLabel: true,
+    },
     xAxis: {
       type: "category",
       data: sprints.map((s) => s.name),
       axisLabel: {
         color: theme.muted,
         fontSize: 10,
+        // Every sprint gets a label. ECharts hides alternate category labels
+        // when it thinks they will not fit, which silently drops half the
+        // x-axis — a bar with no name underneath is unreadable.
+        interval: 0,
         // Two lines: the short sprint name, then its issue count. Keeping the
         // count out of the tooltip is deliberate — tooltips do not exist on
         // touch (docs/05_UI/03_Data_Visualisation.md rule 3).
@@ -85,20 +100,31 @@ export function velocityOption(sprints: VelocitySprint[], theme: ChartTheme): EC
           color: theme.foreground,
           fontSize: 10,
           fontWeight: 500,
+          // A value sitting close to the average would otherwise be struck
+          // through by the dashed line.
+          backgroundColor: theme.surface,
+          padding: [1, 3],
+          borderRadius: 2,
         },
-        ...(average !== null && average > 0
+        ...(showsAverage
           ? {
               markLine: {
                 silent: true,
                 symbol: "none",
-                lineStyle: { color: theme.foreground, opacity: 0.45, type: "dashed", width: 1 },
-                // A chip, not bare text: at `muted` on top of gridlines and
-                // bars the label was unreadable against the plot area.
+                // No `opacity` here. In ECharts the markLine's lineStyle
+                // opacity applies to the whole element *including its label*,
+                // so 0.45 rendered the callout at 45% and it washed out —
+                // exactly the "have to drain my eyes to read it" report. The
+                // line is distinguished from gridlines by being dashed and
+                // full-strength foreground, not by being faint.
+                lineStyle: { color: theme.foreground, type: "dashed", width: 1 },
                 label: {
-                  formatter: `avg ${Math.round(average * 10) / 10}`,
+                  formatter: `avg ${Math.round(average! * 10) / 10}`,
                   color: theme.foreground,
                   fontSize: 10,
-                  position: "insideEndTop",
+                  fontWeight: 500,
+                  // Outside the plot, in the gutter reserved above.
+                  position: "end",
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
                   borderWidth: 1,

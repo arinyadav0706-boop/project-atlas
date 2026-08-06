@@ -130,6 +130,29 @@ describe("velocityOption — the average label is readable", () => {
     expect(label.borderColor).toBe(theme.border);
   });
 
+  // Regression: lineStyle.opacity on a markLine applies to the whole element,
+  // label included. At 0.45 the callout rendered half-faded and unreadable.
+  it("sets no opacity on the markLine, which would fade the label with it", () => {
+    const markLine = asAny(velocityOption(sprints, theme)).series[0].markLine;
+    expect(markLine.lineStyle.opacity).toBeUndefined();
+  });
+
+  it("places the callout outside the plot so it cannot cover a bar's value", () => {
+    const option = asAny(velocityOption(sprints, theme));
+    expect(option.series[0].markLine.label.position).toBe("end");
+    expect(option.grid.right).toBeGreaterThan(60);
+  });
+
+  it("gives the gutter back when there is no average line to place", () => {
+    const zeros = sprints.map((s) => ({ ...s, points: 0 }));
+    expect(asAny(velocityOption(zeros, theme)).grid.right).toBeLessThan(20);
+  });
+
+  it("backs bar value labels so the dashed line cannot strike through one", () => {
+    const label = asAny(velocityOption(sprints, theme)).series[0].label;
+    expect(label.backgroundColor).toBe(theme.surface);
+  });
+
   it("still omits the line entirely when the average is zero (rule 4)", () => {
     const zeros = sprints.map((s) => ({ ...s, points: 0 }));
     expect(asAny(velocityOption(zeros, theme)).series[0].markLine).toBeUndefined();
