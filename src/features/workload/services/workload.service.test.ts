@@ -261,3 +261,198 @@ describe("drill-in scope (BR-11)", () => {
     expect(res[0]!.remainingMinutes).toBe(900);
   });
 });
+
+// ── The time-phased grid (ADR-0035) ─────────────────────────────────────────
+// The chain and the spreading maths are covered in features/scheduling; these
+// pin the wiring: which column an issue lands in, that inference is marked, and
+// the invariant that the grid never invents or drops a minute.
+
+describe("time-phased grid (BR-13, ADR-0035)", () => {
+  // A Thursday. Horizon: Aug 3–7, Aug 10–14, Aug 17–21, Aug 24–28.
+  const NOW = new Date("2026-08-06T09:00:00.000Z");
+  const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const issue = (over: Record<string, unknown>) => ({
+    assigneeId: "u1",
+    estimateMinutes: null,
+    dueDate: null,
+    sprint: null,
+    ...over,
+  });
+
+  beforeEach(() => {
+    repo.teamMembers.mockResolvedValue([user("u1", "Ana")] as never);
+  });
+
+  const gridRow = async () => {
+    const res = await WorkloadService.getWorkload(manager, undefined, NOW);
+    return { grid: res.grid, row: res.grid.rows.find((r) => r.userId === "u1")!, res };
+  };
+
+  it("labels columns with real dates, not '+2 wk'", async () => {
+    const { grid } = await gridRow();
+    expect(grid.weeks.map((w) => w.label)).toEqual([
+      "Aug 3–7",
+      "Aug 10–14",
+      "Aug 17–21",
+      "Aug 24–28",
+    ]);
+    expect(grid.weeks.filter((w) => w.isCurrent)).toHaveLength(1);
+    expect(grid.weeks[0]!.isCurrent).toBe(true);
+  });
+
+  it("spreads a due date across the weeks from today, rather than spiking in the due week", async () => {
+    // Due Fri 21 Aug: 12 working days from today, so the effort reaches three
+    // columns instead of landing entirely in the third.
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 1200, dueDate: utc("2026-08-21") }),
+    ] as never);
+
+    const { row } = await gridRow();
+    expect(row.weeks.map((w) => w.minutes)).toEqual([200, 500, 500, 0]);
+    expect(row.weeks.every((w) => !w.inferred)).toBe(true);
+  });
+
+  it("falls back to the sprint window and marks the cells as inferred", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({
+        id: "i1",
+        estimateMinutes: 1000,
+        sprint: { startDate: utc("2026-08-03"), endDate: utc("2026-08-14") },
+      }),
+    ] as never);
+
+    const { grid, row } = await gridRow();
+    // The sprint started Monday but three of its days have gone: today through
+    // Friday is 2 days, next week 5.
+    expect(row.weeks.map((w) => w.minutes)).toEqual([286, 714, 0, 0]);
+    expect(row.weeks[0]!.inferred).toBe(true);
+    expect(grid.hasInferred).toBe(true);
+  });
+
+  it("prefers the issue's own due date over its sprint's window", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({
+        id: "i1",
+        estimateMinutes: 600,
+        dueDate: utc("2026-08-07"),
+        sprint: { startDate: utc("2026-08-03"), endDate: utc("2026-08-28") },
+      }),
+    ] as never);
+
+    const { row } = await gridRow();
+    expect(row.weeks.map((w) => w.minutes)).toEqual([600, 0, 0, 0]);
+    expect(row.weeks[0]!.inferred).toBe(false);
+  });
+
+  it("puts a missed due date in Overdue and shows the column", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 300, dueDate: utc("2026-07-30") }),
+    ] as never);
+
+    const { grid, row } = await gridRow();
+    expect(row.overdue.minutes).toBe(300);
+    expect(row.weeks.every((w) => w.minutes === 0)).toBe(true);
+    expect(grid.hasOverdue).toBe(true);
+  });
+
+  it("hides the Overdue column when nothing is late", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 300, dueDate: utc("2026-08-14") }),
+    ] as never);
+
+    const { grid } = await gridRow();
+    expect(grid.hasOverdue).toBe(false);
+  });
+
+  it("carries effort past the horizon into Later instead of dropping it", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 1000, dueDate: utc("2026-11-30") }),
+    ] as never);
+
+    const { grid, row } = await gridRow();
+    expect(row.later.minutes).toBeGreaterThan(0);
+    expect(grid.hasLater).toBe(true);
+  });
+
+  it("puts work with no dates anywhere in Unscheduled, with no percentage", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 900 }),
+    ] as never);
+
+    const { grid, row } = await gridRow();
+    expect(row.unscheduledMinutes).toBe(900);
+    expect(row.weeks.every((w) => w.minutes === 0)).toBe(true);
+    expect(grid.hasOverdue).toBe(false);
+    expect(grid.hasLater).toBe(false);
+  });
+
+  it("colours by share of the person's own weekly capacity", async () => {
+    // A full 40-hour week due this Friday.
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 2400, dueDate: utc("2026-08-07") }),
+    ] as never);
+
+    const { grid, row } = await gridRow();
+    expect(grid.weeklyCapacityMinutes).toBe(2400);
+    expect(row.weeks[0]!.percentOfCapacity).toBe(100);
+  });
+
+  it("rescales those percentages for a six-day company", async () => {
+    repo.workingWeek.mockResolvedValue({
+      workingMinutesPerDay: 480,
+      workingDaysPerWeek: 6,
+    } as never);
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 2400, dueDate: utc("2026-08-07") }),
+    ] as never);
+
+    const { row } = await gridRow();
+    expect(row.weeks[0]!.percentOfCapacity).toBe(83); // 2400 of a 2880-minute week
+  });
+
+  it("never invents or drops a minute — the row sums to the list's number", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", estimateMinutes: 1234, dueDate: utc("2026-08-21") }),
+      issue({ id: "i2", estimateMinutes: 777, dueDate: utc("2026-07-01") }),
+      issue({ id: "i3", estimateMinutes: 999 }),
+      issue({ id: "i4", estimateMinutes: 5000, dueDate: utc("2027-01-15") }),
+      issue({
+        id: "i5",
+        estimateMinutes: 640,
+        sprint: { startDate: utc("2026-08-10"), endDate: utc("2026-08-21") },
+      }),
+      issue({ id: "i6", estimateMinutes: null, dueDate: utc("2026-08-12") }),
+    ] as never);
+    repo.loggedByIssue.mockResolvedValue([{ issueId: "i1", _sum: { minutes: 34 } }] as never);
+
+    const { row, res } = await gridRow();
+    const cells =
+      row.overdue.minutes +
+      row.weeks.reduce((a, w) => a + w.minutes, 0) +
+      row.later.minutes +
+      row.unscheduledMinutes;
+
+    expect(cells).toBe(row.totalMinutes);
+    expect(row.totalMinutes).toBe(res.rows.find((r) => r.userId === "u1")!.remainingMinutes);
+    expect(row.totalMinutes).toBe(1200 + 777 + 999 + 5000 + 640);
+  });
+
+  it("keeps the grid in the same order as the list, so the toggle doesn't shuffle", async () => {
+    repo.teamMembers.mockResolvedValue([user("u1", "Ana"), user("u2", "Bo")] as never);
+    repo.openIssuesForUsers.mockResolvedValue([
+      issue({ id: "i1", assigneeId: "u1", estimateMinutes: 60 }),
+      issue({ id: "i2", assigneeId: "u2", estimateMinutes: 6000 }),
+    ] as never);
+
+    const res = await WorkloadService.getWorkload(manager, undefined, NOW);
+    expect(res.grid.rows.map((r) => r.userId)).toEqual(res.rows.map((r) => r.userId));
+    expect(res.grid.rows.map((r) => r.userId)).toEqual(["u2", "u1"]);
+  });
+
+  it("still returns week columns for a team with no members", async () => {
+    repo.teamMembers.mockResolvedValue([] as never);
+    const res = await WorkloadService.getWorkload(manager, undefined, NOW);
+    expect(res.grid.weeks).toHaveLength(4);
+    expect(res.grid.rows).toEqual([]);
+  });
+});

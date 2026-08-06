@@ -30,6 +30,9 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 | BR-10 | Rows sort by remaining effort descending, so the most loaded person is first; ties break by name. |
 | BR-12 | With no `teamId` given, the view opens on the **largest team in scope** (most direct members). An org chart carries thin parent teams ("Engineering · 1 person"); landing on one because it sorts first alphabetically wastes the first screen. The picker itself stays alphabetical for scanning. |
 | BR-11 | The person drill-in lists that person's open issues (key, title, project, status, priority, remaining), most-remaining first, capped at 50, and is subject to the same scope check as the summary. |
+| BR-13 | **Time phasing (ADR-0035).** Each open issue's remaining effort is placed in time by the scheduling chain, first match wins: (1) the issue's own `startDate`+`dueDate` — *dormant, the column does not exist yet (WL-4)*; (2) `dueDate` alone → spread from **today** to the due date; (3) the issue's sprint `startDate`+`endDate`; (4) none of these → **Unscheduled**. A window is clamped to today, and a window whose end has already passed becomes **Overdue** — that covers both a missed due date and work still open in a sprint that has ended. Effort divides evenly across the **working days** of the window (BR-5's week), then sums into UTC Monday-start week buckets. |
+| BR-14 | **The grid never invents or drops effort.** A person's Overdue + four week columns + Later + Unscheduled always sums exactly to the `remainingMinutes` the list view shows for them. `Later` exists precisely to hold effort spreading beyond the fourth week, so the horizon cannot silently swallow it. |
+| BR-15 | **Inference is visible.** Effort placed from *sprint* dates rather than the issue's own is marked in the UI (`S`), because a manager must be able to tell a real date from a guess. |
 
 ## 3. Database
 
@@ -39,7 +42,14 @@ Workload adds two columns to `Organization` (ADR-0034 amendment, migration
 
 Otherwise it reads existing tables only:
 `Team`, `TeamMembership`, `User`, `Issue` (`assigneeId`, `status`,
-`estimateMinutes`), `WorkLog` (`minutes`), `Project` (`organizationId`).
+`estimateMinutes`, `dueDate`), `WorkLog` (`minutes`), `Project`
+(`organizationId`), and `Sprint` (`startDate`, `endDate`) through the issue's
+sprint relation.
+
+**The time-phased grid adds no schema at all** (ADR-0035). It reads the dates
+the team already keeps. `Issue.startDate` is deliberately *not* introduced —
+it stays as backlog **WL-4**, owned by the Gantt/Timeline module, which unlike
+workload cannot function without it.
 
 ## 4. API
 
@@ -63,6 +73,24 @@ Otherwise it reads existing tables only:
   "totals": {
     "people": 8, "openIssues": 91, "unestimated": 30,
     "remainingMinutes": 28800, "overloaded": 2, "idle": 1
+  },
+
+  // The same effort as `rows`, redistributed across weeks (BR-13, ADR-0035).
+  // One service call feeds both views, so they cannot disagree.
+  "grid": {
+    "weeks": [{ "start": "2026-08-03T00:00:00.000Z", "label": "Aug 3–7", "isCurrent": true }],
+    "rows": [{
+      "userId": "…", "name": "…", "avatarUrl": null,
+      "overdue": { "minutes": 360, "percentOfCapacity": 15, "inferred": false },
+      "weeks":  [{ "minutes": 1920, "percentOfCapacity": 80, "inferred": true }],
+      "later":  { "minutes": 0, "percentOfCapacity": 0, "inferred": false },
+      "unscheduledMinutes": 1500,
+      "totalMinutes": 3780          // === rows[].remainingMinutes (BR-14)
+    }],
+    "hasOverdue": true,             // column shown only when non-empty
+    "hasLater": false,
+    "hasInferred": true,            // any cell placed from sprint dates
+    "weeklyCapacityMinutes": 2400
   }
 }
 ```
@@ -100,6 +128,33 @@ admins — a convenience; the boundary is server-side).
 - **Empty states** — no scope ("You don't manage a team yet"), empty team, and
   a team where nobody has open work.
 
+### 5.1 The "By week" grid (ADR-0035)
+
+A **By person / By week** toggle sits beside the team picker. "By person" (the
+list above) stays the default and answers *who is overloaded*; "By week" answers
+*when*. Both render from the same response.
+
+- **Columns** — `Overdue` · four week columns · `Later` · `Unscheduled`.
+  Overdue and Later appear only when they carry something, so the grid reflows
+  rather than showing a permanently empty red column.
+- **Headers are real dates** — `Aug 3–7`, with "this week" marked. Never
+  `+2 wk`: a manager should recognise the week from their own calendar instead
+  of counting forward.
+- **Cells show hours *and* percentage.** The hours are the magnitude, the
+  percentage of that person's weekly capacity is the pressure, and the
+  background is a single-hue opacity ramp of that same percentage. Over 100%
+  additionally gets a ring and destructive-coloured text — never colour alone.
+- **`S` marker** — the cell's effort was placed from the issue's *sprint* dates
+  rather than its own due date (BR-15), with a legend beneath the grid.
+- **Unscheduled shows a plain number, not a percentage** — there is no time
+  period for it to be a percentage of.
+- **Sticky first column, horizontal scroll inside the grid's own container**,
+  never the page.
+- Rendered as a semantic `<table>`, not an ECharts canvas — see ADR-0035 §7 for
+  why this is a deliberate exception to ADR-0036.
+- **Basis footnote** — how the placement works, in one sentence, stating it is
+  demand by due date and not a plan.
+
 ## 6. Acceptance Criteria
 
 1. A manager of a team sees exactly its direct members, sorted most-loaded first.
@@ -114,6 +169,19 @@ admins — a convenience; the boundary is server-side).
 8. A user in another organization requesting the same `teamId` receives 404.
 9. A person assigned work in three projects shows the combined total.
 10. The drill-in lists only that person's open issues, most-remaining first.
+11. An issue estimated 20 h due three weeks out appears spread across the
+    intervening week columns, not lumped into the third (BR-13 rule 2).
+12. An issue with no due date, in a sprint ending next week, lands in next
+    week's column and is marked `S` (BR-13 rule 3, BR-15).
+13. An issue with both a due date and a sprint is placed by its **due date**,
+    and is not marked `S`.
+14. An issue whose due date has passed appears in `Overdue`; so does an issue
+    still open in a sprint that ended.
+15. An issue with neither a due date nor a sprint appears in `Unscheduled`.
+16. Every grid row's columns sum exactly to that person's `remainingMinutes`
+    in the list view, including when work spreads past the horizon (BR-14).
+17. A team with nothing overdue sees no `Overdue` column.
+18. The grid lists people in the same order as the list view.
 
 ## 7. Validation
 
@@ -131,6 +199,15 @@ cannot make every capacity figure meaningless.
 
 - Per-person capacity (part-time, leave calendar) — refines BR-5's org-wide
   week without touching the aggregation. Backlog WL-1.
+- `Issue.startDate`, which activates rule 1 of the scheduling chain and lets
+  effort spread across an explicit range. Backlog **WL-4**, owned by the
+  Gantt/Timeline module.
+- Clicking a grid cell to list the issues behind it, under the BR-11 scope
+  check. Backlog **WL-5**.
+- A configurable date source, as Jira's plan settings offer — the chain is
+  already an ordered list, so this is configuration rather than a rewrite.
+- Due date as a *deadline constraint*: warn when sprint-derived scheduling
+  pushes work past its due date (Jira does this).
 - Optional roll-up of descendant teams behind an explicit toggle.
 - Forecasting ("when will this team be clear?") once velocity lands.
 - Drag-to-reassign directly from the workload row.

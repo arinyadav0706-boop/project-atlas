@@ -60,6 +60,8 @@ export const WorkloadRepository = {
 
   // Open issues (BR-2) assigned to these people, across every live project in
   // the organization (BR-3). Minimal columns — this is an aggregation input.
+  // The dates feed the scheduling chain (BR-13, ADR-0035); the sprint join is
+  // the fallback source when an issue carries no due date of its own.
   openIssuesForUsers(userIds: string[], organizationId: string) {
     return prisma.issue.findMany({
       where: {
@@ -68,7 +70,13 @@ export const WorkloadRepository = {
         deletedAt: null,
         project: { organizationId, deletedAt: null },
       },
-      select: { id: true, assigneeId: true, estimateMinutes: true },
+      select: {
+        id: true,
+        assigneeId: true,
+        estimateMinutes: true,
+        dueDate: true,
+        sprint: { select: { startDate: true, endDate: true } },
+      },
     });
   },
 
