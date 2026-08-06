@@ -113,7 +113,7 @@ and product decisions — that would otherwise get lost between modules.
 | UX-5 | Board per-column "load more" (very large columns) | P3 | No | OPEN | Columns are capped at `BOARD_COLUMN_LIMIT`=100 in V1 (ADR-0008 / Perf doc). At the cap the lowest-ranked tail is omitted; add per-column keyset "load more". |
 | UX-6 | Board **live cross-column drag preview** (dnd-kit `onDragOver`) | P3 | No | OPEN | V1 re-lays columns optimistically on **drop** (`onDragEnd`) only — the drag itself doesn't show the card crossing columns live. Fine for "basic UI"; polish with the premium pass (UX-1). |
 | FUT-3 | Board **Saved Filters** (stored named `BoardFilter`) | P3 | No | OPEN | Reuses the ADR-0008 filter contract; future table. |
-| FUT-4 | Board filters not yet activated: **Sprint, Epic, Label** | P3 | No | OPEN | The `BoardFilter` contract + server `where` already accept them (ADR-0008); V1 filter bar exposes only assignee/type/priority (data that exists). Add controls as those modules ship — no board redesign. |
+| FUT-4 | Board filter: **Sprint** control still missing | P3 | No | PARTIAL | The `BoardFilter` contract + server `where` accept sprint/epic/assignee/type/priority/labels/components (ADR-0008). The bar now exposes **Assignee, Type, Priority, Epic, Components, Labels** — Epic landed with ADR-0026, Labels/Components with ADR-0018. Only **Sprint** remains, and it is a control here, not a board redesign. *(Corrected 2026-08-07: this row previously claimed the bar exposed only assignee/type/priority, which had been untrue since 2026-07-27.)* |
 | UX-3 | Consistent empty / loading / error states pass | P3 | No | OPEN | |
 
 ## Sprint/Backlog page — deferred UI (depends on future modules)
