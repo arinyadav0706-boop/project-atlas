@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
@@ -13,8 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import {
+  Chart,
+  capacityBarsHeight,
+  capacityBarsOption,
+  capacityBarsSummary,
+  distributionBarOption,
+  distributionBarSummary,
+  type CapacityBar,
+  type CapacityReference,
+  type ChartTheme,
+  type ChartTone,
+  type DistributionSegment,
+} from "@/shared/components/charts";
 import { formatDuration } from "@/features/time-tracking/lib/duration";
-import { loadFraction } from "@/features/workload/lib/capacity";
+import { LIGHT_WEEKS, OVERLOADED_WEEKS } from "@/features/workload/lib/capacity";
 import type {
   WorkloadDto,
   WorkloadIssueDto,
@@ -23,18 +36,34 @@ import type {
 } from "@/features/workload/types/workload.types";
 
 // Status is carried by a label AND a colour, never colour alone (21_workload.md §5).
-const STATUS_META: Record<WorkloadStatus, { label: string; dot: string; bar: string }> = {
-  OVERLOADED: { label: "Overloaded", dot: "bg-destructive", bar: "bg-destructive" },
-  BALANCED: { label: "Balanced", dot: "bg-accent", bar: "bg-accent" },
-  LIGHT: { label: "Has room", dot: "bg-muted-foreground/60", bar: "bg-muted-foreground/50" },
-  IDLE: { label: "No open work", dot: "bg-muted-foreground/30", bar: "bg-muted-foreground/20" },
+// `tone` is the same meaning expressed for the canvas, so a status is never one
+// colour in a chart and a different one in a row.
+const STATUS_META: Record<WorkloadStatus, { label: string; dot: string; tone: ChartTone }> = {
+  OVERLOADED: { label: "Overloaded", dot: "bg-destructive", tone: "danger" },
+  BALANCED: { label: "Balanced", dot: "bg-accent", tone: "accent" },
+  LIGHT: { label: "Has room", dot: "bg-success", tone: "success" },
+  IDLE: { label: "No open work", dot: "bg-muted-foreground/40", tone: "neutral" },
 };
 
 // Most urgent first — the whole point of the page is spotting the top group.
 const SECTION_ORDER: WorkloadStatus[] = ["OVERLOADED", "BALANCED", "LIGHT", "IDLE"];
 
+// The band edges from BR-6, drawn on the chart so the colours are explained by
+// the axis rather than only by the legend.
+const CAPACITY_REFERENCES: CapacityReference[] = [
+  { weeks: LIGHT_WEEKS, label: `${LIGHT_WEEKS} wk` },
+  { weeks: OVERLOADED_WEEKS, label: `${OVERLOADED_WEEKS} wk` },
+];
+
 function hours(minutes: number): string {
   return minutes === 0 ? "—" : formatDuration(minutes);
+}
+
+function rowCaption(row: WorkloadRowDto): string {
+  if (row.openIssues === 0) return "no open work";
+  return `${hours(row.remainingMinutes)} · ${row.openIssues} ${
+    row.openIssues === 1 ? "issue" : "issues"
+  }`;
 }
 
 export function WorkloadView({ initial }: { initial: WorkloadDto }) {
@@ -107,6 +136,10 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
           This team has no members yet.
         </p>
       ) : (
+        <TeamCharts rows={data.rows} />
+      )}
+
+      {data.rows.length === 0 ? null : (
         // Grouped by status so the eye lands on the people who need attention
         // instead of scanning 17 near-identical rows.
         <div className="flex flex-col gap-5">
@@ -135,6 +168,72 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
         Based on a {data.workingWeek.label}. Two of those weeks queued counts as overloaded.
         An admin can change it in Admin → Organization.
       </p>
+    </div>
+  );
+}
+
+// The shape of the team, then every person on one comparable axis. Reading
+// beats scanning: the mini bars these replace had no ticks, so "how full" was
+// unanswerable and two people in different status groups could not be compared
+// (docs/05_UI/03_Data_Visualisation.md §7, backlog UI-2).
+function TeamCharts({ rows }: { rows: WorkloadRowDto[] }) {
+  const segments: DistributionSegment[] = useMemo(
+    () =>
+      SECTION_ORDER.map((status) => ({
+        key: status,
+        label: STATUS_META[status].label,
+        count: rows.filter((r) => r.status === status).length,
+        tone: STATUS_META[status].tone,
+      })),
+    [rows],
+  );
+
+  // Already sorted most-loaded first by the service (BR-10); the chart keeps
+  // that order so it reads in the same sequence as the rows beneath it.
+  const bars: CapacityBar[] = useMemo(
+    () =>
+      rows.map((row) => ({
+        key: row.userId,
+        label: row.name,
+        weeks: row.weeksOfWork,
+        tone: STATUS_META[row.status].tone,
+        caption: rowCaption(row),
+      })),
+    [rows],
+  );
+
+  const mixOption = useCallback(
+    (theme: ChartTheme) => distributionBarOption(segments, theme),
+    [segments],
+  );
+  const barsOption = useCallback(
+    (theme: ChartTheme) => capacityBarsOption(bars, CAPACITY_REFERENCES, theme),
+    [bars],
+  );
+
+  return (
+    <div className="mb-5 flex flex-col gap-4">
+      <section className="rounded-lg border border-border bg-background px-4 py-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Team mix
+        </h2>
+        <Chart
+          buildOption={mixOption}
+          height={78}
+          summary={distributionBarSummary(segments, "people")}
+        />
+      </section>
+
+      <section className="rounded-lg border border-border bg-background px-4 py-3">
+        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Weeks queued per person
+        </h2>
+        <Chart
+          buildOption={barsOption}
+          height={capacityBarsHeight(bars.length)}
+          summary={capacityBarsSummary(bars)}
+        />
+      </section>
     </div>
   );
 }
@@ -178,7 +277,6 @@ function PersonRow({ row }: { row: WorkloadRowDto }) {
   const [open, setOpen] = useState(false);
   const [issues, setIssues] = useState<WorkloadIssueDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const meta = STATUS_META[row.status];
 
   async function toggle() {
     const next = !open;
@@ -209,28 +307,17 @@ function PersonRow({ row }: { row: WorkloadRowDto }) {
           <AvatarFallback className="text-xs">{row.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
 
-        <div className="min-w-0 flex-1">
-          {/* Status is the section heading, so the row shows the name only. */}
-          <span className="truncate text-sm font-medium text-foreground">{row.name}</span>
-          <div className="relative mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn("h-full rounded-full", meta.bar)}
-              style={{ width: `${loadFraction(row.weeksOfWork) * 100}%` }}
-            />
-            {/* The one-week mark: makes "how full is this bar" readable at a glance. */}
-            <span className="absolute inset-y-0 left-1/2 w-px bg-background/70" aria-hidden />
-          </div>
-        </div>
+        {/* Status is the section heading, and the load bar now lives in the
+            chart above, so the row carries the name and the two figures only. */}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {row.name}
+        </span>
 
-        <div className="w-32 shrink-0 text-right">
+        <div className="w-36 shrink-0 text-right">
           <div className="text-sm font-medium text-foreground">
             {row.openIssues === 0 ? "—" : `${row.weeksOfWork} wk`}
           </div>
-          <div className="text-xs text-muted-foreground">
-            {row.openIssues === 0
-              ? "no open issues"
-              : `${hours(row.remainingMinutes)} · ${row.openIssues} issues`}
-          </div>
+          <div className="text-xs text-muted-foreground">{rowCaption(row)}</div>
         </div>
       </button>
 

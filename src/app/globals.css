@@ -17,6 +17,11 @@
   --muted-foreground: 240 4% 46%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
+  /* Status tones (docs/05_UI/03_Data_Visualisation.md §6). Charts read these
+     off the document at runtime, so they must exist as tokens or every chart
+     silently falls back to a hard-coded colour and stops following the theme. */
+  --success: 142 71% 40%;
+  --warning: 38 92% 46%;
 }
 
 /* Dark theme — applied only when the `dark` class is set on <html>
@@ -33,6 +38,9 @@
   --muted-foreground: 215 18% 62%;
   --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 100%;
+  /* Lifted for contrast against the dark surface, as accent and destructive are. */
+  --success: 142 64% 48%;
+  --warning: 38 92% 56%;
 }
 
 * {

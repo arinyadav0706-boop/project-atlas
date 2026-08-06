@@ -26,3 +26,15 @@ export {
   statusDonutSummary,
   type StatusSegment,
 } from "./options/status-donut-option";
+export {
+  distributionBarOption,
+  distributionBarSummary,
+  type DistributionSegment,
+} from "./options/distribution-bar-option";
+export {
+  capacityBarsOption,
+  capacityBarsSummary,
+  capacityBarsHeight,
+  type CapacityBar,
+  type CapacityReference,
+} from "./options/capacity-bars-option";
