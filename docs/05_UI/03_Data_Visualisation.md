@@ -141,4 +141,12 @@ rainbow, which invents categories that do not exist.
    (fixed with `z` below the series), and an axis max derived as `1.15 ×`
    the busiest value produces tick labels like "3.91 wk" (rounded up to a
    half week).
-4. `HeatGrid` when ADR-0035 (time-phased workload) is accepted.
+4. ✅ **Done 2026-08-06 (WL-3).** `HeatGrid` — the workload people × weeks grid,
+   shipped with ADR-0035. Built as a semantic `<table>` rather than an ECharts
+   canvas, and that is a decision this document forced rather than a deviation
+   from it: §4 rule 3 says values may not live only in a tooltip, rule 10
+   requires cells to be reachable, and §5 asks for a sticky first column. A
+   canvas delivers none of the three. The colour ramp follows §6 — one hue's
+   opacity, with over-capacity carrying a ring and a destructive-toned label so
+   the signal never rests on colour alone. ADR-0035 §7 records the exception to
+   ADR-0036 so it does not read as drift.

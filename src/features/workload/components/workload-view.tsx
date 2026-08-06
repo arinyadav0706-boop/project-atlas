@@ -28,6 +28,7 @@ import {
 } from "@/shared/components/charts";
 import { formatDuration } from "@/features/time-tracking/lib/duration";
 import { LIGHT_WEEKS, OVERLOADED_WEEKS } from "@/features/workload/lib/capacity";
+import { WorkloadGrid } from "@/features/workload/components/workload-grid";
 import type {
   WorkloadDto,
   WorkloadIssueDto,
@@ -66,9 +67,14 @@ function rowCaption(row: WorkloadRowDto): string {
   }`;
 }
 
+// Two questions, two views of one service call: the list answers "who is
+// overloaded", the grid answers "when" (ADR-0035). The list stays the default.
+type ViewMode = "list" | "grid";
+
 export function WorkloadView({ initial }: { initial: WorkloadDto }) {
   const [data, setData] = useState<WorkloadDto>(initial);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("list");
 
   const selectTeam = useCallback(async (teamId: string) => {
     setLoading(true);
@@ -111,6 +117,14 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="View">
+          <ModeButton current={mode} value="list" onSelect={setMode}>
+            By person
+          </ModeButton>
+          <ModeButton current={mode} value="grid" onSelect={setMode}>
+            By week
+          </ModeButton>
+        </div>
         {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
 
@@ -135,40 +149,69 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
         <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
           This team has no members yet.
         </p>
+      ) : mode === "grid" ? (
+        <WorkloadGrid grid={data.grid} workingWeek={data.workingWeek} />
       ) : (
-        <TeamCharts rows={data.rows} />
-      )}
+        <>
+          <TeamCharts rows={data.rows} />
 
-      {data.rows.length === 0 ? null : (
-        // Grouped by status so the eye lands on the people who need attention
-        // instead of scanning 17 near-identical rows.
-        <div className="flex flex-col gap-5">
-          {SECTION_ORDER.map((status) => {
-            const rows = data.rows.filter((r) => r.status === status);
-            if (rows.length === 0) return null;
-            return (
-              <section key={status}>
-                <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)} aria-hidden />
-                  {STATUS_META[status].label}
-                  <span className="font-normal normal-case">({rows.length})</span>
-                </h2>
-                <div className="flex flex-col gap-2">
-                  {rows.map((row) => (
-                    <PersonRow key={row.userId} row={row} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
+          {/* Grouped by status so the eye lands on the people who need attention
+              instead of scanning 17 near-identical rows. */}
+          <div className="flex flex-col gap-5">
+            {SECTION_ORDER.map((status) => {
+              const rows = data.rows.filter((r) => r.status === status);
+              if (rows.length === 0) return null;
+              return (
+                <section key={status}>
+                  <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)} aria-hidden />
+                    {STATUS_META[status].label}
+                    <span className="font-normal normal-case">({rows.length})</span>
+                  </h2>
+                  <div className="flex flex-col gap-2">
+                    {rows.map((row) => (
+                      <PersonRow key={row.userId} row={row} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
 
-      <p className="mt-6 text-xs text-muted-foreground">
-        Based on a {data.workingWeek.label}. Two of those weeks queued counts as overloaded.
-        An admin can change it in Admin → Organization.
-      </p>
+          <p className="mt-6 text-xs text-muted-foreground">
+            Based on a {data.workingWeek.label}. Two of those weeks queued counts as overloaded.
+            An admin can change it in Admin → Organization.
+          </p>
+        </>
+      )}
     </div>
+  );
+}
+
+function ModeButton({
+  current,
+  value,
+  onSelect,
+  children,
+}: {
+  current: ViewMode;
+  value: ViewMode;
+  onSelect: (mode: ViewMode) => void;
+  children: React.ReactNode;
+}) {
+  const active = current === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      aria-pressed={active}
+      className={cn(
+        "rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

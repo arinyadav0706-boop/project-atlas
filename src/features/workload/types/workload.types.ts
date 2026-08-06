@@ -44,10 +44,60 @@ export interface WorkingWeekDto {
   label: string; // e.g. "8h × 5 days = 40h week"
 }
 
+// ── The time-phased grid (ADR-0035) ─────────────────────────────────────────
+// The same effort as `rows`, redistributed across calendar weeks. Nothing is
+// invented or dropped: every row's cells sum to its `totalMinutes`, which is
+// the `remainingMinutes` the list view shows for that person.
+
+export interface WorkloadWeekDto {
+  // ISO date of the week's Monday (UTC).
+  start: string;
+  // "Aug 3–7" — a real week the reader can find in their own calendar, never
+  // "+2 wk" (ADR-0035 §3).
+  label: string;
+  isCurrent: boolean;
+}
+
+export interface WorkloadGridCellDto {
+  minutes: number;
+  // Share of that person's weekly capacity. The cell prints hours and colours
+  // by this, so magnitude and pressure are both readable (ADR-0035 §4).
+  percentOfCapacity: number;
+  // Some of this effort was placed from SPRINT dates, not the issue's own —
+  // rendered as Jira's "S" so an inferred number is visibly inferred (§5).
+  inferred: boolean;
+}
+
+export interface WorkloadGridRowDto {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  overdue: WorkloadGridCellDto;
+  weeks: WorkloadGridCellDto[];
+  // Effort spreading past the last week column. Our horizon is fixed where
+  // ClickUp's and Asana's scroll, so this is what keeps the totals honest.
+  later: WorkloadGridCellDto;
+  // No dates anywhere, so no week to sit in. Deliberately not a percentage:
+  // there is no time period to compare it against.
+  unscheduledMinutes: number;
+  totalMinutes: number;
+}
+
+export interface WorkloadGridDto {
+  weeks: WorkloadWeekDto[];
+  rows: WorkloadGridRowDto[];
+  // Both columns are shown only when they carry something (ADR-0035 §3).
+  hasOverdue: boolean;
+  hasLater: boolean;
+  hasInferred: boolean;
+  weeklyCapacityMinutes: number;
+}
+
 export interface WorkloadDto {
   teams: WorkloadTeamDto[];
   selectedTeamId: string | null;
   rows: WorkloadRowDto[];
+  grid: WorkloadGridDto;
   totals: WorkloadTotalsDto;
   workingWeek: WorkingWeekDto;
 }

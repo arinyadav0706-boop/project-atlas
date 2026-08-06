@@ -43,8 +43,14 @@ the field rather than from a blank page.
 
 ### Where they are clearly ahead — and we should follow
 
-1. **Time-phased grid** (ClickUp, Asana, Float). "Two weeks of work" is a
-   sum; "slammed next week, free the week after" is a plan. See ADR-0035.
+1. ~~**Time-phased grid** (ClickUp, Asana, Float).~~ **Closed 2026-08-06**
+   (ADR-0035, backlog WL-3). "Two weeks of work" is a sum; "slammed next week,
+   free the week after" is a plan. We took their mechanism rather than inventing
+   one: Asana's *spread from today to the due date*, Jira's *explicit dates beat
+   inferred ones, fall back to sprint dates*, Jira's provenance marker, and
+   ClickUp's *Unscheduled* bucket. What we did not copy is `Issue.startDate` —
+   with the today→due spread it earns much less than it costs, and Gantt is the
+   feature that actually requires it (WL-4).
 2. **Drag-to-reassign inside the view** (Asana). Turns a report into a tool.
    Backlog WL-2.
 3. **Per-person capacity + absences** (ClickUp, Jira Premium, Float).
@@ -88,7 +94,7 @@ none of them publish: a written, exact definition for every number.
 
 | # | Implication | Where tracked |
 |---|---|---|
-| 1 | Time-phased workload is the single biggest gap vs ClickUp/Asana | ADR-0035 (Proposed) |
+| 1 | ~~Time-phased workload is the single biggest gap vs ClickUp/Asana~~ — closed | ADR-0035 (Accepted), backlog WL-3 |
 | 2 | Reassign from the workload view converts a report into a tool | Backlog WL-2 |
 | 3 | Per-person capacity + time off is table stakes at the top tier | Backlog WL-1 |
 | 4 | Our charts need a shared visual standard before we add more | `docs/05_UI/03_Data_Visualisation.md` |
