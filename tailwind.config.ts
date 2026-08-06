@@ -26,6 +26,11 @@ const config: Config = {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
+        // Status tones shared with the charts (03_Data_Visualisation.md §6), so
+        // a status is the same colour in a legend and in a status dot. No
+        // `-foreground` pair until something actually sets text on the fill.
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
       },
       borderRadius: {
         lg: "0.75rem",

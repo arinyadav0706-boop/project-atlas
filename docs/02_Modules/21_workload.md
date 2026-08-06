@@ -74,13 +74,25 @@ admins — a convenience; the boundary is server-side).
 
 - **Team picker** — the teams in scope, with member counts.
 - **Summary strip** — people, open issues, total remaining, overloaded count.
-- **Grouped rows** — people are grouped under status headings (Overloaded →
-  Balanced → Has room → No open work) with a count each, so the eye lands on
-  who needs attention instead of scanning N near-identical rows. Status is
-  therefore carried by the heading (text **and** colour, never colour alone).
-- **Person rows** — avatar, name, a bar whose full width is the 2-week
-  rebalancing line with a tick at one week, and two figures only: weeks queued,
-  and `remaining · N issues` beneath it.
+- **Team mix** — one horizontal stacked bar of how many people sit in each
+  status band, with counts in the legend. The shape of the team in one glance,
+  before any individual name.
+- **Weeks queued per person** — a horizontal bar chart, one bar per person on a
+  shared zero-based axis in weeks, most loaded at the top, coloured by status
+  band, with dashed reference lines at the **0.5** and **2** week band edges
+  (BR-6) and each bar captioned `remaining · N issues` — or `no open work`,
+  because a zero-length bar must not read as missing data. This is what makes
+  two people comparable: the CSS mini-bars it replaced were scaled to a fixed
+  2-week width with no ticks, so "how full is this" was unanswerable and people
+  in different status groups could not be compared at all (backlog UI-2).
+- **Grouped rows** — beneath the chart, people are grouped under status headings
+  (Overloaded → Balanced → Has room → No open work) with a count each. Status is
+  carried by the heading (text **and** colour, never colour alone), and the
+  colours are the same tones the charts use, so a status is never one colour
+  above and a different one below.
+- **Person rows** — avatar, name, and two figures: weeks queued, and
+  `remaining · N issues` beneath it. The row carries no load bar of its own;
+  that job belongs to the chart, and duplicating it only added density.
 - **Basis footnote** — "Based on a 8h × 5 days = 40h week", so no figure on the
   page is unexplained (BR-5).
 - **Drill-in** — expanding a row loads that person's open issues, each linking

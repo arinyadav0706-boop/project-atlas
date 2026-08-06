@@ -134,5 +134,11 @@ rainbow, which invents categories that do not exist.
    instead of hex. Required adding `--success` and `--warning` to the theme
    (`globals.css` + `tailwind.config.ts`, light and dark) — §6 referenced
    tones that did not exist.
-3. Workload: team distribution bar + person bar chart with axis. Backlog **UI-2**.
+3. ✅ **Done 2026-08-06 (UI-2).** Workload's team-mix stacked bar and
+   per-person capacity bars, both on the kit. Two lessons went into the
+   builders and are now regression-tested: a markLine draws **above** the
+   series by default, so a threshold line struck the bar captions through
+   (fixed with `z` below the series), and an axis max derived as `1.15 ×`
+   the busiest value produces tick labels like "3.91 wk" (rounded up to a
+   half week).
 4. `HeatGrid` when ADR-0035 (time-phased workload) is accepted.
