@@ -122,11 +122,6 @@ rainbow, which invents categories that do not exist.
 
 ## 7. Rollout
 
-<<<<<<< Updated upstream
-1. Build the kit with `ChartFrame` + `Bars`; **rebuild velocity on it** (fixes
-   V1–V7). Backlog **UI-1**.
-2. Move the donut onto theme tokens.
-=======
 1. ✅ **Done 2026-08-06 (UI-1), then re-done on ECharts the same day
    (ADR-0036).** `src/shared/components/charts/`: `echarts-core.ts` (the single
    import site), `chart.tsx` + `chart-canvas.tsx` (the one wrapper),
@@ -139,6 +134,5 @@ rainbow, which invents categories that do not exist.
    instead of hex. Required adding `--success` and `--warning` to the theme
    (`globals.css` + `tailwind.config.ts`, light and dark) — §6 referenced
    tones that did not exist.
->>>>>>> Stashed changes
 3. Workload: team distribution bar + person bar chart with axis. Backlog **UI-2**.
 4. `HeatGrid` when ADR-0035 (time-phased workload) is accepted.
