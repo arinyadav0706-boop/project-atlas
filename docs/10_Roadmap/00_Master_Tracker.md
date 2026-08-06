@@ -4,6 +4,16 @@
 Companion to `01_Development_Roadmap.md` (phases) and `02_Backlog_and_Tech_Debt.md`
 (cross-cutting debt). Update the tick + notes in the same PR that changes a module.
 
+**Last reconciled against the codebase: 2026-08-07.**
+
+> **Why that line exists.** Between 2026-07-23 and 2026-08-07 this file went
+> unedited through ~40 merged PRs and drifted badly — it still listed Search,
+> Epics, Admin/User Management and Profile as ⛔ *not started* when all four had
+> shipped, and had no row at all for Teams, Time tracking, Workload or the chart
+> kit. Since the Phase 8 go/no-go reads this table, it was understating our
+> position on five modules. If you change a module and do not touch this file in
+> the same PR, the next person plans against fiction.
+
 **Legend:** ✅ done · 🟡 partial (usable, gaps below) · ⛔ not started
 **Column meaning:** **Launch** = must be true before Internal GA. **Later** = a real
 Jira feature we can add post-parity without blocking. **Dep** = blocked by another
@@ -13,25 +23,42 @@ module (can't finish until that ships).
 
 ## Module status (top level)
 
+### V1 — core Jira parity
+
 | Module | State | Must-fix before launch | Depends on |
 |---|---|---|---|
 | Auth / SSO | ✅ | Rotate seeded passwords (GL-1); SSO creds if launching SSO (GL-6) | — |
 | Projects & Roles | ✅ | — | — |
 | Issues | ✅ | — | — |
-| Board | ✅ | Activate Sprint/Epic/Label filters (FUT-4) | Labels, Epics |
+| Board | ✅ | Only the **Sprint** filter control remains (FUT-4); Epic/Label/Component all shipped | — |
 | Home | ✅ | — | — |
-| **Backlog** | 🟡 | (in-module done) search/filters remain | Search, Labels/Epics |
+| **Backlog** | 🟡 | Text search + filter bar still unwired — **dependencies are now satisfied**, this is just not built | (Search ✅, Epics ✅ — unblocked) |
 | **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
-| Attachments | 🟡 | (MVP done) previews/versioning/scan/dedup/quota/share-links later; set `STORAGE_*` env in prod (GL-8) | — |
+| Attachments | ✅ | MVP done; `STORAGE_*` configured in prod (GL-8 ✅) — previews/versioning/scan later | — |
 | Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
 | Reports | 🟡 | (MVP done) burndown/CFD/more via registry | Sprint, audit log |
-| Search | ⛔ | Build (⌘K global + per-list) | Issues, Labels |
-| Labels / Components | 🟡 | (MVP done + board chips/filter) list-row/backlog chips remain | — |
-| Epics / Versions | ⛔ | First-class planning lanes | Issues |
-| Admin / User Mgmt | ⛔ | Build | — |
-| Profile | ⛔ | Build | Auth |
-| **Deploy pipeline (GL-4/DB-2)** | 🟡 held | Prod migration baseline + `migrate deploy` | prod access |
+| Search | ✅ 2026-07-23 | Global ⌘K palette + Postgres FTS (ADR-0021). Per-list search still to wire into Backlog | — |
+| Labels / Components | 🟡 | (MVP done + board chips/filter/controls) list-row/backlog chips remain | — |
+| **Epics** | ✅ 2026-07-27 | Hierarchy, selector, detail panel, board filter + badges, backlog group-by-epic with cross-epic drag (ADR-0026) | — |
+| **Versions / Releases** | ⛔ | Not started — no `Version` model exists. Genuinely V2. | Issues |
+| **Admin / Control plane** | ✅ 2026-07-23 | Capabilities, feature flags, audit viewer, org settings (ADR-0022/0023) | — |
+| **User Management** | ✅ 2026-07-24 | Users tab — invite, roles, deactivation (module 14) | Admin |
+| **Authorization engine** | ✅ 2026-07-24 | Centralized permission engine; org admins are effective LEAD (ADR-0024) | — |
+| Profile | ✅ 2026-07-28 | Self-service account settings (ADR-0027) | — |
+| **Deploy pipeline (GL-4/DB-2)** | ✅ 2026-07-28 | Prod baselined (13 migrations recorded); `vercel-build` runs `migrate deploy` before build | — |
+
+### V2 — management visibility layer (`docs/00_Product/05_V2_Management_Visibility_Layer.md`)
+
+| Module | State | Notes | Depends on |
+|---|---|---|---|
+| **Time tracking** (Epic 1) | ✅ 2026-08-05 | Estimates + work logs end to end; LEAD-gated estimate governance; estimate at issue creation (ADR-0030) | Issues |
+| **Teams & Hierarchy** (Epic 2) | ✅ 2026-08-05 | The people axis — org/team model, manager visibility (ADR-0031/0032) | Users |
+| **Workload** (Epic 3) | ✅ 2026-08-07 | Cross-project load per person (ADR-0034); per-org working week; team-mix + capacity charts; **time-phased people × weeks grid** (ADR-0035) | Time tracking, Teams |
+| **Scheduling engine** | ✅ 2026-08-07 | `features/scheduling` — resolves *when* work happens (ADR-0035). Shared seam for Gantt/Calendar | — |
+| **Chart kit** | ✅ 2026-08-06 | Apache ECharts as the single charting standard (ADR-0036); velocity, donut, distribution, capacity bars | — |
+| **Views: Timeline/Gantt, Calendar** (Epic 6) | ⛔ | Not started. Consumes `features/scheduling`; **owns the `Issue.startDate` decision** (backlog WL-4) | Scheduling ✅ |
+| **Demo data (VERUS)** | ✅ 2026-08-05 | ~150 users / ~8k issues, one-click seed workflow (ADR-0033). **Must never reach a client DB — GL-9** | — |
 
 ---
 
@@ -86,8 +113,8 @@ module (can't finish until that ships).
 
 - [x] Pluggable **report registry** (`REPORTS` map; API dispatches by id, UI renders by chartType) ✅ 2026-07-23
 - [x] Velocity (bar), Status breakdown (donut), Cycle time (KPI) — read-only over issues/sprints/audit_logs, no new tables ✅ 2026-07-23
-- [x] Reports tab + hand-rolled SVG charts (theme-aware, no chart lib) ✅ 2026-07-23
-- [ ] **Burndown** (`line`) — first post-MVP registry add (active-sprint DONE events across dates)
+- [x] ~~Reports tab + hand-rolled SVG charts~~ → **rebuilt on Apache ECharts** (ADR-0036); the SVG kit was deleted rather than left as a second system ✅ 2026-08-06
+- [ ] **Burndown** (`line`) — first post-MVP registry add (active-sprint DONE events across dates). **The last thing keeping Sprint at 🟡.**
 - [ ] **Committed-vs-completed velocity** — needs a `committedPoints` snapshot at sprint close
 - [ ] CFD, cycle/lead-time distributions, workload, epic progress, release reports, custom builder — registry adds
 - [ ] Compute cache / pre-aggregation — scale seam behind `compute`
@@ -98,10 +125,10 @@ module (can't finish until that ships).
 - [x] Drag issue → sprint / back; per-row "…" move menu
 - [x] VIEWER read-only, RBAC, optimistic + OCC
 - [x] **Inline "create issue" at bottom of backlog** (Jira fast-add) ✅ 2026-07-21
-- [ ] **Backlog text search** — *Dep: Search (SP-2)*
-- [ ] **Filters** (assignee/type/priority/epic/label) — *Dep: Labels/Epics (SP-3)*
-- [ ] **Epics panel / group-by-epic** — *Dep: Epics — later*
-- [ ] **Versions/releases panel** — *Dep: Versions — later*
+- [x] **Epics panel / group-by-epic** — collapse/expand, No-Epic bucket, cross-epic drag ✅ 2026-07-27
+- [ ] **Backlog text search** — ~~*Dep: Search*~~ **unblocked** (Search shipped 2026-07-23); simply not wired into this surface yet
+- [ ] **Filters** (assignee/type/priority/epic/label) — ~~*Dep: Labels/Epics*~~ **unblocked** (both shipped); the Board's filter bar is the pattern to copy
+- [ ] **Versions/releases panel** — *Dep: Versions — genuinely not started*
 - [x] **Bulk select + bulk move** (SP-8) ✅ 2026-07-21
 - [ ] **Inline edit** assignee/points/labels from a row — *Dep: Labels — later*
 
@@ -116,24 +143,41 @@ module (can't finish until that ships).
 - [ ] **Sprint capacity** (points vs capacity) — *later*
 - [ ] **Duration presets** (1w/2w) + auto start/complete — *later*
 
+## Workload — feature checklist (ADR-0034 / ADR-0035)
+
+- [x] Cross-project remaining effort per person; unestimated counted, never imputed (BR-4) ✅ 2026-08-06
+- [x] Per-organization working week drives every capacity figure (8h×5, 9h×5, 6h×6…) ✅ 2026-08-06
+- [x] Team-mix stacked bar + per-person capacity bars on the ECharts kit ✅ 2026-08-06
+- [x] **Time-phased people × weeks grid** — Overdue · 4 real-dated weeks · Later · Unscheduled; hours + % of capacity; sprint-inferred cells marked `S` ✅ 2026-08-07
+- [ ] **Cell drill-in** — click a cell to list the issues behind it (backlog WL-5)
+- [ ] **Per-person capacity** (part-time, leave calendar) — backlog WL-1
+- [ ] **`Issue.startDate`** — backlog WL-4, *owned by the Gantt/Timeline module*
+- [ ] Descendant-team roll-up + drag-to-reassign from a row — backlog WL-2
+
 ## Cross-cutting (surfaces in Backlog/Sprint, owned elsewhere)
 
-- [ ] **Search ⌘K** (SP-4) — *Search module*
-- [ ] **Notifications** bell + badge (SP-5) — *Notifications module*
+- [x] **Search ⌘K** (SP-4) — global palette in the top bar ✅ 2026-07-23
+- [x] **Notifications** bell + badge (SP-5) ✅ 2026-07-23
 - [ ] Two-column/Details layout, inline goal-edit (SP-6/7) — *premium re-skin (UX-1)*
 
 ---
 
 ## Pre-launch global gates (from `02_Backlog_and_Tech_Debt.md`)
 
-- [ ] **GL-1** rotate/remove seeded known-password accounts
-- [ ] **GL-2** full security review (Phase 7)
-- [ ] **GL-3** rate limiting on auth + mutations
-- [ ] **GL-4/DB-2** prod migration baseline + apply all indexes; wire `migrate deploy`
-- [ ] **GL-5** `DATABASE_URL` connection_limit=1
-- [ ] **GL-6** SSO creds (if launching with SSO)
+- [ ] 🚩 **GL-1** rotate/remove seeded known-password accounts — *code done; the **prod rotation** has not happened*
+- [ ] 🚩 **GL-2** full security review (Phase 7) — `/security-review` + a manual pass
+- [x] **GL-3** rate limiting on auth + mutations ✅ 2026-07-30 (ADR-0028)
+- [x] **GL-4/DB-2** prod migration baseline + `migrate deploy` on deploy ✅ 2026-07-28
+- [ ] **GL-5** `DATABASE_URL` connection_limit=1 — *`pgbouncer=true` confirmed; the flag is still missing*
+- [ ] **GL-6** SSO creds (if launching with SSO) — config, not code
 - [ ] **GL-7** load test ~60 concurrent
+- [x] **GL-8** `STORAGE_*` configured in prod ✅ 2026-07-28
+- [ ] 🚩 **GL-9** VERUS demo data absent from any client-handover DB (ADR-0033) — verify `SELECT count(*) FROM organizations WHERE id='verus-demo-org'` is `0`
+- [ ] 🚩 **GL-10** GitHub Actions stopped running 2026-08-06 16:20 UTC — **every merge since is ungated** while the PR page still shows a green Vercel check
 - [ ] **UX-1** premium re-skin (after MVP functionally complete)
+
+**Honest read: four 🚩 P1 gates remain — GL-1, GL-2, GL-9, GL-10.** GL-5/6/7
+are P2 config-and-validation. Everything else on this list is closed.
 
 ---
 

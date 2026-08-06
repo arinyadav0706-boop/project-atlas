@@ -3,6 +3,7 @@
 import { cn } from "@/shared/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { formatDuration } from "@/features/time-tracking/lib/duration";
+import { formatCapacityPercent } from "@/features/workload/lib/capacity";
 import type {
   WorkingWeekDto,
   WorkloadGridCellDto,
@@ -70,7 +71,8 @@ function Cell({
         )}
       >
         <span className="sr-only">
-          {label}: {formatDuration(cell.minutes)}, {cell.percentOfCapacity}% of a week
+          {label}: {formatDuration(cell.minutes)},{" "}
+          {formatCapacityPercent(cell.minutes, cell.percentOfCapacity)} of a week
           {cell.inferred ? ", inferred from the sprint" : ""}
           {cell.percentOfCapacity > 100 ? ", over capacity" : ""}
         </span>
@@ -93,7 +95,7 @@ function Cell({
               : "text-muted-foreground",
           )}
         >
-          {cell.percentOfCapacity}%
+          {formatCapacityPercent(cell.minutes, cell.percentOfCapacity)}
         </div>
       </div>
     </td>
