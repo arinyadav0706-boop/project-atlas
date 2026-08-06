@@ -41,25 +41,34 @@ theme.
 and window stated underneath. It is the model the others should follow for
 honesty.
 
-## 3. Decision: a shared in-house SVG chart kit — no chart library
+## 3. Decision: Apache ECharts, everywhere — see ADR-0036
 
-Charts live in `src/shared/components/charts/`, built on plain SVG plus our
-Tailwind tokens: `<ChartFrame>` (axes, gridlines, labels, empty state),
-`<Bars>`, `<Line>`, `<Donut>`, `<HeatGrid>`, `<Sparkline>`, `<Legend>`,
-`<ChartTooltip>`.
+**Superseded.** This section originally chose an in-house SVG kit. It shipped,
+then was replaced the same day by **ADR-0036: Apache ECharts is the single
+charting standard**. The reasoning is there in full; the short version:
 
-**Why not Recharts / visx / Chart.js:**
+- The roadmap needs charts the kit did not have — burndown, cumulative flow,
+  the ADR-0035 heat grid. Hand-rolling each would fragment exactly what the kit
+  was meant to unify.
+- A hybrid (kit for simple, library for complex) means two mental models and
+  two places for a bug to hide. One standard is worth more than the bytes.
 
-| Consideration | Verdict |
-|---|---|
-| Our chart types | Bar, line, donut, KPI, heat grid — all trivial in SVG. We do not need brushing, zooming or 3-D. |
-| Bundle | A charting library is 50–150 kB for charts we can draw in a few hundred lines. |
-| Theming | Libraries fight our CSS-variable theme; native SVG uses `currentColor` and our tokens directly. |
-| Portability (rule 8) | Zero new dependency, zero version churn, no React-major-upgrade risk. |
-| Escape hatch | If we ever need real interactivity (brush-zoom, huge series), adopt `visx` **for that chart only** — the `ChartFrame` contract stays. |
+**The rules that keep one standard honest** (all enforced, see ADR-0036):
 
-**This is not a licence to hand-roll per feature.** Every chart uses the kit; a
-one-off chart in a feature folder is a defect.
+| # | Rule | Enforcement |
+|---|---|---|
+| 1 | Only `charts/echarts-core.ts` may import `echarts`, and it registers only the pieces we use | ESLint `no-restricted-imports` (verified to fire) |
+| 2 | One React wrapper, loaded via `next/dynamic({ ssr: false })` — ECharts is browser-only | `charts/chart.tsx` |
+| 3 | Options are built by **pure, unit-tested functions** in `charts/options/` | The display rules in §4 are asserted there |
+| 4 | Theme is resolved from CSS variables at runtime, rebuilt on dark-mode toggle | `charts/chart-theme.ts` + a MutationObserver |
+| 5 | `aria` enabled on every chart, plus a visually-hidden text summary | canvas emits no DOM |
+
+**Measured cost:** shared First Load JS is unchanged (87.6 kB); ECharts is a
+single **222 kB gzipped lazy chunk**, fetched only when a chart mounts.
+
+**The boundary:** a progress bar is not a chart. If it has an axis, a series or
+a legend it is ECharts; a single bar or dot with no axis stays CSS. Mounting a
+canvas per table row would be slow and absurd.
 
 ## 4. Rules
 
@@ -113,8 +122,17 @@ rainbow, which invents categories that do not exist.
 
 ## 7. Rollout
 
-1. Build the kit with `ChartFrame` + `Bars`; **rebuild velocity on it** (fixes
-   V1–V7). Backlog **UI-1**.
-2. Move the donut onto theme tokens.
+1. ✅ **Done 2026-08-06 (UI-1), then re-done on ECharts the same day
+   (ADR-0036).** `src/shared/components/charts/`: `echarts-core.ts` (the single
+   import site), `chart.tsx` + `chart-canvas.tsx` (the one wrapper),
+   `chart-theme.ts` (CSS-variable bridge), `options/` (pure, tested option
+   builders), `geometry.ts` (the data-prep helpers that survived). Velocity and
+   the donut both run on it — V1–V7 all closed. The SVG components
+   (`ChartFrame`, `BarChart`, `DonutChart`) and their layout maths were deleted
+   rather than left as a second system.
+2. ✅ **Done 2026-08-06 (UI-3).** The donut takes a semantic `ChartTone`
+   instead of hex. Required adding `--success` and `--warning` to the theme
+   (`globals.css` + `tailwind.config.ts`, light and dark) — §6 referenced
+   tones that did not exist.
 3. Workload: team distribution bar + person bar chart with axis. Backlog **UI-2**.
 4. `HeatGrid` when ADR-0035 (time-phased workload) is accepted.
