@@ -65,6 +65,17 @@ export function velocityOption(sprints: VelocitySprint[], theme: ChartTheme): EC
         name: "Story points",
         data: sprints.map((s) => s.points),
         itemStyle: { color: theme.accent, borderRadius: [3, 3, 0, 0] },
+        // Stated explicitly rather than left to ECharts' default, which derives
+        // the hover fill by lifting the base colour — and silently yields no
+        // fill at all if that colour will not parse. A bar must never be able
+        // to disappear on hover.
+        emphasis: {
+          itemStyle: {
+            color: theme.accent,
+            shadowBlur: 8,
+            shadowColor: "rgba(0, 0, 0, 0.22)",
+          },
+        },
         barMaxWidth: 44,
         // Every bar carries its value, including a genuine zero — which is why
         // a 0-point sprint reads as "0" rather than an ambiguous sliver.
@@ -81,11 +92,18 @@ export function velocityOption(sprints: VelocitySprint[], theme: ChartTheme): EC
                 silent: true,
                 symbol: "none",
                 lineStyle: { color: theme.foreground, opacity: 0.45, type: "dashed", width: 1 },
+                // A chip, not bare text: at `muted` on top of gridlines and
+                // bars the label was unreadable against the plot area.
                 label: {
                   formatter: `avg ${Math.round(average * 10) / 10}`,
-                  color: theme.muted,
-                  fontSize: 9,
+                  color: theme.foreground,
+                  fontSize: 10,
                   position: "insideEndTop",
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                  borderRadius: 3,
+                  padding: [2, 5],
                 },
                 data: [{ yAxis: average }],
               },

@@ -41,3 +41,8 @@ echarts.use([
 
 export { echarts };
 export type { EChartsOption } from "echarts";
+
+// ECharts' own colour parser. Exported so `chart-theme.ts` can be tested
+// against the exact code path ECharts uses internally rather than a
+// re-implementation of it — see the note on `normalizeColor`.
+export const echartsColor = echarts.color;

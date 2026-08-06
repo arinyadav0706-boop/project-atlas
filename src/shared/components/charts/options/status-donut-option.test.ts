@@ -72,6 +72,22 @@ describe("statusDonutOption", () => {
   });
 });
 
+// Same regression as the velocity bars: a segment must not blank out under the
+// cursor because ECharts could not derive a hover colour.
+describe("statusDonutOption — hover can never blank a segment", () => {
+  it("restates each segment's own fill for emphasis", () => {
+    const option = asAny(statusDonutOption(segments, TOTAL, theme));
+    for (const item of option.series[0].data) {
+      expect(item.emphasis.itemStyle.color).toBe(item.itemStyle.color);
+    }
+  });
+
+  it("grows the segment rather than recolouring it", () => {
+    const option = asAny(statusDonutOption(segments, TOTAL, theme));
+    expect(option.series[0].emphasis.scale).toBe(true);
+  });
+});
+
 describe("statusDonutSummary", () => {
   it("states every status with its count and share", () => {
     const summary = statusDonutSummary(segments, TOTAL);

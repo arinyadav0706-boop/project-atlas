@@ -64,6 +64,17 @@ EAGLES.** Every chart — existing and future — is an ECharts chart.
 5. **`aria` is enabled on every chart.** Canvas emits no DOM, so a chart is
    invisible to a screen reader unless ECharts' description generator is on;
    each chart also carries a visually-hidden text summary.
+6. **Colours must be *parseable*, not merely paintable — always comma
+   syntax.** Canvas `fillStyle` is parsed by the browser, which accepts modern
+   `hsl(217 91% 55%)`. ECharts computes hover/emphasis colours in JavaScript
+   with zrender's own parser, which accepts only the legacy
+   `hsl(217, 91%, 55%)`. On failure it returns `undefined` and `lift()` has no
+   else-branch, so the emphasis fill becomes `undefined` and **the hovered
+   element renders with no fill at all** — correct at rest, invisible on
+   interaction, no error anywhere. `normalizeColor` in `chart-theme.ts` is the
+   single conversion point and `chart-theme.test.ts` runs every token through
+   ECharts' real parser. Option builders additionally state `emphasis`
+   explicitly rather than relying on the derived colour.
 
 ### Where ECharts is NOT used — the one explicit boundary
 
