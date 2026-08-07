@@ -120,6 +120,47 @@ function, not inline in a repository or a component"). The registry definition
 - **Cost:** one pure module + tests, one repository read, one registry entry, a
   `line` option builder for the chart kit, and the audit event.
 
+## Amendment — 2026-08-07, after seeing it on real data
+
+Shipped, then looked at it on VERUS: **every sprint drew a flat line.** All the
+unit tests passed, because they ran against fixtures written by the same person
+who wrote the assumptions. The chart was faithful; the demo data had no burn in
+it. Three independent causes in `prisma/verus/generate.ts`:
+
+1. **The active sprint received no finished work.** DONE issues were routed to
+   *completed* sprints; the active sprint only ever got IN_PROGRESS/IN_REVIEW.
+   Nothing to burn down, so the line sat at full scope.
+2. **Completion timestamps had nothing to do with the sprint.** The synthesised
+   DONE date came from the issue's own `createdAt` plus a random offset,
+   scattered across ~200 days, so almost none landed inside any 14-day window.
+3. **`AUDIT_CAP` starved most DONE issues of history**, leaving them to fall
+   through to "current status held throughout" — Done from day one, line flat
+   at zero.
+
+### What changed
+
+- **The seed places a completion inside the window of the sprint that owns it**,
+  routes a share of DONE work to the active sprint, and exempts *sprinted* DONE
+  issues from the cap (those are precisely the rows the reports replay; the cap
+  still bounds the unsprinted tail). Verified by replaying the generated dataset
+  through the real engine: 13 runnable sprints, **0 flat**, completed sprints
+  burning to zero and active ones part-way down.
+- **A flat line now explains itself.** `flatReason` is `NOTHING_COMPLETED`,
+  `ALL_DONE_BEFORE`, or `NO_SIZE`, rendered as a sentence. A flat burndown is
+  often *correct* — a sprint where nothing finished — and silence made it read
+  as a broken chart.
+- **`statusHistory` now constrains `entityType`.** It is not a redundant filter:
+  it is the leading column of `audit_logs(entityType, entityId, createdAt)`, and
+  without it Postgres could not use that index on a forever-growing table.
+- **`burndown.seed.test.ts`** replays the generated dataset through the real
+  engine on every run, so this class of defect cannot return silently.
+
+### The lesson worth keeping
+
+Fixture-only validation confirms the author's assumptions and nothing else. Any
+metric that reads history needs a check against real, generated data before it
+ships — the tests here were green throughout.
+
 ## Follow-ups
 
 - **v2 — true membership replay** once `ISSUE_SPRINT_CHANGED` has accumulated,

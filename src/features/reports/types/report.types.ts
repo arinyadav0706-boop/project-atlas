@@ -47,6 +47,10 @@ export interface BurndownData {
   issueCount: number;
   unsized: number;
   untrackedDone: number;
+  // Why the line never moved, when it didn't. A flat burndown otherwise reads
+  // as a broken chart rather than as an accurate picture of a sprint in which
+  // nothing was completed.
+  flatReason: "NOTHING_COMPLETED" | "ALL_DONE_BEFORE" | "NO_SIZE" | null;
 }
 
 export type ReportData =

@@ -162,6 +162,11 @@ These terms mean exactly this, everywhere:
   - `untrackedDone` — issues Done *now* with no recorded DONE transition
     (they predate audit logging). Replay counts them Done from day one, which
     drags the line down; surfaced rather than absorbed.
+  - `flatReason` — when the line never moves, which of the three real causes
+    produced it: `NOTHING_COMPLETED` (nothing reached Done inside the window),
+    `ALL_DONE_BEFORE` (flat at zero), `NO_SIZE` (no issue carries a value for
+    the chosen unit). A flat burndown is frequently *correct*; without a stated
+    cause it reads as a broken chart.
 - **Empty sample:** a sprint with no issues returns `scope = 0` and an empty
   series with a reason — never a chart of zeros presented as progress.
 - **Where:** `src/features/reports/lib/burndown.ts` (pure),

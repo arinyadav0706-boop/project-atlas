@@ -77,7 +77,15 @@ export const ReportRepository = {
   statusHistory(issueIds: string[]) {
     if (issueIds.length === 0) return Promise.resolve([]);
     return prisma.auditLog.findMany({
-      where: { action: "ISSUE_STATUS_CHANGED", entityId: { in: issueIds } },
+      where: {
+        // `entityType` is not a redundant filter — it is the LEADING column of
+        // `audit_logs(entityType, entityId, createdAt)`. Without it Postgres
+        // cannot use that index and scans a table that grows forever. A sprint
+        // of 700+ issues makes the difference obvious.
+        entityType: "Issue",
+        action: "ISSUE_STATUS_CHANGED",
+        entityId: { in: issueIds },
+      },
       select: { entityId: true, beforeData: true, afterData: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });

@@ -58,6 +58,19 @@ const UNITS: { value: BurndownAxisUnit; label: string }[] = [
   { value: "hours", label: "Hours" },
 ];
 
+// A flat line reads as a broken chart. It usually isn't — it is an accurate
+// picture of a sprint in which nothing was completed, or one whose completions
+// predate recorded history. Naming the cause is the difference between a report
+// people distrust and one they can act on.
+const FLAT_REASON: Record<NonNullable<BurndownData["flatReason"]>, string> = {
+  NOTHING_COMPLETED:
+    "The line is flat because nothing in this sprint reached Done inside its dates — not because the chart failed.",
+  ALL_DONE_BEFORE:
+    "The line is flat at zero: every issue was already Done before the sprint started, or was completed before we began recording status history.",
+  NO_SIZE:
+    "The line is flat because no issue in this sprint carries a value for this unit. Try another unit.",
+};
+
 // Sprint burndown (ADR-0037). The only interactive report: the sprint and the
 // unit are viewer choices, so this card refetches rather than reloading the
 // page. Seeded with the server-rendered result, so it draws before any fetch.
@@ -150,6 +163,9 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             {burndownUnitLabel(data.unit)} across {data.sprintName ?? "this sprint"}, against a
             straight ideal line.
           </p>
+        )}
+        {data.series && data.flatReason && (
+          <p className="text-foreground">{FLAT_REASON[data.flatReason]}</p>
         )}
         {/* The cohort caveat (ADR-0037 §1). Stated on the chart, every time —
             this is the report's one approximation and hiding it would make the

@@ -266,9 +266,15 @@ export function generateVerus(): VerusDataset {
     const plannedSprintIds: string[] = [];
     let activeSprintId: string | null = null;
     let sprintNo = 0;
+    // Sprint windows, so a DONE issue's transition can be placed INSIDE the
+    // sprint that owns it. Without this the synthesised completion date came
+    // from the issue's own createdAt and scattered across ~200 days, so almost
+    // nothing landed inside any 14-day sprint and every burndown drew flat.
+    const sprintWindows: Record<string, { start: Date; end: Date }> = {};
     const addSprint = (status: SprintStatus, start: Date, end: Date) => {
       sprintNo += 1;
       const id = `verus-sprint-${spec.key}-${sprintNo}`;
+      sprintWindows[id] = { start, end };
       sprints.push({
         id,
         projectId,
@@ -348,7 +354,12 @@ export function generateVerus(): VerusDataset {
       // Sprint assignment by shape + status.
       let sprintId: string | null = null;
       if (spec.shape === "scrum") {
-        if (status === "DONE" && completedSprintIds.length > 0 && rng.bool(0.85)) {
+        // Some finished work belongs to the sprint currently running — without
+        // it the active sprint holds only unfinished issues, so its burndown
+        // has nothing to burn down and draws a flat line at full scope.
+        if (status === "DONE" && activeSprintId && rng.bool(0.3)) {
+          sprintId = activeSprintId;
+        } else if (status === "DONE" && completedSprintIds.length > 0 && rng.bool(0.85)) {
           sprintId = rng.pick(completedSprintIds);
         } else if ((status === "IN_PROGRESS" || status === "IN_REVIEW") && activeSprintId && rng.bool(0.85)) {
           sprintId = activeSprintId;
@@ -435,13 +446,37 @@ export function generateVerus(): VerusDataset {
         }
       }
 
-      // Cycle-time history for DONE issues (feeds the reports module), bounded.
-      if (status === "DONE" && auditCounter < AUDIT_CAP) {
-        const started = new Date(createdAt.getTime() + rng.int(1, 10) * DAY);
-        const done = new Date(started.getTime() + rng.int(1, 20) * DAY);
+      // Status history for DONE issues — feeds cycle time AND burndown.
+      // A DONE issue that sits in a sprint ALWAYS gets history regardless of
+      // the cap: those are precisely the rows the reports replay, and starving
+      // them is what made every burndown flat. The cap still bounds the
+      // unsprinted long tail, which no report reads day by day.
+      const window = sprintId ? sprintWindows[sprintId] : undefined;
+      if (status === "DONE" && (window || auditCounter < AUDIT_CAP)) {
         const actor = issueRef.assigneeId ?? reporterId;
-        const clampedStarted = started > NOW ? daysAgo(20) : started;
-        const clampedDone = done > NOW ? daysAgo(2) : done;
+        let clampedStarted: Date;
+        let clampedDone: Date;
+
+        if (window) {
+          // Finish somewhere inside the sprint's own window (and never in the
+          // future), so the curve actually descends across those days.
+          const from = window.start.getTime();
+          const to = Math.min(window.end.getTime(), NOW.getTime());
+          const span = Math.max(1, Math.round((to - from) / DAY));
+          clampedDone = new Date(from + rng.int(1, span) * DAY);
+          if (clampedDone.getTime() > to) clampedDone = new Date(to);
+          // Started a little before it finished, never before the issue existed.
+          const startedAt = Math.max(
+            createdAt.getTime(),
+            clampedDone.getTime() - rng.int(1, 6) * DAY,
+          );
+          clampedStarted = new Date(Math.min(startedAt, clampedDone.getTime() - 1));
+        } else {
+          const started = new Date(createdAt.getTime() + rng.int(1, 10) * DAY);
+          const done = new Date(started.getTime() + rng.int(1, 20) * DAY);
+          clampedStarted = started > NOW ? daysAgo(20) : started;
+          clampedDone = done > NOW ? daysAgo(2) : done;
+        }
         auditLogs.push({
           id: `verus-audit-${pad(auditCounter++, 6)}`,
           organizationId: ORG_ID,
