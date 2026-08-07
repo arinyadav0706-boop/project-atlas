@@ -150,3 +150,10 @@ rainbow, which invents categories that do not exist.
    opacity, with over-capacity carrying a ring and a destructive-toned label so
    the signal never rests on colour alone. ADR-0035 §7 records the exception to
    ADR-0036 so it does not read as drift.
+5. ✅ **Done 2026-08-07 (burndown).** The kit's first **`line`** chart, built to
+   §5: an ideal/actual pair with the reference dashed and behind the fact, dots
+   on every data point, a `today` marker, a zero-based value axis, and real
+   dates on the x axis. One lesson went into the builder: ECharts rotates a
+   vertical markLine's label to run along the line, so "today" rendered
+   sideways on a chart where every other label is horizontal — pinned with
+   `rotate: 0` and regression-tested.

@@ -15,6 +15,7 @@ import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
 import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
+import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 import type {
   CreateSprintInput,
@@ -410,6 +411,26 @@ export const SprintService = {
         "This issue was changed by someone else — refresh and try the move again.",
       );
     }
+
+    // Sprint membership history (ADR-0037 §2). Until now nothing recorded when
+    // an issue entered or left a sprint, which is why burndown v1 has to burn
+    // down the sprint's *current* contents. This is the mid-sprint scope change
+    // that distorts a burndown, so it is the path worth auditing; every day
+    // without it is a day of history lost for good. Only written when the
+    // sprint actually changed — a pure reorder inside one sprint is not a
+    // scope change and must not look like one.
+    if (existing.sprintId !== input.sprintId) {
+      await AuditLogService.record({
+        organizationId: context.organizationId,
+        actorId: actor.userId,
+        action: "ISSUE_SPRINT_CHANGED",
+        entityType: "Issue",
+        entityId: issueId,
+        beforeData: { sprintId: existing.sprintId },
+        afterData: { sprintId: input.sprintId },
+      });
+    }
+
     // The drag only needs the repositioned card back (esp. the fresh `version`
     // for the next drag) — the same list-level shape the reorder endpoint uses.
     return toCardDto(row);

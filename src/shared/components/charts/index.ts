@@ -38,3 +38,12 @@ export {
   type CapacityBar,
   type CapacityReference,
 } from "./options/capacity-bars-option";
+export {
+  burndownLineOption,
+  burndownSummary,
+  burndownDayLabel,
+  burndownUnitLabel,
+  formatBurndownValue,
+  type BurndownAxisUnit,
+  type BurndownDatum,
+} from "./options/burndown-line-option";

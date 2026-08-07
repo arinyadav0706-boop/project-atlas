@@ -31,10 +31,16 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
 vi.mock("@/features/projects/services/project.service", () => ({
   ProjectService: { getContext: vi.fn(), getMemberRole: vi.fn() },
 }));
+// Sprint membership history (ADR-0037 §2) — moving an issue now writes an
+// audit row, so the service reaches the audit layer on that path.
+vi.mock("@/features/admin/services/audit-log.service", () => ({
+  AuditLogService: { record: vi.fn() },
+}));
 
 import { SprintRepository } from "@/features/sprints/repositories/sprint.repository";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
+import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { SprintService } from "./sprint.service";
 import {
   ConflictError,
@@ -46,6 +52,7 @@ import {
 const sprints = vi.mocked(SprintRepository);
 const issues = vi.mocked(IssueRepository);
 const projects = vi.mocked(ProjectService);
+const audit = vi.mocked(AuditLogService);
 
 const actor: Actor = { userId: "user-1", orgRole: "MEMBER", organizationId: "org-1" };
 const ctx = {
@@ -387,6 +394,49 @@ describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
     expect(data.sprintId).toBe("sprint-1");
     expect(data.rank > "a1" && data.rank < "a3").toBe(true);
     expect(moved.version).toBe(1);
+  });
+
+  // Sprint membership history (ADR-0037 §2). Burndown v2 replays these rows,
+  // so writing one for a mere reorder would invent a scope change that never
+  // happened — and not writing one on a real move loses that history for good.
+  it("records ISSUE_SPRINT_CHANGED when the issue changes sprint", async () => {
+    issues.findDetail.mockResolvedValue(issueRow({ sprintId: null }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    issues.findRankInSprint.mockResolvedValue(null as never);
+    issues.moveToSprintWithVersion.mockResolvedValue(
+      issueRow({ sprintId: "sprint-1", version: 1 }) as never,
+    );
+
+    await SprintService.moveIssue(actor, "issue-1", {
+      sprintId: "sprint-1",
+      expectedVersion: 0,
+    });
+
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ISSUE_SPRINT_CHANGED",
+        entityId: "issue-1",
+        beforeData: { sprintId: null },
+        afterData: { sprintId: "sprint-1" },
+      }),
+    );
+  });
+
+  it("records nothing when the move is a reorder inside the same sprint", async () => {
+    issues.findDetail.mockResolvedValue(issueRow({ sprintId: "sprint-1" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    issues.findRankInSprint.mockResolvedValue(null as never);
+    issues.moveToSprintWithVersion.mockResolvedValue(
+      issueRow({ sprintId: "sprint-1", version: 1 }) as never,
+    );
+
+    await SprintService.moveIssue(actor, "issue-1", {
+      sprintId: "sprint-1",
+      expectedVersion: 0,
+    });
+
+    expect(audit.record).not.toHaveBeenCalled();
   });
 
   it("returns an issue to the backlog when sprintId is null", async () => {

@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Actor } from "@/shared/types/actor";
 import type {
+  BurndownData,
   CycleTimeData,
   StatusBreakdownData,
   VelocityData,
@@ -14,6 +15,9 @@ vi.mock("@/features/reports/repositories/report.repository", () => ({
     completedSprintVelocity: vi.fn(),
     statusBreakdown: vi.fn(),
     cycleTimeTransitions: vi.fn(),
+    burndownSprints: vi.fn(),
+    sprintCohort: vi.fn(),
+    statusHistory: vi.fn(),
   },
 }));
 
@@ -39,7 +43,14 @@ beforeEach(() => {
 
 it("lists the registered reports", async () => {
   const metas = await ReportService.listReports(actor, "p-1");
-  expect(metas.map((m) => m.id)).toEqual(["velocity", "status-breakdown", "cycle-time"]);
+  // Order here is the display order on the Reports tab; burndown sits beside
+  // velocity because both answer "how much did we deliver".
+  expect(metas.map((m) => m.id)).toEqual([
+    "velocity",
+    "burndown",
+    "status-breakdown",
+    "cycle-time",
+  ]);
 });
 
 it("velocity returns the sprint series in a typed envelope", async () => {
@@ -95,4 +106,118 @@ it("treats a project outside the caller's org as absent (F-1)", async () => {
   await expect(ReportService.runReport(actor, "p-1", "velocity")).rejects.toBeInstanceOf(
     NotFoundError,
   );
+});
+
+// --- Sprint burndown (ADR-0037) -------------------------------------------
+// The replay arithmetic is covered in lib/burndown.test.ts; these pin the
+// registry wiring — sprint selection, unit switching, and the states where a
+// chart must NOT be drawn.
+
+const sprint = (over: Record<string, unknown> = {}) => ({
+  id: "s-1",
+  name: "Sprint 12",
+  status: "COMPLETED",
+  startDate: new Date("2026-08-03T00:00:00.000Z"),
+  endDate: new Date("2026-08-07T00:00:00.000Z"),
+  ...over,
+});
+
+function burndown(result: Awaited<ReturnType<typeof ReportService.runReport>>) {
+  return result.data as BurndownData;
+}
+
+it("burndown: says so plainly when no sprint has ever run", async () => {
+  repo.burndownSprints.mockResolvedValue([] as never);
+
+  const data = burndown(await ReportService.runReport(actor, "p-1", "burndown"));
+  expect(data.series).toBeNull();
+  expect(data.reason).toMatch(/no sprint has run/i);
+  expect(repo.sprintCohort).not.toHaveBeenCalled();
+});
+
+it("burndown: defaults to the first sprint offered and to points", async () => {
+  repo.burndownSprints.mockResolvedValue([sprint(), sprint({ id: "s-2" })] as never);
+  repo.sprintCohort.mockResolvedValue([
+    { id: "a", status: "DONE", storyPoints: 3, estimateMinutes: 120 },
+  ] as never);
+  repo.statusHistory.mockResolvedValue([
+    {
+      entityId: "a",
+      beforeData: { status: "TODO" },
+      afterData: { status: "DONE" },
+      createdAt: new Date("2026-08-05T10:00:00.000Z"),
+    },
+  ] as never);
+
+  const data = burndown(await ReportService.runReport(actor, "p-1", "burndown"));
+  expect(data.selectedSprintId).toBe("s-1");
+  expect(data.unit).toBe("points");
+  expect(data.series!.scope).toBe(3);
+  // Open days 3-4, done from the 5th.
+  expect(data.series!.points.map((p) => p.remaining)).toEqual([3, 3, 0, 0, 0]);
+});
+
+it("burndown: honours the requested sprint and unit", async () => {
+  repo.burndownSprints.mockResolvedValue([sprint(), sprint({ id: "s-2", name: "Sprint 13" })] as never);
+  repo.sprintCohort.mockResolvedValue([
+    { id: "a", status: "TODO", storyPoints: null, estimateMinutes: 90 },
+  ] as never);
+  repo.statusHistory.mockResolvedValue([] as never);
+
+  const data = burndown(
+    await ReportService.runReport(actor, "p-1", "burndown", { sprintId: "s-2", unit: "hours" }),
+  );
+  expect(data.selectedSprintId).toBe("s-2");
+  expect(data.sprintName).toBe("Sprint 13");
+  expect(data.unit).toBe("hours");
+  expect(data.series!.scope).toBe(90); // minutes; the axis formats them
+});
+
+it("burndown: falls back rather than erroring on an unknown sprint id", async () => {
+  repo.burndownSprints.mockResolvedValue([sprint()] as never);
+  repo.sprintCohort.mockResolvedValue([] as never);
+  repo.statusHistory.mockResolvedValue([] as never);
+
+  const data = burndown(
+    await ReportService.runReport(actor, "p-1", "burndown", { sprintId: "not-mine" }),
+  );
+  expect(data.selectedSprintId).toBe("s-1");
+});
+
+it("burndown: ignores an unrecognised unit instead of drawing nothing", async () => {
+  repo.burndownSprints.mockResolvedValue([sprint()] as never);
+  repo.sprintCohort.mockResolvedValue([
+    { id: "a", status: "TODO", storyPoints: 2, estimateMinutes: null },
+  ] as never);
+  repo.statusHistory.mockResolvedValue([] as never);
+
+  const data = burndown(
+    await ReportService.runReport(actor, "p-1", "burndown", { unit: "bananas" }),
+  );
+  expect(data.unit).toBe("points");
+  expect(data.series!.scope).toBe(2);
+});
+
+it("burndown: carries the honesty counters through to the DTO", async () => {
+  repo.burndownSprints.mockResolvedValue([sprint()] as never);
+  repo.sprintCohort.mockResolvedValue([
+    { id: "a", status: "DONE", storyPoints: null, estimateMinutes: null },
+    { id: "b", status: "TODO", storyPoints: 5, estimateMinutes: 60 },
+  ] as never);
+  repo.statusHistory.mockResolvedValue([] as never);
+
+  const data = burndown(await ReportService.runReport(actor, "p-1", "burndown"));
+  expect(data.issueCount).toBe(2);
+  expect(data.unsized).toBe(1); // "a" has no story points
+  expect(data.untrackedDone).toBe(1); // "a" is Done with no recorded transition
+});
+
+it("burndown: refuses to plot a sprint with no dates", async () => {
+  repo.burndownSprints.mockResolvedValue([
+    sprint({ startDate: null, endDate: null }),
+  ] as never);
+
+  const data = burndown(await ReportService.runReport(actor, "p-1", "burndown"));
+  expect(data.series).toBeNull();
+  expect(data.reason).toMatch(/no start and end date/i);
 });

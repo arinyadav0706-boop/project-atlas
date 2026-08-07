@@ -31,7 +31,29 @@ export interface CycleTimeData {
   windowDays: number;
 }
 
-export type ReportData = VelocityData | StatusBreakdownData | CycleTimeData;
+// Sprint burndown (ADR-0037). `series` is null when the chart cannot honestly
+// be drawn — no runnable sprint, or one without dates — and `reason` says which.
+export interface BurndownData {
+  unit: "points" | "issues" | "hours";
+  sprints: { id: string; name: string; status: string }[];
+  selectedSprintId: string | null;
+  sprintName: string | null;
+  series: {
+    scope: number;
+    points: { day: string; remaining: number; ideal: number }[];
+  } | null;
+  reason: string | null;
+  // Honesty counters that travel with every result (ADR-0037 §4).
+  issueCount: number;
+  unsized: number;
+  untrackedDone: number;
+}
+
+export type ReportData =
+  | VelocityData
+  | StatusBreakdownData
+  | CycleTimeData
+  | BurndownData;
 
 export interface ReportResultDto {
   id: string;
