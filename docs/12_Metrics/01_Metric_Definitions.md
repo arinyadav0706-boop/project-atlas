@@ -135,7 +135,40 @@ These terms mean exactly this, everywhere:
 - **Where:** `report.repository.ts → cycleTimeTransitions`,
   `report.registry.ts → cycleTime`
 
-### 6. Time tracking totals (per issue)
+### 6. Sprint burndown
+
+- **Question:** how much work was still open on each day of the sprint?
+- **Scope:** one sprint in one project, `startDate → min(endDate, today)`, UTC
+  days inclusive. A sprint without both dates has no burndown (`null`, with a
+  reason) — never a chart drawn over invented dates.
+- **Cohort:** the issues **currently** in the sprint. This is the metric's one
+  approximation and it is stated on the chart (ADR-0037 §1): sprint membership
+  changes are not audited, so an issue added or removed mid-sprint is counted
+  as if it were there all along, or not at all.
+- **Unit** (viewer-selectable, default points):
+  `points = storyPoints ?? 0` · `issues = 1` · `hours = estimateMinutes ?? 0`.
+- **Formula:** `remaining(D) = Σ size(i) for each cohort issue i whose replayed
+  status at 23:59:59.999Z on day D is not DONE`.
+- **Status replay is exact, not assumed.** For issue `i` at time `T`:
+  1. the `afterData.status` of the latest `ISSUE_STATUS_CHANGED` at or before `T`; else
+  2. the `beforeData.status` of the **earliest** recorded transition — the true
+     prior state, which is why no starting status is ever guessed; else
+  3. the issue's current status (it has never changed).
+- **Ideal line:** straight, `scope → 0` across the same days. A reference, not a
+  target; not working-day-aware (ADR-0037 §5).
+- **Honesty counters, always returned:**
+  - `unsized` — cohort issues with no value for the chosen unit. The line is a
+    **floor**, not a reading.
+  - `untrackedDone` — issues Done *now* with no recorded DONE transition
+    (they predate audit logging). Replay counts them Done from day one, which
+    drags the line down; surfaced rather than absorbed.
+- **Empty sample:** a sprint with no issues returns `scope = 0` and an empty
+  series with a reason — never a chart of zeros presented as progress.
+- **Where:** `src/features/reports/lib/burndown.ts` (pure),
+  `report.repository.ts → sprintBurndownInputs`, `report.registry.ts → burndown`
+- **Tested:** `burndown.test.ts` · **ADR-0037**
+
+### 7. Time tracking totals (per issue)
 
 - **Formulas:** `logged = Σ WorkLog.minutes` (live only);
   `remaining = max(estimate − logged, 0)`; progress is shown as
@@ -153,8 +186,9 @@ builds a chart, and so two reports never disagree.
 
 | Metric | Definition to implement |
 |---|---|
-| **Sprint burndown** | Remaining story points (or remaining minutes — pick one axis and label it) per UTC day from sprint start to end, against an ideal straight line. Requires a **daily snapshot** or a replay of `ISSUE_STATUS_CHANGED`; today's schema cannot reconstruct "what was open last Tuesday" reliably. |
-| **Velocity (point-in-time)** | Supersedes §3's caveat: capture completed points at sprint close into a snapshot row, so history stops moving. Needs a doc + schema change first. |
+| ~~**Sprint burndown**~~ | **Implemented 2026-08-07 — see §6** (ADR-0037). Resolved by replaying `ISSUE_STATUS_CHANGED`, which turned out to be *exact* because those rows carry `beforeData` as well as `afterData`. The residual gap was sprint **membership** history, which is not audited — so v1 states its cohort on the chart, and `ISSUE_SPRINT_CHANGED` now accrues for v2. |
+| **Sprint burndown v2 (true membership)** | Replay `ISSUE_SPRINT_CHANGED` so issues enter and leave the cohort on the day they actually did, and draw scope-change markers. Available once the event has accumulated over a full sprint. |
+| **Velocity (point-in-time)** | Supersedes §3's caveat: capture completed points at sprint close into a snapshot row, so history stops moving. Needs a doc + schema change first. A `sprint_daily_snapshot` would serve this **and** burndown v2 at once. |
 | **Throughput** | Count of issues reaching Done per UTC week. No estimates required, so it works for teams that don't estimate — the honest companion to velocity. |
 | **Lead time** | `created → first DONE`, distinct from cycle time (`in progress → done`). Report the **median** as well as the mean; lead time is heavily skewed by a few long-lived issues. |
 | **Aging work in progress** | For each open issue currently In Progress/In Review: days since it entered that status. Surfaces stuck work that averages hide. |

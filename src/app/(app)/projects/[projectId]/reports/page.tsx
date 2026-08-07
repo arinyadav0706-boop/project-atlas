@@ -23,7 +23,7 @@ export default async function ProjectReportsPage({
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {results.map((result) => (
-          <ReportCard key={result.id} result={result} />
+          <ReportCard key={result.id} result={result} projectId={params.projectId} />
         ))}
       </div>
     );

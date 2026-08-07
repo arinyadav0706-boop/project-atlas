@@ -33,11 +33,11 @@ module (can't finish until that ships).
 | Board | ✅ | Only the **Sprint** filter control remains (FUT-4); Epic/Label/Component all shipped | — |
 | Home | ✅ | — | — |
 | **Backlog** | 🟡 | Text search + filter bar still unwired — **dependencies are now satisfied**, this is just not built | (Search ✅, Epics ✅ — unblocked) |
-| **Sprint** | 🟡 | (in-module done) burndown remains | Reports (burndown) |
+| **Sprint** | ✅ 2026-08-07 | Burndown shipped (ADR-0037) — the last in-module gap | — |
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
 | Attachments | ✅ | MVP done; `STORAGE_*` configured in prod (GL-8 ✅) — previews/versioning/scan later | — |
 | Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
-| Reports | 🟡 | (MVP done) burndown/CFD/more via registry | Sprint, audit log |
+| Reports | 🟡 | Velocity, **burndown**, status, cycle time done. CFD/throughput/lead-time remain — registry adds | Sprint, audit log |
 | Search | ✅ 2026-07-23 | Global ⌘K palette + Postgres FTS (ADR-0021). Per-list search still to wire into Backlog | — |
 | Labels / Components | 🟡 | (MVP done + board chips/filter/controls) list-row/backlog chips remain | — |
 | **Epics** | ✅ 2026-07-27 | Hierarchy, selector, detail panel, board filter + badges, backlog group-by-epic with cross-epic drag (ADR-0026) | — |
@@ -114,7 +114,8 @@ module (can't finish until that ships).
 - [x] Pluggable **report registry** (`REPORTS` map; API dispatches by id, UI renders by chartType) ✅ 2026-07-23
 - [x] Velocity (bar), Status breakdown (donut), Cycle time (KPI) — read-only over issues/sprints/audit_logs, no new tables ✅ 2026-07-23
 - [x] ~~Reports tab + hand-rolled SVG charts~~ → **rebuilt on Apache ECharts** (ADR-0036); the SVG kit was deleted rather than left as a second system ✅ 2026-08-06
-- [ ] **Burndown** (`line`) — first post-MVP registry add (active-sprint DONE events across dates). **The last thing keeping Sprint at 🟡.**
+- [x] **Burndown** (`line`) ✅ 2026-08-07 — status replayed exactly from `ISSUE_STATUS_CHANGED` (`beforeData` makes it exact); viewer picks points/issues/hours; cohort caveat + `unsized`/`untrackedDone` counters on the chart (ADR-0037). Closed the last Sprint gap.
+- [ ] **Burndown v2** — true membership replay off `ISSUE_SPRINT_CHANGED` (now accruing) + scope-change markers
 - [ ] **Committed-vs-completed velocity** — needs a `committedPoints` snapshot at sprint close
 - [ ] CFD, cycle/lead-time distributions, workload, epic progress, release reports, custom builder — registry adds
 - [ ] Compute cache / pre-aggregation — scale seam behind `compute`
@@ -139,7 +140,7 @@ module (can't finish until that ships).
 - [x] Star project · row "…" move · duration/issue-count · RBAC · OCC
 - [x] **Complete → move incomplete to *next sprint*** (FUT-5) ✅ 2026-07-21
 - [x] **Reorder the sprint queue** (up/down; FUT-8) ✅ 2026-07-21
-- [ ] **Burndown / velocity** — *Dep: Reports (SP-1); data already in audit_logs*
+- [x] **Burndown / velocity** ✅ 2026-08-07 — both on the Reports tab (ADR-0037)
 - [ ] **Sprint capacity** (points vs capacity) — *later*
 - [ ] **Duration presets** (1w/2w) + auto start/complete — *later*
 

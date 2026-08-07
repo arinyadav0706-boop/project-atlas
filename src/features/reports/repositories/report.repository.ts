@@ -43,6 +43,46 @@ export const ReportRepository = {
     return grouped.map((g) => ({ status: g.status, count: g._count._all }));
   },
 
+  // Burndown (BR-4, ADR-0037): the sprints a burndown can be drawn for —
+  // anything that has actually run. A PLANNED sprint has no history yet.
+  burndownSprints(projectId: string, limit = 12) {
+    return prisma.sprint.findMany({
+      where: {
+        projectId,
+        deletedAt: null,
+        status: { in: ["ACTIVE", "COMPLETED"] },
+        startDate: { not: null },
+        endDate: { not: null },
+      },
+      select: { id: true, name: true, status: true, startDate: true, endDate: true },
+      // Active first, then most recently finished — the sprint a lead is most
+      // likely to want is the one currently running.
+      orderBy: [{ status: "asc" }, { endDate: "desc" }],
+      take: limit,
+    });
+  },
+
+  // The cohort: issues in the sprint RIGHT NOW. Membership history does not
+  // exist (ADR-0037 §1) — the chart says so rather than the query pretending.
+  sprintCohort(sprintId: string) {
+    return prisma.issue.findMany({
+      where: { sprintId, deletedAt: null },
+      select: { id: true, status: true, storyPoints: true, estimateMinutes: true },
+    });
+  },
+
+  // Full status history for the cohort. Not windowed to the sprint: a transition
+  // BEFORE the sprint started is what tells us the starting status, and the
+  // earliest row's `beforeData` is what makes the replay exact.
+  statusHistory(issueIds: string[]) {
+    if (issueIds.length === 0) return Promise.resolve([]);
+    return prisma.auditLog.findMany({
+      where: { action: "ISSUE_STATUS_CHANGED", entityId: { in: issueIds } },
+      select: { entityId: true, beforeData: true, afterData: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
   // Cycle time (BR-3): the ISSUE_STATUS_CHANGED transitions for issues that
   // reached DONE within the window. Audit logs aren't project-scoped, so we
   // first resolve the project's issue ids, then read their transition history

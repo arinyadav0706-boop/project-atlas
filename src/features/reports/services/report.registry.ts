@@ -1,4 +1,5 @@
 import { ReportRepository } from "@/features/reports/repositories/report.repository";
+import { buildBurndown, type BurndownUnit } from "@/features/reports/lib/burndown";
 import type {
   ReportCategory,
   ReportChartType,
@@ -119,8 +120,84 @@ const cycleTime: ReportDefinition = {
   },
 };
 
+const BURNDOWN_UNITS: BurndownUnit[] = ["points", "issues", "hours"];
+
+const burndown: ReportDefinition = {
+  id: "burndown",
+  name: "Sprint burndown",
+  // Says "by due date"-style what it is, not what a reader might wish it were:
+  // the cohort caveat is stated on the chart itself (ADR-0037 §1).
+  description: "Remaining work per day across a sprint, against an ideal line.",
+  category: "delivery",
+  chartType: "line",
+  async compute(projectId, params) {
+    const unit: BurndownUnit = BURNDOWN_UNITS.includes(params.unit as BurndownUnit)
+      ? (params.unit as BurndownUnit)
+      : "points";
+
+    const sprints = await ReportRepository.burndownSprints(projectId);
+    const options = sprints.map((s) => ({ id: s.id, name: s.name, status: s.status }));
+
+    const empty = (reason: string, selected: (typeof sprints)[number] | null = null) =>
+      envelope(burndown, {
+        unit,
+        sprints: options,
+        selectedSprintId: selected?.id ?? null,
+        sprintName: selected?.name ?? null,
+        series: null,
+        reason,
+        issueCount: 0,
+        unsized: 0,
+        untrackedDone: 0,
+      });
+
+    if (sprints.length === 0) {
+      return empty("No sprint has run yet — a burndown needs a started sprint with dates.");
+    }
+
+    // An unknown or out-of-project id falls back rather than 404s: this is a
+    // chart parameter, not a resource lookup.
+    const sprint = sprints.find((s) => s.id === params.sprintId) ?? sprints[0]!;
+    if (!sprint.startDate || !sprint.endDate) {
+      return empty("This sprint has no start and end date, so there is nothing to plot.", sprint);
+    }
+
+    const cohort = await ReportRepository.sprintCohort(sprint.id);
+    const history = await ReportRepository.statusHistory(cohort.map((i) => i.id));
+
+    const series = buildBurndown(
+      cohort,
+      history.map((h) => ({
+        issueId: h.entityId,
+        from: (h.beforeData as { status?: string } | null)?.status ?? null,
+        to: (h.afterData as { status?: string } | null)?.status ?? null,
+        at: h.createdAt,
+      })),
+      { startDate: sprint.startDate, endDate: sprint.endDate },
+      unit,
+      new Date(),
+    );
+
+    if (series.points.length === 0) {
+      return empty("This sprint hasn't started yet.", sprint);
+    }
+
+    return envelope(burndown, {
+      unit,
+      sprints: options,
+      selectedSprintId: sprint.id,
+      sprintName: sprint.name,
+      series: { scope: series.scope, points: series.points },
+      reason: null,
+      issueCount: series.issueCount,
+      unsized: series.unsized,
+      untrackedDone: series.untrackedDone,
+    });
+  },
+};
+
 // The registry. Order here is the display order in the UI.
-export const REPORTS: ReportDefinition[] = [velocity, statusBreakdown, cycleTime];
+export const REPORTS: ReportDefinition[] = [velocity, burndown, statusBreakdown, cycleTime];
 
 export const REPORTS_BY_ID: Record<string, ReportDefinition> = Object.fromEntries(
   REPORTS.map((r) => [r.id, r]),

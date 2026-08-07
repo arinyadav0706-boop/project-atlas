@@ -33,7 +33,25 @@ is the documented scale seam.
   `IN_PROGRESS` and their first entry transitioning *into* `DONE`;
   average across the sample, report `sampleSize` alongside so a
   small-sample average isn't presented as if it were statistically solid.
-- BR-4: reports are read-only and respect the same project-visibility
+- BR-4 (Sprint Burndown, **ADR-0037**): remaining work per UTC day across a
+  sprint's `startDate → min(endDate, today)`, against a straight ideal line.
+  - **Cohort:** the issues in the sprint **now**. Sprint membership is not
+    audited, so this is the metric's one approximation and the chart states it
+    verbatim — issues added or removed mid-sprint are not reflected.
+  - **Status is replayed exactly**, not approximated: `ISSUE_STATUS_CHANGED`
+    rows carry `beforeData` as well as `afterData`, so the state before the
+    first recorded change is known rather than assumed.
+  - **Unit is the viewer's choice** — `points` (default, matching velocity) ·
+    `issues` (always populated, for teams that don't estimate) · `hours`.
+    Nulls contribute 0 and are counted, never imputed.
+  - **Two counters always travel with the result:** `unsized` (no value for the
+    chosen unit — the line is a floor) and `untrackedDone` (Done now with no
+    recorded DONE transition, so replay counts them done from day one).
+  - A sprint that has not started, or has no dates, returns **no series and a
+    reason** — never a flat line presented as progress.
+  - `ISSUE_SPRINT_CHANGED` is now audited on `SprintService.moveIssue`, so v2
+    can replay true membership and draw scope-change markers.
+- BR-5: reports are read-only and respect the same project-visibility
   rules as everything else (any authenticated employee can view, per
   `03_projects.md` BR-7).
 
@@ -50,11 +68,20 @@ Reads `Issue`, `Sprint`, `AuditLog` (filtered `action = ISSUE_STATUS_CHANGED`)
 
 ## UI
 
-Screen #12 in `docs/05_UI/02_Screens_and_Information_Architecture.md`:
-simple bar chart (velocity per sprint), donut/bar (status breakdown), and
-a single stat card (average cycle time + sample size) — charting library
-decision deferred to Phase 3 (candidate: Recharts, composable with
-Tailwind, no stack ADR needed for this low-risk additive dependency).
+Screen #12 in `docs/05_UI/02_Screens_and_Information_Architecture.md`. Every
+chart is built from the shared ECharts option builders (**ADR-0036**) — the
+Recharts candidate noted here originally was superseded.
+
+- **Velocity** — bar, completed points per finished sprint.
+- **Sprint burndown** — line, remaining vs. ideal (ADR-0037). The only
+  interactive report: a **sprint picker** and a **Points / Issues / Hours**
+  toggle, both refetching this card alone rather than reloading the page.
+  Beneath it, in the same place the workload page states its unestimated
+  warning, sit the cohort caveat and the two honesty counters. A sprint that
+  cannot be plotted renders the reason, not an empty chart.
+- **Status breakdown** — donut over every live issue, Done included.
+- **Cycle time** — a single stat card with its sample size; not a canvas,
+  because one number is not a chart.
 
 ## Acceptance Criteria
 
@@ -77,6 +104,10 @@ input.
 
 ## Future Scope
 
+- **Burndown v2** — replay `ISSUE_SPRINT_CHANGED` for true membership, plus
+  scope-change markers. Unblocked once the event has covered a full sprint.
+- `sprint_daily_snapshot`, which would serve burndown v2 **and** retire
+  velocity's "history moves" caveat (BR-1) in one change.
 - Cumulative flow diagram.
 - Custom/user-selectable date ranges (today: fixed trailing windows).
 - Cross-project rollup reports.
