@@ -2,32 +2,13 @@ import { prisma } from "@/shared/lib/db";
 // The same filter language the Board uses (ADR-0008) — one translation, so the
 // two surfaces cannot disagree about what a filter means.
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
+import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 
 // Prisma is imported ONLY in *.repository.ts. The backlog reads the Issue table
 // filtered to one project's unscheduled issues (`sprintId = null`), ordered by
 // the shared `rank` (ADR-0009/0013) — covered by issues(projectId, sprintId, rank).
 
-const cardSelect = {
-  id: true,
-  projectId: true,
-  key: true,
-  type: true,
-  title: true,
-  status: true,
-  priority: true,
-  storyPoints: true,
-  updatedAt: true,
-  version: true,
-  assignee: { select: { id: true, name: true, avatarUrl: true } },
-  // Parent epic for backlog grouping + row badge (ADR-0026).
-  epicId: true,
-  epic: { select: { key: true } },
-  // Classification chips (ADR-0018) — the same two joins the Board card reads,
-  // so a backlog row and a board card describe an issue identically.
-  labels: { select: { label: { select: { id: true, name: true, color: true } } } },
-  components: { select: { component: { select: { id: true, name: true } } } },
-} as const;
 
 // Keyset pagination — never return an unbounded set (Performance doc, standard
 // #1). `id` is the final tiebreaker so the order is total and the cursor
@@ -49,7 +30,7 @@ export const BacklogRepository = {
     );
     return prisma.issue.findMany({
       where: backlogWhere(projectId, filter),
-      select: cardSelect,
+      select: issueCardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
       take: take + 1,
       ...(page.cursor ? { cursor: { id: page.cursor }, skip: 1 } : {}),

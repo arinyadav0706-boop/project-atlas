@@ -1,6 +1,8 @@
 import { prisma } from "@/shared/lib/db";
 // One filter language for every project list view — see issue-filter.repository.ts.
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
+// One card shape for every list surface — see issue-card.repository.ts.
+import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
 import type { IssueStatus } from "@prisma/client";
 import type { BoardFilter } from "@/features/board/types/board.types";
 
@@ -12,30 +14,6 @@ import type { BoardFilter } from "@/features/board/types/board.types";
 // (UX-5); at the cap the lowest-ranked tail is omitted.
 export const BOARD_COLUMN_LIMIT = 100;
 
-const cardSelect = {
-  id: true,
-  projectId: true,
-  key: true,
-  type: true,
-  title: true,
-  status: true,
-  priority: true,
-  storyPoints: true,
-  updatedAt: true,
-  version: true,
-  assignee: { select: { id: true, name: true, avatarUrl: true } },
-  // Parent epic key for the card's epic badge (ADR-0026).
-  epic: { select: { id: true, key: true } },
-  // Classification chips (ADR-0018) — only live labels/components.
-  labels: {
-    where: { label: { deletedAt: null } },
-    select: { label: { select: { id: true, name: true, color: true } } },
-  },
-  components: {
-    where: { component: { deletedAt: null } },
-    select: { component: { select: { id: true, name: true } } },
-  },
-} as const;
 
 export const BoardRepository = {
   // Cards for one status column, ordered by rank. Uses the covering index
@@ -44,7 +22,7 @@ export const BoardRepository = {
   columnItems(projectId: string, status: IssueStatus, filter: BoardFilter) {
     return prisma.issue.findMany({
       where: { ...issueFilterWhere(projectId, filter), status },
-      select: cardSelect,
+      select: issueCardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
       take: BOARD_COLUMN_LIMIT,
     });

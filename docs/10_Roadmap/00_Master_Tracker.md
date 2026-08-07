@@ -38,8 +38,8 @@ module (can't finish until that ships).
 | Attachments | ✅ | MVP done; `STORAGE_*` configured in prod (GL-8 ✅) — previews/versioning/scan later | — |
 | Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
 | Reports | 🟡 | Velocity, **burndown**, status, cycle time done. CFD/throughput/lead-time remain — registry adds | Sprint, audit log |
-| Search | ✅ 2026-07-23 | Global ⌘K palette + Postgres FTS (ADR-0021). Per-list search still to wire into Backlog | — |
-| Labels / Components | ✅ 2026-08-07 | MVP + board chips/filters + **backlog row chips** via the shared `IssueChips` | — |
+| Search | ✅ 2026-07-23 | Global ⌘K palette + Postgres FTS (ADR-0021); per-list search now on the Backlog too | — |
+| Labels / Components | ✅ 2026-08-07 | MVP, board chips + filters, and chips on **every** list surface — board card, backlog row and Issues list — from one `issueCardSelect` + `toIssueCardDto` pair. *(Briefly marked ✅ earlier the same day when the Issues list was still missing them; the fix removed the duplication that caused it.)* | — |
 | **Epics** | ✅ 2026-07-27 | Hierarchy, selector, detail panel, board filter + badges, backlog group-by-epic with cross-epic drag (ADR-0026) | — |
 | **Versions / Releases** | ⛔ | Not started — no `Version` model exists. Genuinely V2. | Issues |
 | **Admin / Control plane** | ✅ 2026-07-23 | Capabilities, feature flags, audit viewer, org settings (ADR-0022/0023) | — |
@@ -95,7 +95,8 @@ module (can't finish until that ships).
 - [x] Board filter *query* support for `labelIds` + `componentIds` ✅ 2026-07-23
 - [x] **Filter controls** (label/component multiselect) in the Board filter bar ✅ 2026-07-23
 - [x] **Chips on board cards** (labels + components) ✅ 2026-07-23
-- [x] Chips on backlog rows + Backlog filter bar ✅ 2026-08-07 — `IssueChips` promoted out of the board card. *Issue-list rows still to wire.*
+- [x] Chips on backlog rows + Backlog filter bar ✅ 2026-08-07 — `IssueChips` promoted out of the board card
+- [x] **Chips on Issues-list rows** ✅ 2026-08-07 — closed the last surface. Root cause was three near-identical `cardSelect`s and three row→DTO mappers; unified into `issueCardSelect` + `toIssueCardDto`, which also restored the `deletedAt` guard the backlog copy had dropped.
 - [ ] **Label creation-lockdown toggle** (Phase 2), label merge, usage counts — *ADR-0018, deferred*
 - [ ] **Component board swimlanes**, component lead as watcher — *deferred*
 

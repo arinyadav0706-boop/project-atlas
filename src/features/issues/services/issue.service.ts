@@ -8,6 +8,8 @@ import {
   type ProjectContext,
 } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
+// One card shape + mapper for every list surface (ADR-0018/0026).
+import { toIssueCardDto } from "@/features/issues/services/issue-card.mapper";
 import { allowedTransitions, canTransition } from "@/features/issues/services/issue-workflow";
 import { rankBetween } from "@/shared/lib/rank";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
@@ -23,9 +25,7 @@ import type {
   EpicSummaryDto,
   IssueChildDto,
   IssueDetailDto,
-  IssueListItemDto,
   IssueListPageDto,
-  IssuePriorityDto,
   IssueStatusCounts,
   IssueStatusDto,
   IssueTypeDto,
@@ -63,33 +63,6 @@ async function resolve(
   return { context, role };
 }
 
-function toListDto(row: {
-  id: string;
-  projectId: string;
-  key: string;
-  type: IssueTypeDto;
-  title: string;
-  status: IssueStatusDto;
-  priority: IssuePriorityDto;
-  storyPoints: number | null;
-  updatedAt: Date;
-  version: number;
-  assignee: { id: string; name: string; avatarUrl: string | null } | null;
-}): IssueListItemDto {
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    key: row.key,
-    type: row.type,
-    title: row.title,
-    status: row.status,
-    priority: row.priority,
-    storyPoints: row.storyPoints,
-    updatedAt: row.updatedAt.toISOString(),
-    version: row.version,
-    assignee: row.assignee,
-  };
-}
 
 function toDetailDto(
   row: IssueRow,
@@ -103,7 +76,7 @@ function toDetailDto(
     ? { id: row.epic.id, key: row.epic.key, title: row.epic.title }
     : null;
   return {
-    ...toListDto(row),
+    ...toIssueCardDto(row),
     description: row.description,
     reporter: row.reporter,
     epicId: row.epicId,
@@ -176,7 +149,7 @@ export const IssueService = {
       counts.ALL += row._count._all;
     }
 
-    return { items: items.map(toListDto), nextCursor, counts };
+    return { items: items.map(toIssueCardDto), nextCursor, counts };
   },
 
   async get(actor: Actor, issueId: string): Promise<IssueDetailDto> {

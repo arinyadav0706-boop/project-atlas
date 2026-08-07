@@ -16,6 +16,7 @@ import {
   StatusDot,
   statusLabel,
 } from "./issue-meta";
+import { IssueChips } from "./issue-chips";
 import type {
   IssueDetailDto,
   IssueListItemDto,
@@ -230,6 +231,16 @@ export function IssuesView({
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {issue.title}
                   </span>
+                  {/* Epic / component / label chips (ADR-0018/0026) — the same
+                      component the board card and backlog row use, so one issue
+                      reads identically on all three. Capped at 3 with a "+N":
+                      this is a dense single-line row, and wrapping would make
+                      some rows taller than their neighbours. */}
+                  <IssueChips
+                    item={issue}
+                    max={3}
+                    className="hidden shrink-0 flex-nowrap md:flex"
+                  />
                   <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                     <StatusDot status={issue.status} />
                     {statusLabel(issue.status)}
