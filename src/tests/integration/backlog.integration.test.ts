@@ -141,17 +141,17 @@ describe("Backlog view (ADR-0013) integration", () => {
     const titles = Array.from({ length: 5 }, (_, n) => `I${n}`);
     await createIssues(actor, project.id, titles);
 
-    const first = await BacklogService.getBacklog(actor, project.id, { take: 2 });
+    const first = await BacklogService.getBacklog(actor, project.id, {}, { take: 2 });
     expect(first.items.map((i) => i.title)).toEqual(["I0", "I1"]);
     expect(first.nextCursor).not.toBeNull();
 
-    const second = await BacklogService.getBacklog(actor, project.id, {
+    const second = await BacklogService.getBacklog(actor, project.id, {}, {
       take: 2,
       cursor: first.nextCursor!,
     });
     expect(second.items.map((i) => i.title)).toEqual(["I2", "I3"]);
 
-    const third = await BacklogService.getBacklog(actor, project.id, {
+    const third = await BacklogService.getBacklog(actor, project.id, {}, {
       take: 2,
       cursor: second.nextCursor!,
     });

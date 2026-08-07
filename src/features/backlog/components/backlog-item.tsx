@@ -12,6 +12,7 @@ import {
   StatusDot,
   statusLabel,
 } from "@/features/issues/components/issue-meta";
+import { IssueChips } from "@/features/issues/components/issue-chips";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
 // A single backlog row. Draggable only when the viewer can write (VIEWER gets a
@@ -78,12 +79,20 @@ export function BacklogItem({
       >
         {item.title}
       </Link>
-      {showEpic && item.epicKey && (
-        <span className="hidden shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent sm:inline-flex">
-          <IssueTypeIcon type="EPIC" className="h-2.5 w-2.5" />
-          {item.epicKey}
-        </span>
-      )}
+      {/* Same chips the board card shows (ADR-0018/0026), so an issue reads the
+          same in both places. `flex-nowrap` + `overflow-hidden`: this row is a
+          single dense line, and wrapping chips would make some rows twice the
+          height of their neighbours. The epic chip is suppressed when the list
+          is already grouped by epic — the heading says it. */}
+      <IssueChips
+        item={{
+          epicKey: showEpic ? item.epicKey : undefined,
+          labels: item.labels,
+          components: item.components,
+        }}
+        max={3}
+        className="hidden shrink-0 flex-nowrap sm:flex"
+      />
       <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
         <StatusDot status={item.status} />
         {statusLabel(item.status)}

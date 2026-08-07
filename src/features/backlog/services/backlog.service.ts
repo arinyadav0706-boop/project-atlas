@@ -8,6 +8,7 @@ import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { BacklogDto } from "@/features/backlog/types/backlog.types";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
+import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 import { elevate, canWriteContent } from "@/features/authorization/permission";
 
 // Business rules from docs/02_Modules/06_backlog.md. RBAC is enforced here,
@@ -33,6 +34,10 @@ function toCardDto(row: CardRow): IssueListItemDto {
     assignee: row.assignee,
     epicId: row.epicId ?? null,
     epicKey: row.epic?.key,
+    // Same chips the board card carries (ADR-0018), so one issue reads the
+    // same way wherever it appears.
+    labels: row.labels.map((l) => l.label),
+    components: row.components.map((c) => c.component),
   };
 }
 
@@ -45,6 +50,7 @@ export const BacklogService = {
   async getBacklog(
     actor: Actor,
     projectId: string,
+    filter: IssueFilter = {},
     page: { cursor?: string; take?: number } = {},
   ): Promise<BacklogDto> {
     // Existence + tenant scope (F-1): a project outside the caller's org is
@@ -59,16 +65,29 @@ export const BacklogService = {
       page.take ?? DEFAULT_BACKLOG_PAGE_SIZE,
       MAX_BACKLOG_PAGE_SIZE,
     );
-    const rows = await BacklogRepository.listUnscheduled(projectId, {
-      cursor: page.cursor,
-      take: pageSize,
-    });
+    // The count runs alongside the page: a filtered backlog must be able to say
+    // how much it matched, not just how much fits on one page.
+    const [rows, total] = await Promise.all([
+      BacklogRepository.listUnscheduled(projectId, filter, {
+        cursor: page.cursor,
+        take: pageSize,
+      }),
+      BacklogRepository.countUnscheduled(projectId, filter),
+    ]);
 
     // listUnscheduled fetches pageSize + 1 to detect a further page.
     const hasMore = rows.length > pageSize;
     const items = hasMore ? rows.slice(0, pageSize) : rows;
     const nextCursor = hasMore ? (items.at(-1)?.id ?? null) : null;
 
-    return { items: items.map(toCardDto), nextCursor, canWrite: canWrite(role) };
+    return {
+      items: items.map(toCardDto),
+      nextCursor,
+      canWrite: canWrite(role),
+      total,
+      // Echoed so the client renders exactly what the server applied — never
+      // its own optimistic idea of the filter.
+      appliedFilter: filter,
+    };
   },
 };

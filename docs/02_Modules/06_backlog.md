@@ -57,6 +57,28 @@ New scopes (e.g. `sprint`) are added without touching existing callers.
   gained an optional `epicId`; no separate move logic. Hierarchy guards apply
   (an Epic can't be dropped into an epic group — ADR-0026, rejected server-side).
 
+- BR-7 (**Search + filters**, 2026-08-07): the backlog accepts the same
+  composable filter the Board uses (`IssueFilter`, ADR-0008) — free-text title
+  search plus assignee, type, priority, epic, labels and components. Applied
+  **server-side**: the list is keyset-paginated, so a client-side filter would
+  only narrow the page already loaded, not the backlog.
+  - `sprintId` is not offered and is ignored — the backlog *is* the unsprinted
+    set. The repository pins `sprintId: null` after the filter spread, so no
+    caller can widen it.
+  - `total` is returned alongside the page, because a keyset-paginated list can
+    otherwise only say "50 loaded", never "50 matched".
+  - Changing a filter re-reads **page one**. A cursor is a position in the old
+    result set; carrying it over would page into a list that no longer exists.
+  - Any pending row selection is cleared on a filter change — a bulk move
+    against a set the user can no longer see is a footgun.
+- BR-8 (**Reordering is disabled while filtered**): `rank` is a position in the
+  *whole* backlog. With rows hidden, a drop between two visible rows does
+  something the user did not intend, so drag is off until the filter is
+  cleared, with an on-screen note saying why. Jira takes the same line.
+- BR-9 (**Row chips**): backlog rows carry the same epic/component/label chips
+  as board cards (`IssueChips`, ADR-0018/0026), capped at three with a `+N`
+  overflow so a dense single-line row never grows taller than its neighbours.
+
 ## Database
 
 Reads/writes `Issue` (`sprintId`, `rank`, `version`) — **no new tables**. Adds a

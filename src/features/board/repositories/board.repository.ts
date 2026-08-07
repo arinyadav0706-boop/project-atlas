@@ -1,5 +1,7 @@
 import { prisma } from "@/shared/lib/db";
-import type { IssueStatus, Prisma } from "@prisma/client";
+// One filter language for every project list view — see issue-filter.repository.ts.
+import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
+import type { IssueStatus } from "@prisma/client";
 import type { BoardFilter } from "@/features/board/types/board.types";
 
 // Prisma is imported ONLY in *.repository.ts. The board reads the Issue table
@@ -35,36 +37,13 @@ const cardSelect = {
   },
 } as const;
 
-// One place translates the whole composable filter to a Prisma `where`. Adding
-// a filter here is the only change a new BoardFilter field needs (ADR-0008).
-function boardWhere(projectId: string, filter: BoardFilter): Prisma.IssueWhereInput {
-  return {
-    projectId,
-    deletedAt: null,
-    ...(filter.assigneeId ? { assigneeId: filter.assigneeId } : {}),
-    ...(filter.type ? { type: filter.type } : {}),
-    ...(filter.priority ? { priority: filter.priority } : {}),
-    ...(filter.sprintId ? { sprintId: filter.sprintId } : {}),
-    ...(filter.epicId ? { epicId: filter.epicId } : {}),
-    ...(filter.componentIds?.length
-      ? { components: { some: { componentId: { in: filter.componentIds } } } }
-      : {}),
-    ...(filter.labelIds?.length
-      ? { labels: { some: { labelId: { in: filter.labelIds } } } }
-      : {}),
-    ...(filter.search
-      ? { title: { contains: filter.search, mode: "insensitive" } }
-      : {}),
-  };
-}
-
 export const BoardRepository = {
   // Cards for one status column, ordered by rank. Uses the covering index
   // issues(projectId, status, rank); `id` is the final tiebreaker for a total,
   // stable order (ranks are unique per column but this stays safe regardless).
   columnItems(projectId: string, status: IssueStatus, filter: BoardFilter) {
     return prisma.issue.findMany({
-      where: { ...boardWhere(projectId, filter), status },
+      where: { ...issueFilterWhere(projectId, filter), status },
       select: cardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
       take: BOARD_COLUMN_LIMIT,
@@ -76,7 +55,7 @@ export const BoardRepository = {
   countByStatus(projectId: string, filter: BoardFilter) {
     return prisma.issue.groupBy({
       by: ["status"],
-      where: boardWhere(projectId, filter),
+      where: issueFilterWhere(projectId, filter),
       _count: { _all: true },
     });
   },

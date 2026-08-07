@@ -64,3 +64,37 @@ becomes a stored, named `BoardFilter` (future table) reusing the same contract.
     FUT + roadmap).
   - Each board column is **bounded** (capped per column) — see Performance doc;
     per-column "load more" is a future enhancement.
+
+## Amendment — 2026-08-07: the filter is shared, not the Board's
+
+This ADR argued a composable filter would make new scopes a control rather than
+a redesign. That held: Sprint, Epic, Labels and Components all landed as
+controls, and FUT-4 is closed.
+
+What the ADR did not anticipate is a **second consumer**. When the Backlog
+needed search and filters, copying `BoardFilter`, `boardWhere()` and
+`boardFilterSchema` would have created two filter languages that drift — one
+would eventually disagree about what a blank `?search=` means, or spell
+`labelIds` differently.
+
+So all three move to `features/issues`, which owns the domain:
+
+| Concern | Home |
+|---|---|
+| Shape | `types/issue-filter.types.ts` → `IssueFilter` |
+| Prisma `where` | `repositories/issue-filter.repository.ts` → `issueFilterWhere()` |
+| Query parse | `validation/issue-filter.schemas.ts` → `parseIssueFilter()` |
+| Query serialise | `lib/issue-filter-query.ts` → `issueFilterToQuery()` |
+
+`BoardFilter` and `boardFilterSchema` remain as aliases, so the Board's own docs
+and call sites still read naturally. **Adding a filter is now one field plus one
+control, for every list view at once.**
+
+Two consequences worth recording:
+
+- **The Backlog ignores `sprintId`** — it *is* the unsprinted set. The
+  repository pins `sprintId: null` after the filter spread, so no caller can
+  widen it.
+- **Reordering is disabled while a backlog filter is active.** `rank` is a
+  position in the whole list; a drop between two visible rows with hidden rows
+  between them does something the user did not intend. Jira takes the same line.

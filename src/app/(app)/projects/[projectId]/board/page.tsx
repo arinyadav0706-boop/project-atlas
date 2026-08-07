@@ -5,6 +5,7 @@ import { BoardService } from "@/features/board/services/board.service";
 import { LabelService } from "@/features/labels/services/label.service";
 import { ComponentService } from "@/features/components/services/component.service";
 import { IssueService } from "@/features/issues/services/issue.service";
+import { SprintService } from "@/features/sprints/services/sprint.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { BoardView } from "@/features/board/components/board-view";
 
@@ -19,12 +20,15 @@ export default async function ProjectBoardPage({
   try {
     // Unfiltered board (project-level, ADR-0008) + the member list for the
     // assignee filter, fetched in parallel.
-    const [board, members, labels, components, epics] = await Promise.all([
+    const [board, members, labels, components, epics, sprints] = await Promise.all([
       BoardService.getBoard(actor, params.projectId, {}),
       ProjectService.listMembers(actor, params.projectId),
       LabelService.list(actor),
       ComponentService.list(actor, params.projectId),
       IssueService.listEpics(actor, params.projectId),
+      // Feeds the Sprint filter control (FUT-4). A kanban project returns none
+      // and the control simply doesn't render.
+      SprintService.list(actor, params.projectId),
     ]);
     return (
       <BoardView
@@ -34,6 +38,7 @@ export default async function ProjectBoardPage({
         labels={labels.items}
         components={components.items.map((c) => ({ id: c.id, name: c.name }))}
         epics={epics}
+        sprints={sprints.map((s) => ({ id: s.id, name: s.name, status: s.status }))}
       />
     );
   } catch (error) {

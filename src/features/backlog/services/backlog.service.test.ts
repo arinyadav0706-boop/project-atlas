@@ -6,6 +6,7 @@ vi.mock("@/features/backlog/repositories/backlog.repository", () => ({
   MAX_BACKLOG_PAGE_SIZE: 100,
   BacklogRepository: {
     listUnscheduled: vi.fn(),
+    countUnscheduled: vi.fn(),
   },
 }));
 vi.mock("@/features/projects/services/project.service", () => ({
@@ -45,6 +46,12 @@ function card(id: string) {
     updatedAt: new Date("2026-07-14T00:00:00Z"),
     version: 0,
     assignee: null,
+    epicId: null,
+    epic: null,
+    // The repository always selects these two joins, so the fixture must carry
+    // them — a card without them is a shape the service never actually sees.
+    labels: [],
+    components: [],
   };
 }
 
@@ -52,6 +59,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
   repo.listUnscheduled.mockResolvedValue([card("a"), card("b")] as never);
+  repo.countUnscheduled.mockResolvedValue(2 as never);
 });
 
 describe("getBacklog", () => {
@@ -93,11 +101,12 @@ describe("getBacklog", () => {
 
   it("caps an over-large take at MAX_BACKLOG_PAGE_SIZE", async () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
-    await BacklogService.getBacklog(actor, "proj-1", { take: 5000 });
-    expect(repo.listUnscheduled).toHaveBeenCalledWith("proj-1", {
-      cursor: undefined,
-      take: 100,
-    });
+    await BacklogService.getBacklog(actor, "proj-1", {}, { take: 5000 });
+    expect(repo.listUnscheduled).toHaveBeenCalledWith(
+      "proj-1",
+      {},
+      { cursor: undefined, take: 100 },
+    );
   });
 
   it("treats a project in another org as absent (F-1 tenant scope)", async () => {

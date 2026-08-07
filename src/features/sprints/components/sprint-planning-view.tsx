@@ -43,6 +43,9 @@ import {
   DropdownMenuItem,
 } from "@/shared/components/ui/dropdown-menu";
 import { BacklogItem } from "@/features/backlog/components/backlog-item";
+import { BoardFilterBar } from "@/features/board/components/board-filter-bar";
+import { issueFilterToQuery, isIssueFilterActive } from "@/features/issues/lib/issue-filter-query";
+import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 import { InlineCreateIssue } from "@/features/backlog/components/inline-create-issue";
 import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
 import {
@@ -108,11 +111,17 @@ export function SprintPlanningView({
   initialSprint,
   initialBacklog,
   epics,
+  members,
+  labels,
+  components,
 }: {
   projectId: string;
   initialSprint: SprintPanelDto;
   initialBacklog: BacklogDto;
   epics: { id: string; key: string; title: string }[];
+  members: { userId: string; name: string }[];
+  labels: { id: string; name: string; color: string }[];
+  components: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const canWrite = initialSprint.canWrite && initialBacklog.canWrite;
@@ -133,6 +142,17 @@ export function SprintPlanningView({
   const [bulkTarget, setBulkTarget] = useState("backlog");
   const [bulkBusy, setBulkBusy] = useState(false);
   // Backlog "Group by epic" view (ADR-0026) — a view preference, local only.
+  // Backlog filter (ADR-0008, shared with the Board). Server-applied: the
+  // client never filters a page it already has, because the backlog is
+  // keyset-paginated and a client-side filter would only narrow page one.
+  const [filter, setFilter] = useState<IssueFilter>({});
+  const [filtering, setFiltering] = useState(false);
+  const [total, setTotal] = useState<number>(initialBacklog.total);
+  const filterActive = isIssueFilterActive(filter);
+  // Rank is a position in the WHOLE backlog. With rows hidden by a filter, a
+  // drop between two visible rows means something the user did not intend, so
+  // reordering is off until the filter is cleared (the note below says why).
+  const backlogDraggable = canWrite && !filterActive;
   const [groupByEpic, setGroupByEpic] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -153,6 +173,7 @@ export function SprintPlanningView({
     for (const s of initialSprint.sprints) m[s.sprint.id] = s.items;
     setSprintItems(m);
     setBacklogItems(initialBacklog.items);
+    setTotal(initialBacklog.total);
     setNextCursor(initialBacklog.nextCursor);
     setSelected(new Set());
   }
@@ -311,8 +332,10 @@ export function SprintPlanningView({
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
+      const q = issueFilterToQuery(filter);
+      q.set("cursor", nextCursor);
       const page = await apiRequest<BacklogDto>(
-        `/api/projects/${projectId}/backlog?cursor=${encodeURIComponent(nextCursor)}`,
+        `/api/projects/${projectId}/backlog?${q.toString()}`,
       );
       setBacklogItems((prev) => [...prev, ...page.items]);
       setNextCursor(page.nextCursor);
@@ -321,7 +344,33 @@ export function SprintPlanningView({
     } finally {
       setLoadingMore(false);
     }
-  }, [projectId, nextCursor, loadingMore]);
+  }, [projectId, nextCursor, loadingMore, filter]);
+
+  // Applying a filter re-reads page ONE. The cursor is a position in the old
+  // result set, so carrying it over would page into a list that no longer
+  // exists — the classic keyset-plus-filter bug.
+  const applyFilter = useCallback(
+    async (next: IssueFilter) => {
+      setFilter(next);
+      setFiltering(true);
+      try {
+        const page = await apiRequest<BacklogDto>(
+          `/api/projects/${projectId}/backlog?${issueFilterToQuery(next).toString()}`,
+        );
+        setBacklogItems(page.items);
+        setNextCursor(page.nextCursor);
+        setTotal(page.total);
+        // A filtered list is a different set; a selection made against the old
+        // one would bulk-move issues the user can no longer see.
+        setSelected(new Set());
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't apply the filter.");
+      } finally {
+        setFiltering(false);
+      }
+    },
+    [projectId],
+  );
 
   const onChanged = useCallback(() => router.refresh(), [router]);
 
@@ -531,7 +580,17 @@ export function SprintPlanningView({
       {/* Backlog section */}
       <section>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-foreground">Backlog</h2>
+          <h2 className="flex items-baseline gap-2 text-sm font-semibold text-foreground">
+            Backlog
+            {/* Count under the active filter. The list is keyset-paginated, so
+                without the server's total this could only say "50 loaded". */}
+            <span className="text-xs font-normal text-muted-foreground">
+              {filterActive ? `${total} matching` : `${total}`}
+            </span>
+            {filtering && (
+              <span className="text-xs font-normal text-muted-foreground">Filtering…</span>
+            )}
+          </h2>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Group by</span>
             <Select
@@ -549,6 +608,35 @@ export function SprintPlanningView({
           </div>
         </div>
 
+        {/* The same composable filter the Board uses (ADR-0008) — one type, one
+            parser, one `where`. `sprints` is deliberately omitted: the backlog
+            IS the unsprinted set, so a sprint filter here is meaningless. */}
+        <BoardFilterBar
+          members={members}
+          labels={labels}
+          components={components}
+          epics={epics}
+          filter={filter}
+          onChange={applyFilter}
+        />
+
+        {/* Reordering a filtered backlog is disabled on purpose. Rank is a
+            position in the FULL list; dropping between two visible rows when
+            hidden rows sit between them does something the user did not mean.
+            Jira takes the same line. Clearing the filter restores dragging. */}
+        {filterActive && canWrite && (
+          <p className="mb-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+            Reordering is off while a filter is active — rank is a position in the
+            whole backlog, and hidden rows sit between the ones you can see.
+          </p>
+        )}
+
+        {backlogItems.length === 0 && filterActive && (
+          <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            No unscheduled issues match this filter.
+          </p>
+        )}
+
         {groupByEpic ? (
           <div className="flex flex-col gap-3">
             {backlogGroups.map((g) => (
@@ -558,7 +646,7 @@ export function SprintPlanningView({
                 collapsed={collapsedGroups.has(g.listId)}
                 onToggle={() => toggleCollapse(g.listId)}
                 projectId={projectId}
-                canWrite={canWrite}
+                canWrite={backlogDraggable}
                 renderLeading={rowLeading}
                 renderTrailing={(item) => rowMenu(item, null)}
               />
@@ -569,7 +657,7 @@ export function SprintPlanningView({
             listId={BACKLOG_LIST}
             projectId={projectId}
             items={backlogItems}
-            canWrite={canWrite}
+            canWrite={backlogDraggable}
             emptyText="The backlog is empty — new issues land here until they're scheduled."
             renderLeading={rowLeading}
             renderTrailing={(item) => rowMenu(item, null)}

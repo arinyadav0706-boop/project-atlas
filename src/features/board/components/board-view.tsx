@@ -74,6 +74,7 @@ export function BoardView({
   labels,
   components,
   epics,
+  sprints,
 }: {
   projectId: string;
   initialBoard: BoardDto;
@@ -81,6 +82,7 @@ export function BoardView({
   labels: { id: string; name: string; color: string }[];
   components: { id: string; name: string }[];
   epics: { id: string; key: string; title: string }[];
+  sprints: { id: string; name: string; status: string }[];
 }) {
   const [columns, setColumns] = useState<Columns>(() => toColumns(initialBoard));
   const [counts, setCounts] = useState<IssueStatusCounts>(initialBoard.counts);
@@ -221,6 +223,7 @@ export function BoardView({
         labels={labels}
         components={components}
         epics={epics}
+        sprints={sprints}
         filter={filter}
         onChange={setFilter}
       />

@@ -1,6 +1,7 @@
 "use client";
 
-import { X, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, X, ChevronDown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Select,
@@ -33,6 +34,7 @@ export function BoardFilterBar({
   labels,
   components,
   epics,
+  sprints = [],
   filter,
   onChange,
 }: {
@@ -40,6 +42,10 @@ export function BoardFilterBar({
   labels: { id: string; name: string; color: string }[];
   components: { id: string; name: string }[];
   epics: { id: string; key: string; title: string }[];
+  // Sprints that can meaningfully scope a board: the running one and the
+  // planned queue. Optional so a surface without sprints (a kanban project)
+  // simply omits the control rather than rendering an empty one.
+  sprints?: { id: string; name: string; status: string }[];
   filter: BoardFilter;
   onChange: (next: BoardFilter) => void;
 }) {
@@ -48,6 +54,7 @@ export function BoardFilterBar({
     filter.type !== undefined ||
     filter.priority !== undefined ||
     filter.epicId !== undefined ||
+    filter.sprintId !== undefined ||
     (filter.labelIds?.length ?? 0) > 0 ||
     (filter.componentIds?.length ?? 0) > 0;
 
@@ -64,6 +71,11 @@ export function BoardFilterBar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
+      <SearchInput
+        value={filter.search ?? ""}
+        onCommit={(v) => onChange({ ...filter, search: v || undefined })}
+      />
+
       <Select
         value={filter.assigneeId ?? ANY}
         onValueChange={(v) =>
@@ -123,6 +135,28 @@ export function BoardFilterBar({
           ))}
         </SelectContent>
       </Select>
+
+      {sprints.length > 0 && (
+        <Select
+          value={filter.sprintId ?? ANY}
+          onValueChange={(v) =>
+            onChange({ ...filter, sprintId: v === ANY ? undefined : v })
+          }
+        >
+          <SelectTrigger className="h-8 w-auto min-w-36 text-sm">
+            <SelectValue placeholder="Sprint" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value={ANY}>Any sprint</SelectItem>
+            {sprints.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+                {s.status === "ACTIVE" ? " · active" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {epics.length > 0 && (
         <Select
@@ -232,5 +266,50 @@ function MultiSelect({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// Free-text title filter. Debounced rather than fired per keystroke: every
+// change is a server round trip (the list is keyset-paginated, so it cannot be
+// filtered client-side), and a request per character would both hammer the API
+// and race its own responses.
+function SearchInput({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  // Re-sync when the filter is cleared from outside (the Clear button).
+  useEffect(() => setDraft(value), [value]);
+
+  useEffect(() => {
+    if (draft === value) return;
+    const t = setTimeout(() => onCommit(draft.trim()), 300);
+    return () => clearTimeout(t);
+  }, [draft, value, onCommit]);
+
+  return (
+    <div className="relative">
+      <Search
+        aria-hidden
+        className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+      />
+      <input
+        type="search"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        // Enter commits immediately — waiting out the debounce after an
+        // explicit submit feels broken.
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onCommit(draft.trim());
+        }}
+        placeholder="Search titles"
+        aria-label="Search issue titles"
+        className="h-8 w-44 rounded-md border border-border bg-background pl-7 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      />
+    </div>
   );
 }

@@ -30,16 +30,16 @@ module (can't finish until that ships).
 | Auth / SSO | ✅ | Rotate seeded passwords (GL-1); SSO creds if launching SSO (GL-6) | — |
 | Projects & Roles | ✅ | — | — |
 | Issues | ✅ | — | — |
-| Board | ✅ | Only the **Sprint** filter control remains (FUT-4); Epic/Label/Component all shipped | — |
+| Board | ✅ 2026-08-07 | Every filter now active — assignee, type, priority, epic, components, labels, **sprint** (FUT-4 closed) | — |
 | Home | ✅ | — | — |
-| **Backlog** | 🟡 | Text search + filter bar still unwired — **dependencies are now satisfied**, this is just not built | (Search ✅, Epics ✅ — unblocked) |
+| **Backlog** | ✅ 2026-08-07 | Search + the full composable filter, server-applied; row chips; reorder guarded while filtered | — |
 | **Sprint** | ✅ 2026-08-07 | Burndown shipped (ADR-0037) — the last in-module gap | — |
 | Comments | 🟡 | (MVP done) threads/mentions/reactions/rich-text later | (future features) |
 | Attachments | ✅ | MVP done; `STORAGE_*` configured in prod (GL-8 ✅) — previews/versioning/scan later | — |
 | Notifications | 🟡 | (MVP done) @mentions, real-time, email later | Comments, Issues events |
 | Reports | 🟡 | Velocity, **burndown**, status, cycle time done. CFD/throughput/lead-time remain — registry adds | Sprint, audit log |
 | Search | ✅ 2026-07-23 | Global ⌘K palette + Postgres FTS (ADR-0021). Per-list search still to wire into Backlog | — |
-| Labels / Components | 🟡 | (MVP done + board chips/filter/controls) list-row/backlog chips remain | — |
+| Labels / Components | ✅ 2026-08-07 | MVP + board chips/filters + **backlog row chips** via the shared `IssueChips` | — |
 | **Epics** | ✅ 2026-07-27 | Hierarchy, selector, detail panel, board filter + badges, backlog group-by-epic with cross-epic drag (ADR-0026) | — |
 | **Versions / Releases** | ⛔ | Not started — no `Version` model exists. Genuinely V2. | Issues |
 | **Admin / Control plane** | ✅ 2026-07-23 | Capabilities, feature flags, audit viewer, org settings (ADR-0022/0023) | — |
@@ -95,7 +95,7 @@ module (can't finish until that ships).
 - [x] Board filter *query* support for `labelIds` + `componentIds` ✅ 2026-07-23
 - [x] **Filter controls** (label/component multiselect) in the Board filter bar ✅ 2026-07-23
 - [x] **Chips on board cards** (labels + components) ✅ 2026-07-23
-- [ ] Chips on list rows / backlog rows + Backlog filter bar — *optional additive `IssueListItemDto` fields exist; other views not yet wired*
+- [x] Chips on backlog rows + Backlog filter bar ✅ 2026-08-07 — `IssueChips` promoted out of the board card. *Issue-list rows still to wire.*
 - [ ] **Label creation-lockdown toggle** (Phase 2), label merge, usage counts — *ADR-0018, deferred*
 - [ ] **Component board swimlanes**, component lead as watcher — *deferred*
 
@@ -127,8 +127,8 @@ module (can't finish until that ships).
 - [x] VIEWER read-only, RBAC, optimistic + OCC
 - [x] **Inline "create issue" at bottom of backlog** (Jira fast-add) ✅ 2026-07-21
 - [x] **Epics panel / group-by-epic** — collapse/expand, No-Epic bucket, cross-epic drag ✅ 2026-07-27
-- [ ] **Backlog text search** — ~~*Dep: Search*~~ **unblocked** (Search shipped 2026-07-23); simply not wired into this surface yet
-- [ ] **Filters** (assignee/type/priority/epic/label) — ~~*Dep: Labels/Epics*~~ **unblocked** (both shipped); the Board's filter bar is the pattern to copy
+- [x] **Backlog text search** ✅ 2026-08-07 — debounced title search in the shared filter bar, applied server-side
+- [x] **Filters** (assignee/type/priority/epic/label/component) ✅ 2026-08-07 — the Board's bar, shared rather than copied
 - [ ] **Versions/releases panel** — *Dep: Versions — genuinely not started*
 - [x] **Bulk select + bulk move** (SP-8) ✅ 2026-07-21
 - [ ] **Inline edit** assignee/points/labels from a row — *Dep: Labels — later*

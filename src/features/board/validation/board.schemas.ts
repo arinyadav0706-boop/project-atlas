@@ -1,18 +1,9 @@
-import { z } from "zod";
-import { issuePriority, issueType } from "@/features/issues/validation/issue.schemas";
-
-// Parses the BoardFilter from query params (ADR-0008). Empty/omitted fields
-// drop out so the filter object only carries active constraints. `labelIds`
-// arrives as repeated `?labelIds=` params (read via searchParams.getAll).
-export const boardFilterSchema = z.object({
-  sprintId: z.string().trim().min(1).optional(),
-  epicId: z.string().trim().min(1).optional(),
-  assigneeId: z.string().trim().min(1).optional(),
-  type: issueType.optional(),
-  priority: issuePriority.optional(),
-  labelIds: z.array(z.string().trim().min(1)).optional(),
-  componentIds: z.array(z.string().trim().min(1)).optional(),
-  search: z.string().trim().min(1).max(200).optional(),
-});
-
-export type BoardFilterInput = z.infer<typeof boardFilterSchema>;
+// The board's filter parsing now lives in the shared issue filter schema
+// (`features/issues/validation/issue-filter.schemas.ts`) — Backlog parses the
+// same query contract, and two hand-written parsers would drift. Re-exported
+// under the board's own names so existing imports and docs still read.
+export {
+  issueFilterSchema as boardFilterSchema,
+  parseIssueFilter,
+  type IssueFilterInput as BoardFilterInput,
+} from "@/features/issues/validation/issue-filter.schemas";

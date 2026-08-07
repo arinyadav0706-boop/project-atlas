@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
 import { requireActor } from "@/features/authentication/services/actor.service";
 import { BoardService } from "@/features/board/services/board.service";
-import { boardFilterSchema } from "@/features/board/validation/board.schemas";
+import { parseIssueFilter } from "@/features/issues/validation/issue-filter.schemas";
 
 type Params = { params: { projectId: string } };
 
@@ -11,19 +11,7 @@ type Params = { params: { projectId: string } };
 export async function GET(request: NextRequest, { params }: Params) {
   return handleRoute(async () => {
     const actor = await requireActor();
-    const q = request.nextUrl.searchParams;
-    const labelIds = q.getAll("labelIds");
-    const componentIds = q.getAll("componentIds");
-    const filter = boardFilterSchema.parse({
-      sprintId: q.get("sprintId") ?? undefined,
-      epicId: q.get("epicId") ?? undefined,
-      assigneeId: q.get("assigneeId") ?? undefined,
-      type: q.get("type") ?? undefined,
-      priority: q.get("priority") ?? undefined,
-      labelIds: labelIds.length ? labelIds : undefined,
-      componentIds: componentIds.length ? componentIds : undefined,
-      search: q.get("search") ?? undefined,
-    });
+    const filter = parseIssueFilter(request.nextUrl.searchParams);
     return NextResponse.json(
       await BoardService.getBoard(actor, params.projectId, filter),
     );
