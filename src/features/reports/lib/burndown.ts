@@ -32,6 +32,18 @@ export interface BurndownPoint {
   ideal: number;
 }
 
+// Why a line never moved. A flat burndown reads as a broken chart, so the
+// series says which of the three real causes produced it rather than leaving
+// the reader to guess (ADR-0037 §4).
+export type BurndownFlatReason =
+  // Cohort issues exist and carry size, but none reached Done inside the window.
+  | "NOTHING_COMPLETED"
+  // Everything was already Done before the sprint began — usually a sprint
+  // whose completions predate recorded status history.
+  | "ALL_DONE_BEFORE"
+  // Issues exist but none carries a value for the chosen unit.
+  | "NO_SIZE";
+
 export interface BurndownSeries {
   unit: BurndownUnit;
   scope: number;
@@ -41,6 +53,8 @@ export interface BurndownSeries {
   /** Done now, but with no recorded DONE transition (see ADR-0037 §4). */
   untrackedDone: number;
   issueCount: number;
+  /** Null when the line actually moves. */
+  flatReason: BurndownFlatReason | null;
 }
 
 const DONE = "DONE";
@@ -161,5 +175,26 @@ export function buildBurndown(
     };
   });
 
-  return { unit, scope, points, unsized, untrackedDone, issueCount: issues.length };
+  return {
+    unit,
+    scope,
+    points,
+    unsized,
+    untrackedDone,
+    issueCount: issues.length,
+    flatReason: flatReason(points, scope, issues.length),
+  };
+}
+
+function flatReason(
+  points: BurndownPoint[],
+  scope: number,
+  issueCount: number,
+): BurndownFlatReason | null {
+  if (points.length === 0 || issueCount === 0) return null;
+  const moved = points.some((p) => p.remaining !== points[0]!.remaining);
+  if (moved) return null;
+
+  if (scope === 0) return "NO_SIZE";
+  return points[0]!.remaining === 0 ? "ALL_DONE_BEFORE" : "NOTHING_COMPLETED";
 }

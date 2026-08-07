@@ -149,6 +149,7 @@ const burndown: ReportDefinition = {
         issueCount: 0,
         unsized: 0,
         untrackedDone: 0,
+        flatReason: null,
       });
 
     if (sprints.length === 0) {
@@ -192,6 +193,7 @@ const burndown: ReportDefinition = {
       issueCount: series.issueCount,
       unsized: series.unsized,
       untrackedDone: series.untrackedDone,
+      flatReason: series.flatReason,
     });
   },
 };

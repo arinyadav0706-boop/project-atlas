@@ -188,6 +188,69 @@ describe("the honesty counters (ADR-0037 §4)", () => {
   });
 });
 
+describe("flatReason names why a line never moved", () => {
+  it("is null when the line actually moves", () => {
+    const series = buildBurndown(
+      [issue({ id: "a", status: "DONE", storyPoints: 3 })],
+      [move("a", "TODO", "DONE", "2026-08-06T09:00:00Z")],
+      SPRINT,
+      "points",
+      AFTER,
+    );
+    expect(series.flatReason).toBeNull();
+  });
+
+  it("reports NOTHING_COMPLETED for a sprint where nothing reached Done", () => {
+    // Exactly the VERUS active-sprint case: real work, real size, no completions.
+    const series = buildBurndown(
+      [
+        issue({ id: "a", status: "IN_PROGRESS", storyPoints: 5 }),
+        issue({ id: "b", status: "TODO", storyPoints: 8 }),
+      ],
+      [move("a", "TODO", "IN_PROGRESS", "2026-08-05T09:00:00Z")],
+      SPRINT,
+      "points",
+      AFTER,
+    );
+    expect(series.flatReason).toBe("NOTHING_COMPLETED");
+    expect(series.points.every((p) => p.remaining === 13)).toBe(true);
+  });
+
+  it("reports ALL_DONE_BEFORE when the line sits at zero throughout", () => {
+    const series = buildBurndown(
+      [issue({ id: "a", status: "DONE", storyPoints: 3 })],
+      [move("a", "TODO", "DONE", "2026-07-01T09:00:00Z")],
+      SPRINT,
+      "points",
+      AFTER,
+    );
+    expect(series.flatReason).toBe("ALL_DONE_BEFORE");
+  });
+
+  it("reports NO_SIZE when the cohort carries nothing for this unit", () => {
+    const series = buildBurndown(
+      [issue({ id: "a", status: "TODO", storyPoints: null })],
+      [],
+      SPRINT,
+      "points",
+      AFTER,
+    );
+    expect(series.flatReason).toBe("NO_SIZE");
+  });
+
+  it("switching unit can rescue a NO_SIZE sprint", () => {
+    const cohort = [issue({ id: "a", status: "DONE", storyPoints: null })];
+    const history = [move("a", "TODO", "DONE", "2026-08-06T09:00:00Z")];
+    expect(buildBurndown(cohort, history, SPRINT, "points", AFTER).flatReason).toBe("NO_SIZE");
+    // Counted as issues it has size, and the line moves.
+    expect(buildBurndown(cohort, history, SPRINT, "issues", AFTER).flatReason).toBeNull();
+  });
+
+  it("stays null for an empty sprint — that is the empty state, not a flat line", () => {
+    expect(buildBurndown([], [], SPRINT, "points", AFTER).flatReason).toBeNull();
+  });
+});
+
 describe("edge cases that must not produce a misleading chart", () => {
   it("returns an empty series with zero scope for a sprint with no issues", () => {
     const series = buildBurndown([], [], SPRINT, "points", AFTER);
