@@ -104,3 +104,36 @@ Concretely:
     handover DB (rule #13).
   - If a future stress project (~2–4k issues in one project purely to probe
     limits) is wanted, add it as another deletable project behind a flag.
+
+## Amendment — 2026-08-08: the seed decides which features get tested
+
+Two defects in a row traced to the same root, and it is worth naming as a rule
+rather than fixing twice more.
+
+The burndown shipped drawing a flat line on every VERUS sprint while its unit
+tests were green, because the generator gave the active sprint no DONE issues
+and placed completion timestamps outside every sprint window. Then labels
+shipped complete — schema, service, RBAC, chips, filter — and the generator
+created **zero** of them, so the chip row, the `label` filter and the
+`deletedAt` guard in `issueCardSelect` had only fixtures behind them.
+
+Neither was a bug in the feature. Both were the demo data quietly declining to
+exercise it, which looks exactly like working software until someone opens the
+page.
+
+So, added to this ADR's contract:
+
+1. **A module is not done until the generator produces data that exercises
+   it.** If a feature reads a table, VERUS populates that table.
+2. **Distributions must be uneven and defensible.** A pool where every label
+   appears equally often exercises the code and proves nothing about the
+   product — the point of `security` is that filtering to it returns a short
+   list. Weights are declared in `data.ts` with the reasoning next to them.
+3. **Seed assertions replay the real generated dataset**, not fixtures
+   (`burndown.seed.test.ts`, `labels.seed.test.ts`). Fixtures written by the
+   same person who wrote the assumption cannot catch the assumption being
+   wrong.
+
+Labels are org-scoped, so they are generated once outside the project loop —
+the same `regression` row is shared by all four projects, which is the
+distinction against per-project components that the demo should make visible.

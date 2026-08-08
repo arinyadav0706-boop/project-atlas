@@ -243,6 +243,38 @@ export const DESCRIPTIONS: readonly string[] = [
   "",
 ];
 
+// ---- Labels (ADR-0018). Labels are ORGANIZATION-scoped, unlike components,
+// which belong to one project — so this is one pool shared by all four
+// projects, and the cross-cutting names below are chosen to make that sensible
+// (a `regression` in VMOB means what it means in OPS).
+//
+// `weight` is the percentage of issues carrying the label, tuned so the real
+// distribution is uneven: `regression` and `tech-debt` are common enough to be
+// worth filtering by, `security` and `compliance` are rare enough that
+// filtering to them returns a short, readable list. A pool where every label
+// appears equally often would exercise the code but tell us nothing about how
+// the filter behaves in practice.
+export interface LabelSpec {
+  name: string;
+  color: string; // #RRGGBB — labelColorSchema rejects anything else
+  weight: number; // ~% of issues that carry it
+}
+
+export const LABELS: readonly LabelSpec[] = [
+  { name: "regression", color: "#DC2626", weight: 14 },
+  { name: "tech-debt", color: "#B45309", weight: 13 },
+  { name: "needs-design", color: "#7C3AED", weight: 10 },
+  { name: "customer-reported", color: "#0891B2", weight: 10 },
+  { name: "quick-win", color: "#16A34A", weight: 9 },
+  { name: "blocked", color: "#EA580C", weight: 8 },
+  { name: "performance", color: "#2563EB", weight: 8 },
+  { name: "flaky-test", color: "#DB2777", weight: 6 },
+  { name: "accessibility", color: "#4F46E5", weight: 6 },
+  { name: "documentation", color: "#0D9488", weight: 5 },
+  { name: "security", color: "#991B1B", weight: 3 },
+  { name: "compliance", color: "#475569", weight: 2 },
+];
+
 export const COMMENTS: readonly string[] = [
   "Picking this up.", "Blocked on the API change — flagged to the lead.", "PR is up for review.",
   "Can we get a design review before this ships?", "Reproduced on staging, adding a test.",
