@@ -713,10 +713,16 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, name, avatarUrl, isProjectMember, isParticipant]
+                      required: [id, name, email, avatarUrl, isProjectMember, isParticipant]
                       properties:
                         id: { type: string }
                         name: { type: string }
+                        email:
+                          type: string
+                          description: >
+                            Second line in the menu. Display names are not unique —
+                            two colleagues can share one — and picking the wrong
+                            person notifies them silently.
                         avatarUrl: { type: string, nullable: true }
                         isProjectMember: { type: boolean }
                         isParticipant:
