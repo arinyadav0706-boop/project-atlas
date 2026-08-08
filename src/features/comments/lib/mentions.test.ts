@@ -6,6 +6,8 @@ import {
   parseMentions,
   plainPreview,
   segmentBody,
+  tokensToDisplay,
+  displayToTokens,
 } from "./mentions";
 
 const token = (name: string, id: string) => `@[${name}](user:${id})`;
@@ -143,5 +145,52 @@ describe("plainPreview", () => {
   it("collapses whitespace and truncates", () => {
     expect(plainPreview("a\n\n   b", 100)).toBe("a b");
     expect(plainPreview("x".repeat(200), 10)).toBe(`${"x".repeat(9)}…`);
+  });
+});
+
+describe("display form (what the composer shows)", () => {
+  it("never shows an id", () => {
+    // The defect this exists for: the box read
+    // "@[Amelia Nair](user:verus-u-062)" while someone was typing.
+    const { text } = tokensToDisplay(`${token("Amelia Nair", "verus-u-062")} hey`);
+    expect(text).toBe("@Amelia Nair hey");
+    expect(text).not.toContain("user:");
+  });
+
+  it("round-trips a picked mention back to its id", () => {
+    const { text, picked } = tokensToDisplay(token("Amelia Nair", "u-62"));
+    expect(displayToTokens(text, picked)).toBe(token("Amelia Nair", "u-62"));
+  });
+
+  it("prefers the longer name when one is a prefix of another", () => {
+    const picked = [
+      { name: "Amelia", userId: "u-1" },
+      { name: "Amelia Nair", userId: "u-2" },
+    ];
+    expect(displayToTokens("@Amelia Nair shipped it", picked)).toBe(
+      `${token("Amelia Nair", "u-2")} shipped it`,
+    );
+  });
+
+  it("does not match a name inside a longer one", () => {
+    expect(displayToTokens("@Samantha", [{ name: "Sam", userId: "u-1" }])).toBe("@Samantha");
+  });
+
+  it("leaves a hand-edited name as plain text rather than guessing", () => {
+    // Better to under-notify visibly than to notify the wrong person silently.
+    expect(displayToTokens("@Amelia Nai", [{ name: "Amelia Nair", userId: "u-2" }])).toBe(
+      "@Amelia Nai",
+    );
+  });
+
+  it("survives a name containing regex metacharacters", () => {
+    const picked = [{ name: "A. (Sam) O'Neil", userId: "u-3" }];
+    expect(displayToTokens("@A. (Sam) O'Neil hi", picked)).toContain("user:u-3");
+  });
+
+  it("ignores a picked name the user never typed", () => {
+    expect(displayToTokens("no mention here", [{ name: "Amelia", userId: "u-1" }])).toBe(
+      "no mention here",
+    );
   });
 });

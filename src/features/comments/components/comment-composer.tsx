@@ -5,16 +5,27 @@ import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { apiRequest } from "@/shared/lib/api-client";
-import { activeMentionQuery, insertMention } from "@/features/comments/lib/mentions";
+import {
+  activeMentionQuery,
+  displayToTokens,
+  tokensToDisplay,
+  type PickedMention,
+} from "@/features/comments/lib/mentions";
 import type { MentionableUserDto } from "@/features/comments/types/comment.types";
 
-// A comment box with `@` autocomplete (ADR-0038 §1).
+// A comment box with `@` autocomplete (ADR-0038 §1, amended).
 //
-// The textarea holds the raw body including mention tokens. That is a
-// deliberate trade: a contenteditable rich editor renders mentions as atomic
-// pills while typing, but brings selection, paste and IME bugs that a plain
-// textarea simply does not have. Tokens are ugly mid-edit and correct always;
-// the rich editor is a later, separate decision.
+// The box shows `@Amelia Nair`. It never shows an id.
+//
+// The first cut kept raw `@[Name](user:id)` tokens in the textarea and called
+// that an acceptable trade against a contenteditable editor. It was not — no
+// tool puts an internal id in front of a person mid-sentence. Storage stays
+// id-based, which was the part worth keeping; the draft is display text, and
+// `displayToTokens` reattaches ids on submit from the picks actually made.
+//
+// Still a plain textarea, so none of contenteditable's selection/paste/IME
+// problems apply. What is lost is a rendered pill *shape* while typing, which
+// is cosmetic; what is gained is that the text reads like a sentence.
 
 const MENU_LIMIT = 8;
 
@@ -37,7 +48,12 @@ export function CommentComposer({
   onSubmit: (body: string) => void | Promise<void>;
   onCancel?: () => void;
 }) {
-  const [value, setValue] = useState(initialValue);
+  const initial = tokensToDisplay(initialValue);
+  const [value, setValue] = useState(initial.text);
+  // Names the user chose, with the id each resolved to. The only source for
+  // turning display text back into tokens — so a name that was never picked
+  // can never become a mention.
+  const [picked, setPicked] = useState<PickedMention[]>(initial.picked);
   const [candidates, setCandidates] = useState<MentionableUserDto[]>([]);
   const [highlighted, setHighlighted] = useState(0);
   const [trigger, setTrigger] = useState<{ query: string; from: number } | null>(null);
@@ -89,8 +105,19 @@ export function CommentComposer({
   function choose(user: MentionableUserDto) {
     const el = textareaRef.current;
     if (!el || !trigger) return;
-    const { text, caret } = insertMention(value, trigger, el.selectionStart, user);
+    const caretNow = el.selectionStart;
+    const rest = value.slice(caretNow);
+    const label = `@${user.name}`;
+    const insert = /^\s/.test(rest) ? label : `${label} `;
+    const text = value.slice(0, trigger.from) + insert + rest;
+    const caret = trigger.from + insert.length;
+
     setValue(text);
+    setPicked((prev) =>
+      prev.some((p) => p.userId === user.id && p.name === user.name)
+        ? prev
+        : [...prev, { name: user.name, userId: user.id }],
+    );
     closeMenu();
     // Restore the caret after React commits the new value.
     requestAnimationFrame(() => {
@@ -133,10 +160,12 @@ export function CommentComposer({
   }
 
   async function submit() {
-    const body = value.trim();
-    if (!body || busy) return;
-    await onSubmit(body);
+    const display = value.trim();
+    if (!display || busy) return;
+    // Display → storage happens here, once, at the boundary.
+    await onSubmit(displayToTokens(display, picked));
     setValue("");
+    setPicked([]);
     closeMenu();
   }
 

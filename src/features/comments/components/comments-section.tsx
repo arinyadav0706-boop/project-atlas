@@ -7,6 +7,7 @@ import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { CommentComposer } from "@/features/comments/components/comment-composer";
 import { CommentRow } from "@/features/comments/components/comment-row";
+import { formatMention } from "@/features/comments/lib/mentions";
 import type { CommentDto, CommentPageDto } from "@/features/comments/types/comment.types";
 
 // The Comments thread on an issue (08_comments.md, ADR-0038).
@@ -29,7 +30,11 @@ export function CommentsSection({
   const [total, setTotal] = useState(initialPage.totalCount);
   const [posting, setPosting] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  // Which root's composer is open, and what it starts with. Replying to a
+  // reply re-parents to the root (threads are one level deep) — so the box
+  // opens pre-addressed to the person being answered, exactly as YouTube and
+  // Instagram do. Without it the re-parenting loses who was being replied to.
+  const [replyingTo, setReplyingTo] = useState<{ rootId: string; prefill: string } | null>(null);
   const canComment = initialPage.canComment;
 
   function replaceIn(list: CommentDto[], updated: CommentDto): CommentDto[] {
@@ -121,11 +126,15 @@ export function CommentsSection({
             <CommentRow
               key={comment.id}
               comment={comment}
-              onReply={canComment ? () => setReplyingTo(comment.id) : undefined}
+              onReply={
+                canComment
+                  ? () => setReplyingTo({ rootId: comment.id, prefill: "" })
+                  : undefined
+              }
               onChanged={(updated) => setItems((prev) => replaceIn(prev, updated))}
               onDeleted={(id) => setItems((prev) => removeFrom(prev, id))}
               footer={
-                (comment.replies.length > 0 || replyingTo === comment.id) && (
+                (comment.replies.length > 0 || replyingTo?.rootId === comment.id) && (
                   <div className="mt-3 space-y-3 border-l-2 border-border pl-3">
                     {hidden > 0 && (
                       <Link
@@ -141,15 +150,34 @@ export function CommentsSection({
                         key={reply.id}
                         comment={reply}
                         compact
+                        onReply={
+                          canComment
+                            ? () =>
+                                setReplyingTo({
+                                  rootId: comment.id,
+                                  // A real mention token, so the person being
+                                  // answered is actually notified — not just
+                                  // named in passing.
+                                  prefill: `${formatMention({
+                                    id: reply.author.id,
+                                    name: reply.author.name,
+                                  })} `,
+                                })
+                            : undefined
+                        }
                         onChanged={(updated) => setItems((prev) => replaceIn(prev, updated))}
                         onDeleted={(id) => setItems((prev) => removeFrom(prev, id))}
                       />
                     ))}
 
-                    {replyingTo === comment.id && (
+                    {replyingTo?.rootId === comment.id && (
                       <CommentComposer
+                        // Remount when the prefill changes, so clicking Reply
+                        // on a different reply re-addresses the open box.
+                        key={replyingTo.prefill}
                         issueId={issueId}
                         autoFocus
+                        initialValue={replyingTo.prefill}
                         placeholder={`Reply to ${comment.author.name}…`}
                         submitLabel="Reply"
                         busy={posting}

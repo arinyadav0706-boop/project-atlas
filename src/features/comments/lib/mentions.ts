@@ -112,6 +112,57 @@ export function insertMention(
 }
 
 /**
+ * Storage form → what a person types and reads.
+ *
+ * The composer must never show `@[Amelia Nair](user:verus-u-062)`. Ids are the
+ * right thing to *store* (see the module header) and the wrong thing to put in
+ * front of someone, so the draft holds `@Amelia Nair` and the id is reattached
+ * on submit from the picks the user actually made.
+ */
+export function tokensToDisplay(body: string): { text: string; picked: PickedMention[] } {
+  const picked: PickedMention[] = [];
+  const text = segmentBody(body)
+    .map((s) => {
+      if (s.kind !== "mention") return s.text;
+      picked.push({ name: s.name, userId: s.userId });
+      return `@${s.name}`;
+    })
+    .join("");
+  return { text, picked };
+}
+
+/** A name the user chose from autocomplete, bound to the id it resolved to. */
+export interface PickedMention {
+  name: string;
+  userId: string;
+}
+
+/**
+ * Display form → storage form, using only the names the user actually picked.
+ *
+ * Longest name first, so "Amelia Nair" wins over a colleague called "Amelia"
+ * and the shorter match cannot eat the start of the longer one.
+ *
+ * A name that was picked and then edited by hand simply stops matching and
+ * stays literal text. That is the correct failure: it is visible to the writer
+ * before they submit, and it never silently notifies the wrong person — which
+ * is exactly what resolving names at render time would risk.
+ */
+export function displayToTokens(text: string, picked: readonly PickedMention[]): string {
+  const byLongest = [...picked].sort((a, b) => b.name.length - a.name.length);
+  let out = text;
+  for (const { name, userId } of byLongest) {
+    // Escape the name — display names can contain regex metacharacters.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // `@Name` only when not already inside a token, and only at a word edge so
+    // "@Sam" does not match inside "@Samantha".
+    const pattern = new RegExp(`@${escaped}(?![\\w'-])`, "g");
+    out = out.replace(pattern, formatMention({ id: userId, name }));
+  }
+  return out;
+}
+
+/**
  * A one-line preview with mentions flattened to `@Name` — for notification
  * messages and list previews, where the raw token would be unreadable.
  */

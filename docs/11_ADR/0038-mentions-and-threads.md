@@ -106,12 +106,48 @@ a thread you have already seen is "what happened since", and the answer to
 - Deleting a comment soft-deletes its mentions with it, so a deleted comment
   stops appearing in "mentions me".
 
+## Amendment — 2026-08-08: the composer must never show an id
+
+§1 said the body stores `@[Name](user:id)` and left the composer holding that
+raw token, on the reasoning that a plain textarea beats contenteditable's
+selection/paste/IME problems. The textarea part was right. Putting the token in
+front of a person was not — a box reading `@[Amelia Nair](user:verus-u-062)`
+mid-sentence is not something any tool ships, and calling it a trade did not
+make it one.
+
+Storage is unchanged: ids, for every reason in §1. The **draft** is display
+text. `tokensToDisplay` converts on the way in, `displayToTokens` converts back
+on submit using only the names the user actually picked from autocomplete.
+
+A name that is hand-edited after being picked stops matching and stays literal
+text. That is the correct failure: visible to the writer before they submit, and
+it can never silently notify the wrong person — which is exactly the risk that
+ruled out resolving names at render time in the first place.
+
+This also applies to the edit path, which had the same defect.
+
+## Amendment — 2026-08-08: replying to a reply keeps its address
+
+§4 re-parents a reply-to-a-reply onto the root, which keeps the structure flat —
+the same model YouTube and Instagram use, and the reason threads stay readable
+in a fixed-width panel. But re-parenting alone loses *who was being answered*.
+
+So the composer opens pre-filled with a mention of that person. It is a real
+token, not decorative text, so they are notified as well as named. This is the
+piece that makes one-level threading feel intentional rather than lossy.
+
+Reddit-style unbounded nesting remains rejected: the staircase is unreadable at
+depth in a side panel, and every level multiplies the render and query cost of
+a single popular thread.
+
 ## What this does not do
 
 Reactions, edit history, and comment attachments stay out — see the backlog.
 Real-time push stays out: the bell polls, and the `NotificationService` seam is
 where a transport would attach. Rich Markdown rendering is still deferred
 (`bodyFormat` remains a promise the renderer does not yet keep) — mentions
-render as chips, everything else stays escaped text. That is tracked separately;
+render as chips, everything else stays escaped text. A pill-shaped mention
+*while typing* also stays out: the text now reads correctly, and the remaining
+gap is cosmetic (CMT-8). That is tracked separately;
 shipping a sanitiser is its own security decision and does not belong in the
 same change as a notification fan-out.

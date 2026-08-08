@@ -7,6 +7,11 @@ import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { CommentBody } from "@/features/comments/components/comment-body";
+import {
+  displayToTokens,
+  tokensToDisplay,
+  type PickedMention,
+} from "@/features/comments/lib/mentions";
 import type { CommentDto } from "@/features/comments/types/comment.types";
 
 // One comment: author, body, and the viewer's own affordances. Shared by the
@@ -30,17 +35,24 @@ export function CommentRow({
   footer?: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.body);
+  // Edit shows the same display text the composer does — raw tokens must never
+  // reach a person, on this path either.
+  const [draft, setDraft] = useState(() => tokensToDisplay(comment.body).text);
+  const [picked, setPicked] = useState<PickedMention[]>(
+    () => tokensToDisplay(comment.body).picked,
+  );
   const [busy, setBusy] = useState(false);
 
   async function save() {
-    const body = draft.trim();
-    if (!body || busy) return;
+    const display = draft.trim();
+    if (!display || busy) return;
     setBusy(true);
     try {
+      // Existing mentions survive an edit because their names are seeded into
+      // `picked`; deleting a name from the text correctly drops the mention.
       const updated = await apiRequest<CommentDto>(`/api/comments/${comment.id}`, {
         method: "PATCH",
-        body: { body, expectedVersion: comment.version },
+        body: { body: displayToTokens(display, picked), expectedVersion: comment.version },
       });
       onChanged(updated);
       setEditing(false);
@@ -122,7 +134,9 @@ export function CommentRow({
               <button
                 type="button"
                 onClick={() => {
-                  setDraft(comment.body);
+                  const { text, picked: seeded } = tokensToDisplay(comment.body);
+                  setDraft(text);
+                  setPicked(seeded);
                   setEditing(true);
                 }}
                 className="text-muted-foreground hover:text-foreground focus-visible:underline focus-visible:outline-none"
