@@ -91,6 +91,7 @@ export function BacklogItem({
           components: item.components,
         }}
         max={3}
+        showComponents={false}
         className="hidden shrink-0 flex-nowrap sm:flex"
       />
       <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">

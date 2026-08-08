@@ -177,7 +177,11 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             mid-sprint aren&apos;t reflected yet. Status history is exact.
           </p>
         )}
-        {data.unsized > 0 && (
+        {/* Only when it actually distorts the line. This fired at "671 of 1,229"
+            — a real warning about unusable data — but it also fired at "2 of
+            45", where it is noise that teaches the reader to distrust a chart
+            that is fine. A caveat shown unconditionally stops being read. */}
+        {data.unsized / Math.max(data.issueCount, 1) > 0.1 && (
           <p>
             {data.unsized} of them have no {data.unit === "hours" ? "estimate" : "story points"},
             so the line is a floor, not a reading.

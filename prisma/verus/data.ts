@@ -19,9 +19,22 @@ export const TOTAL_USERS = 150;
 // Extra org ADMINs beyond the two owner accounts (IT / platform admins).
 export const EXTRA_ADMINS = 4;
 
-// "Now" for the whole dataset. Fixed so due-dates / overdue / sprint windows are
-// stable across runs.
-export const NOW = new Date("2026-08-05T12:00:00.000Z");
+// "Now" for the whole dataset — the moment the seed runs.
+//
+// This was pinned to a literal date, on the reasoning that fixing it kept
+// due-dates and sprint windows stable across runs. It did, and that was the
+// bug: the app renders against the real clock, so the dataset aged. A
+// completion can never be placed after NOW, while the burndown draws through
+// today — so the active sprint grew one more flat day for every day since the
+// last seed, and "due soon", overdue and the 30-day cycle-time window all
+// drifted with it. Three days after a seed the burndown looked broken.
+//
+// Anchoring to run time keeps a fresh seed honest on the day it runs. Runs are
+// still reproducible in the sense that matters: the PRNG is seeded separately,
+// so the *shape* of the data — counts, distributions, which issue gets which
+// label — is identical between runs. Only the absolute dates move, which is
+// exactly what should move.
+export const NOW = new Date();
 
 // ---- Org chart (people axis). parentKey builds the hierarchy; the deepest
 // branch (Engineering → Platform → Core → Payments → Backend Pod) is 5 levels,

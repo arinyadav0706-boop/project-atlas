@@ -93,6 +93,25 @@ const NON_EPIC_TYPE_WEIGHTS: ReadonlyArray<readonly [Exclude<IssueType, "EPIC">,
   ["TASK", 36],
   ["BUG", 22],
 ];
+// A sprint is one team's two weeks — not a slice of the whole project.
+//
+// Membership used to be a flat per-issue probability over the project's entire
+// pool (85% of everything in flight), which put 1,229 issues in a 14-day
+// sprint. Nobody chose 1,229; it fell out of percentages applied to 3,600
+// issues. Target a real sprint instead and derive the probability from the
+// expected pool size, so membership still spreads across the whole key range
+// rather than filling greedily from the lowest keys.
+const SPRINT_SIZE_MIN = 42;
+const SPRINT_SIZE_MAX = 58;
+// Belt-and-braces ceiling. The derived probabilities land near the target on
+// average, but a run that drifts high must still not produce a 300-issue
+// sprint, because that is the failure this exists to prevent.
+const SPRINT_HARD_CAP = SPRINT_SIZE_MAX + 12;
+// What a sprint looks like halfway through: some shipped, some in flight, some
+// not started. The old model sent every TODO to a *planned* sprint, so the
+// active sprint had no To Do column at all — visibly wrong on the backlog.
+const ACTIVE_MIX = { done: 0.4, inFlight: 0.3, todo: 0.3 } as const;
+
 const STORY_POINTS = [1, 2, 3, 5, 8, 13] as const;
 const ESTIMATE_MINUTES = [30, 60, 90, 120, 180, 240, 360, 480, 720] as const;
 const SPRINT_GOALS = [
@@ -341,6 +360,38 @@ export function generateVerus(): VerusDataset {
     const projectEpicIds: string[] = [];
     let keyNo = 0;
 
+    // Turn "a sprint holds ~50 issues" into a per-issue probability, using the
+    // pool each status is expected to produce (STATUS_WEIGHTS, as a percentage
+    // of the non-epic issues in this project).
+    const nonEpicCount = Math.max(spec.issueCount - epicCount, 1);
+    const expectedFor = (weightPct: number) => Math.max((nonEpicCount * weightPct) / 100, 1);
+    const expDone = expectedFor(45);
+    const expInFlight = expectedFor(25); // IN_PROGRESS + IN_REVIEW
+    const expTodo = expectedFor(30);
+    const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+
+    const activeSize = rng.int(SPRINT_SIZE_MIN, SPRINT_SIZE_MAX);
+    const pActiveDone = clamp01((activeSize * ACTIVE_MIX.done) / expDone);
+    const pActiveInFlight = clamp01((activeSize * ACTIVE_MIX.inFlight) / expInFlight);
+    const pActiveTodo = clamp01((activeSize * ACTIVE_MIX.todo) / expTodo);
+    const pCompletedDone = clamp01(
+      (rng.int(SPRINT_SIZE_MIN, SPRINT_SIZE_MAX) * completedSprintIds.length) / expDone,
+    );
+    const pPlannedTodo = clamp01(
+      (rng.int(SPRINT_SIZE_MIN, SPRINT_SIZE_MAX) * plannedSprintIds.length) / expTodo,
+    );
+
+    // Hard ceiling per sprint; returns null once a sprint is full so the issue
+    // simply stays out rather than silently overfilling it.
+    const sprintFill = new Map<string, number>();
+    const take = (sprintId: string | null): string | null => {
+      if (!sprintId) return null;
+      const filled = sprintFill.get(sprintId) ?? 0;
+      if (filled >= SPRINT_HARD_CAP) return null;
+      sprintFill.set(sprintId, filled + 1);
+      return sprintId;
+    };
+
     const pushIssue = (input: Omit<Prisma.IssueCreateManyInput, "rank"> & { rank?: string }) => {
       allIssues.push({ ...input, rank: "" }); // rank filled after grouping
     };
@@ -387,22 +438,35 @@ export function generateVerus(): VerusDataset {
           : rng.pick(memberIds);
       }
 
-      // Sprint assignment by shape + status.
+      // Sprint assignment by shape + status, bounded to a realistic sprint.
+      //
+      // Most issues land in no sprint at all, which is correct: the dataset
+      // spans ~200 days but only models a handful of 14-day sprints, so older
+      // work legitimately predates every sprint we generate.
       let sprintId: string | null = null;
       if (spec.shape === "scrum") {
-        // Some finished work belongs to the sprint currently running — without
-        // it the active sprint holds only unfinished issues, so its burndown
-        // has nothing to burn down and draws a flat line at full scope.
-        if (status === "DONE" && activeSprintId && rng.bool(0.3)) {
-          sprintId = activeSprintId;
-        } else if (status === "DONE" && completedSprintIds.length > 0 && rng.bool(0.85)) {
-          sprintId = rng.pick(completedSprintIds);
-        } else if ((status === "IN_PROGRESS" || status === "IN_REVIEW") && activeSprintId && rng.bool(0.85)) {
-          sprintId = activeSprintId;
-        } else if (status === "TODO" && plannedSprintIds.length > 0 && rng.bool(0.4)) {
-          sprintId = rng.pick(plannedSprintIds);
+        if (status === "DONE") {
+          // Finished work inside the running sprint is what gives its burndown
+          // something to burn down.
+          sprintId = rng.bool(pActiveDone)
+            ? take(activeSprintId)
+            : completedSprintIds.length > 0 && rng.bool(pCompletedDone)
+              ? take(rng.pick(completedSprintIds))
+              : null;
+        } else if (status === "IN_PROGRESS" || status === "IN_REVIEW") {
+          sprintId = rng.bool(pActiveInFlight) ? take(activeSprintId) : null;
+        } else {
+          sprintId = rng.bool(pActiveTodo)
+            ? take(activeSprintId)
+            : plannedSprintIds.length > 0 && rng.bool(pPlannedTodo)
+              ? take(rng.pick(plannedSprintIds))
+              : null;
         }
       }
+
+      const sized = sprintId
+        ? rng.bool(0.92)
+        : (type === "STORY" || type === "TASK") && rng.bool(0.6);
 
       const createdAt = daysAgo(rng.int(1, 200));
       // Due dates: some future, some overdue (only meaningful when not DONE).
@@ -424,8 +488,12 @@ export function generateVerus(): VerusDataset {
         reporterId,
         sprintId,
         epicId: rng.bool(0.7) && projectEpicIds.length > 0 ? rng.pick(projectEpicIds) : null,
-        storyPoints:
-          (type === "STORY" || type === "TASK") && rng.bool(0.6) ? rng.pick(STORY_POINTS) : null,
+        // Anything committed to a sprint gets sized. A sprint where half the
+        // issues carry no estimate makes the points burndown unreadable — the
+        // line becomes a floor rather than a measurement, which is what the
+        // chart was reduced to apologising for. Outside a sprint, sizing stays
+        // patchy, which is true to life.
+        storyPoints: sized ? rng.pick(STORY_POINTS) : null,
         estimateMinutes: rng.bool(0.4) ? rng.pick(ESTIMATE_MINUTES) : null,
         dueDate,
         createdAt,

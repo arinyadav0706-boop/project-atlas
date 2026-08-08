@@ -74,6 +74,40 @@ none of them publish: a written, exact definition for every number.
 
 ---
 
+## 2b. Row metadata: how much do you show on one line?
+
+Added 2026-08-08, after the Issues list shipped a 3-chip cap that rendered five
+objects and spent its budget on the least informative ones.
+
+| Product | List / backlog row | Board card |
+|---|---|---|
+| **Jira** | Backlog rows show epic tag, sprint, estimate, priority, assignee. **Labels are not shown by default.** The newer issue list is a **table with columns**, where labels get their own column. | **Card layout** setting: an admin picks **up to 3 extra fields**. |
+| **ClickUp** | List view is a table; **"Show fields"** toggles which columns appear. Tags are a column. | Card settings toggle tags on/off. |
+| **Asana** | List view is columns of custom fields. | "Card appearance" controls field visibility. |
+
+Two things all three agree on, and one we are deliberately not copying.
+
+**Agreed — a hard cap exists.** Nobody renders unbounded metadata on a row.
+Jira's "up to 3 fields" is the same budget we chose, arrived at independently.
+
+**Agreed — the user owns the setting.** All three treat "which metadata appears
+on a row" as a *view preference*, not a product decision. We do not have this
+yet, and it is the correct long-term answer to "what if an issue has ten
+labels". Logged as a backlog item, not built now.
+
+**Not copying — the spreadsheet.** Jira, ClickUp and Asana all converge on a
+columns-and-fields table for list views. Columns scan better when you are
+comparing a value across rows, but they cost horizontal space per field and
+push the title — the thing people actually read — into a narrow lane. Our
+single dense line with right-aligned chips is closer to Linear, and for a
+title-first list it is better. We keep it.
+
+What we took from the comparison is the **priority rule**, which none of them
+have to solve because their fields are explicitly ordered by the user: with a
+budget of 3, labels outrank components. Components are stable org taxonomy and
+largely inferable from the title; labels are the volatile cross-cutting signal
+people filter on.
+
 ## 3. What we are deliberately **not** copying
 
 - **ClickUp's visual style.** Our documented direction is

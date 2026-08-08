@@ -137,3 +137,44 @@ So, added to this ADR's contract:
 Labels are org-scoped, so they are generated once outside the project loop —
 the same `regression` row is shared by all four projects, which is the
 distinction against per-project components that the demo should make visible.
+
+## Amendment — 2026-08-08: plausible, not merely present
+
+A third instance, and a different failure mode from the first two.
+
+The active sprint held **1,229 issues over 14 days**, 55% of them unsized, and
+every seed assertion was green. Nothing was missing — the generator populated
+the table, the distribution was uneven, the tests replayed the real dataset.
+The line descended, so `flatReason` stayed null and rules 1–3 above were all
+satisfied. The data was simply *not a sprint*: nobody chose 1,229, it fell out
+of a per-issue probability applied to a 3,600-issue pool.
+
+The burndown then reported this accurately, in prose, under the chart — three
+lines explaining why its own number was soft. That is what a UI does when the
+data underneath it is wrong: it apologises. **A caveat appearing on every render
+is a defect report, not a caption.**
+
+The same run also exposed a slower version of the problem. `NOW` was pinned to
+a literal date so that runs were reproducible. But the app renders against the
+real clock, so the dataset aged: no completion could be placed after the seed
+date while the burndown drew through today, adding one flat day per day
+elapsed. Three days after a seed the chart looked broken. Reproducibility
+belongs to the PRNG — which fixes counts, distributions and assignments — not
+to the wall clock.
+
+Added to the contract:
+
+4. **Generated shapes must be plausible, not just present.** A sprint is one
+   team's two weeks (~40–60 issues), not a percentage of the project. Where a
+   quantity is bounded in the real world, the generator states the bound and
+   derives the probability from it — never the reverse.
+5. **Anything a team commits to is sized.** ≥90% of sprint issues carry story
+   points. A report whose input is half-empty cannot be read, and dressing that
+   up in a footnote is worse than an empty state.
+6. **The dataset's clock is the run clock.** No literal "today". Seed data that
+   is correct only on the day it was written is a slow-motion outage.
+7. **Seed tests assert plausibility, not just non-emptiness** — sprint size,
+   sized ratio, status mix, and recency of the newest transition. The last is a
+   canary: across thousands of rows the newest one is always within a day of a
+   live clock, so a frozen `NOW` fails on the day it is introduced rather than
+   three days later.

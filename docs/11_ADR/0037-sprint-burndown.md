@@ -168,3 +168,25 @@ ships — the tests here were green throughout.
 - Audit the bulk sprint paths (`delete`, `complete`) for completeness.
 - `sprint_daily_snapshot`, which would also retire velocity's caveat
   (Metric Definitions §3).
+
+## Amendment — 2026-08-08: which caveats earn their place
+
+§1 requires the cohort limitation on the chart, and that stands — it is a real
+architectural gap (we still do not record sprint-membership history) and it
+cannot be fixed by better data. It stays.
+
+The *unsized* caveat is a different animal and was being treated the same way.
+It rendered whenever `unsized > 0`, which was right at "671 of 1,229" — a
+genuine warning that the points line was unusable — and wrong at "2 of 45",
+where it is noise attached to a chart that is fine. A caveat shown
+unconditionally stops being read, and worse, it teaches the reader to distrust
+the other numbers on the page.
+
+So: the unsized note renders only when unsized issues exceed **10%** of the
+cohort, i.e. when they actually distort the line. Below that the chart says
+nothing, because there is nothing to say.
+
+The underlying data defect that produced 55% unsized is fixed in the generator,
+not papered over here — see ADR-0033's amendment, rules 4–7. The rule this
+leaves behind: **fix the data, then delete the apology.** Prose under a chart is
+not a substitute for a number worth printing.

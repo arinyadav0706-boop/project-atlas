@@ -231,14 +231,18 @@ export function IssuesView({
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                     {issue.title}
                   </span>
-                  {/* Epic / component / label chips (ADR-0018/0026) — the same
-                      component the board card and backlog row use, so one issue
-                      reads identically on all three. Capped at 3 with a "+N":
-                      this is a dense single-line row, and wrapping would make
-                      some rows taller than their neighbours. */}
+                  {/* Epic / label chips (ADR-0018/0026) — the same component the
+                      board card and backlog row use, so one issue reads
+                      identically on all three. Capped at 3 including the epic
+                      badge, with a "+N": this is a dense single-line row, and
+                      wrapping would make some rows taller than their neighbours.
+                      Components are dropped here — with a 3-chip budget they
+                      crowded out the labels, which are what this list filters
+                      on. They remain on the board card and the issue detail. */}
                   <IssueChips
                     item={issue}
                     max={3}
+                    showComponents={false}
                     className="hidden shrink-0 flex-nowrap md:flex"
                   />
                   <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">

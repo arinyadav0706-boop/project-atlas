@@ -108,6 +108,71 @@ describe("the VERUS demo data must produce a real burndown", () => {
     }
   });
 
+  // ---- Plausibility, not just exercise (ADR-0033 amendment) ----
+  //
+  // Every test above passed while the active sprint held 1,229 issues over 14
+  // days, 55% of them unsized, on a dataset whose clock was frozen three days
+  // in the past. The engine was right and the data was nonsense, and "the line
+  // descends" could not tell the difference. These pin the shape.
+
+  it("keeps a sprint the size of one team's two weeks", () => {
+    const oversized = runnable
+      .map((s) => ({ name: s.name, size: seriesFor(s).cohort.length }))
+      .filter((r) => r.size > 70);
+
+    expect(oversized).toEqual([]);
+  });
+
+  it("sizes what a team commits to, so the points line is a reading not a floor", () => {
+    for (const sprint of runnable) {
+      const { cohort } = seriesFor(sprint);
+      if (cohort.length === 0) continue;
+      const sized = cohort.filter((i) => i.storyPoints !== null).length;
+      expect(sized / cohort.length).toBeGreaterThan(0.85);
+    }
+  });
+
+  it("runs completions up to today, so an active sprint has no flat tail", () => {
+    // The regression: NOW was a hardcoded literal while the app renders against
+    // the real clock, so no completion could be placed after the seed date and
+    // the burndown grew one more flat day for every day since. Nothing above
+    // caught it — the line still descended, just not recently.
+    const active = runnable.filter((s) => s.status === "ACTIVE");
+    expect(active.length).toBeGreaterThan(0);
+
+    // The canary, and the reason this isn't a per-sprint assertion alone:
+    // across thousands of transitions the newest one is always within a day of
+    // a live clock, so this catches a frozen NOW on the day it is introduced
+    // rather than three days later when a per-sprint threshold finally trips.
+    const newest = transitions.reduce((max, t) => Math.max(max, t.at.getTime()), 0);
+    expect(newest).toBeGreaterThan(Date.now() - 2 * 86_400_000);
+
+    const threeDaysAgo = Date.now() - 3 * 86_400_000;
+    for (const sprint of active) {
+      const { cohort } = seriesFor(sprint);
+      if (cohort.length === 0) continue;
+      const ids = new Set(cohort.map((i) => i.id));
+      const latestDone = transitions
+        .filter((t) => ids.has(t.issueId) && t.to === "DONE")
+        .reduce((max, t) => Math.max(max, t.at.getTime()), 0);
+
+      expect(latestDone).toBeGreaterThan(threeDaysAgo);
+    }
+  });
+
+  it("gives an active sprint all three states, including To Do", () => {
+    // Every TODO used to go to a *planned* sprint, so the running sprint had an
+    // empty To Do column — visibly wrong on the backlog, invisible to a chart.
+    for (const sprint of runnable.filter((s) => s.status === "ACTIVE")) {
+      const { cohort } = seriesFor(sprint);
+      if (cohort.length === 0) continue;
+      const statuses = new Set(cohort.map((i) => i.status));
+      expect(statuses.has("TODO")).toBe(true);
+      expect(statuses.has("DONE")).toBe(true);
+      expect(statuses.has("IN_PROGRESS") || statuses.has("IN_REVIEW")).toBe(true);
+    }
+  });
+
   it("gives every sprinted DONE issue recorded history, so none is silently assumed", () => {
     // untrackedDone is the counter for "Done, but we never saw it happen".
     // Inside a sprint it should be zero — those are the rows reports replay.

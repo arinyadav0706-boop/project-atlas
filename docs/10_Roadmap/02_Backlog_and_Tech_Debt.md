@@ -121,6 +121,17 @@ and product decisions — that would otherwise get lost between modules.
 | FUT-3 | Board **Saved Filters** (stored named `BoardFilter`) | P3 | No | OPEN | Reuses the ADR-0008 filter contract; future table. |
 | FUT-4 | Board filters not yet activated: Sprint, Epic, Label | P3 | No | ✅ DONE 2026-08-07 | All of them are live. Epic landed with ADR-0026, Labels/Components with ADR-0018, and **Sprint** completed the set — the `BoardFilter` contract and server `where` had accepted it since ADR-0008, so it was a control, not a redesign, exactly as that ADR predicted. The select renders only when the project has sprints. |
 | UX-3 | Consistent empty / loading / error states pass | P3 | No | OPEN | |
+| UX-7 | **Per-view field visibility** ("Fields" / "Show fields" menu) | P3 | No | OPEN | Jira (Card layout, up to 3 fields), ClickUp (Show fields) and Asana (Card appearance) all make row metadata a *user* setting; we hardcode it (`selectChips`: cap 3, labels before components, components off on list rows). Correct long-term answer to "what if an issue has ten labels" — see `06_Competitive_Landscape.md` §2b. Needs a per-user view-preference store, so it waits. |
+
+## Demo data (VERUS) — realism debt (source: ADR-0033)
+
+| ID | Item | Pri | 🚩 | Status | Notes |
+|---|---|---|---|---|---|
+| SEED-1 | Sprint size bounded to a real team sprint | P1 | No | ✅ DONE 2026-08-08 | Was 1,229 issues in 14 days — a per-issue probability over the whole 3,600-issue pool with no cap. Now targets 42–58 with a hard ceiling of 70, derived from the expected pool per status (ADR-0033 r4). |
+| SEED-2 | Size what a team commits to | P1 | No | ✅ DONE 2026-08-08 | 55% of sprint issues carried no story points, which reduced the points burndown to a floor. Now ≥90% sized inside a sprint; patchy outside one, which is true to life (ADR-0033 r5). |
+| SEED-3 | Dataset clock follows the run clock | P1 | No | ✅ DONE 2026-08-08 | `NOW` was the literal `2026-08-05`, so the active sprint's burndown gained one flat day for every day since the last seed, and "due soon"/overdue/30-day windows drifted with it. Now `new Date()`; reproducibility stays with the PRNG (ADR-0033 r6). |
+| SEED-4 | Active sprint carries all three states | P2 | No | ✅ DONE 2026-08-08 | Every TODO went to a *planned* sprint, so the running sprint had an empty To Do column. |
+| SEED-5 | **Re-seed cadence for the deployed demo** | P2 | No | OPEN | Even with a live clock the dataset ages from the moment it is written — completions stop at the seed instant while the app keeps moving. Nothing is *wrong*, but an active sprint slowly looks quieter than it should. Options: a scheduled `seed-verus.yml` run (weekly), or accept it and re-seed before demos. Needs a decision, not code. |
 
 ## Sprint/Backlog page — deferred UI (depends on future modules)
 

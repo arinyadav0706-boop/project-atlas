@@ -1,5 +1,6 @@
 import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
 import { cn } from "@/shared/lib/utils";
+import { selectChips } from "@/features/issues/lib/select-chips";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
 // Epic / component / label chips for an issue, in one place (ADR-0018, ADR-0026).
@@ -14,28 +15,37 @@ export function IssueChips({
   item,
   className,
   max,
+  showComponents = true,
 }: {
   item: Pick<IssueListItemDto, "epicKey" | "labels" | "components">;
   className?: string;
   /**
-   * Cap the classification chips (components + labels), collapsing the rest
-   * into a "+N". Dense single-line rows pass this; the board card, which is a
-   * 2-D surface where wrapping is fine, leaves it off. Clipping chips with
-   * `overflow-hidden` looked broken — half a pill reads as a rendering bug,
-   * where "+5" reads as information.
+   * Cap the chips, collapsing the rest into a "+N". Dense single-line rows pass
+   * this; the board card, which is a 2-D surface where wrapping is fine, leaves
+   * it off. Clipping with `overflow-hidden` looked broken — half a pill reads as
+   * a rendering bug, where "+5" reads as information.
+   *
+   * The epic badge counts against this. It didn't, so `max={3}` rendered four
+   * chips plus a "+N" — five objects competing with the title.
    */
   max?: number;
+  /**
+   * Drop component chips. The Issues list is a single dense line, and its
+   * budget is better spent on labels; components stay on the board card and the
+   * issue detail. Jira makes the same call — its backlog rows show the epic, not
+   * the full classification.
+   */
+  showComponents?: boolean;
 }) {
-  const components = item.components ?? [];
-  const labels = item.labels ?? [];
-  const hasAny = Boolean(item.epicKey) || components.length > 0 || labels.length > 0;
-  if (!hasAny) return null;
+  const {
+    labels: shownLabels,
+    components: shownComponents,
+    hidden,
+  } = selectChips(item, { max, showComponents });
 
-  const total = components.length + labels.length;
-  const limit = max ?? total;
-  const shownComponents = components.slice(0, limit);
-  const shownLabels = labels.slice(0, Math.max(limit - shownComponents.length, 0));
-  const hidden = total - shownComponents.length - shownLabels.length;
+  if (!item.epicKey && shownLabels.length === 0 && shownComponents.length === 0 && !hidden.length) {
+    return null;
+  }
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
@@ -45,14 +55,6 @@ export function IssueChips({
           {item.epicKey}
         </span>
       )}
-      {shownComponents.map((component) => (
-        <span
-          key={component.id}
-          className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-        >
-          {component.name}
-        </span>
-      ))}
       {shownLabels.map((label) => (
         <span
           key={label.id}
@@ -64,12 +66,20 @@ export function IssueChips({
           {label.name}
         </span>
       ))}
-      {hidden > 0 && (
+      {shownComponents.map((component) => (
+        <span
+          key={component.id}
+          className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+        >
+          {component.name}
+        </span>
+      ))}
+      {hidden.length > 0 && (
         <span
           className="inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[10px] text-muted-foreground"
-          title={[...components, ...labels].map((c) => c.name).join(", ")}
+          title={hidden.map((c) => c.name).join(", ")}
         >
-          +{hidden}
+          +{hidden.length}
         </span>
       )}
     </div>
