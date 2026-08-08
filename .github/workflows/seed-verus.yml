@@ -11,22 +11,16 @@ name: Seed VERUS demo data
 # Run it: Actions tab → "Seed VERUS demo data" → Run workflow →
 #   action = seed (or teardown), and type VERUS in the confirm box.
 #
-# It also re-seeds itself weekly (SEED-5). Even with the dataset anchored to the
-# run clock (ADR-0033 r6) the data ages from the instant it is written:
-# completions stop at the seed moment while the app keeps moving, so an active
-# sprint slowly looks quieter than it should and the burndown's last days
-# flatten. A weekly refresh keeps the demo honest without anyone remembering to
-# do it.
+# Manual only, by decision (SEED-5). A weekly cron was added and then removed:
+# the data does age — completions stop at the seed instant while the app keeps
+# moving — but re-seeding is one click, and a recurring automatic write to a
+# production database earns its keep only if nobody would otherwise remember.
+# Before a client handover this also means there is no schedule to disarm
+# (GL-9), which is one less way to get that wrong.
 #
-# Note: GitHub disables scheduled workflows after 60 days with no repository
-# activity. If the demo ever goes stale, check that first.
+# Re-seed before a demo, or whenever the active sprint starts looking quiet.
 
 on:
-  schedule:
-    # 03:00 UTC Monday = 08:30 IST — fresh data at the start of the work week.
-    # Scheduled runs only ever fire on the default branch, and only ever seed;
-    # teardown stays manual, because nothing should delete data on a timer.
-    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       action:
@@ -51,11 +45,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL || secrets.DATABASE_URL }}
     steps:
-      # Only a human typing into the box needs to confirm. The cron has no
-      # inputs, so this would fail every scheduled run — and the confirmation
-      # exists to stop an accidental *manual* write, which a schedule isn't.
       - name: Guard — confirmation phrase
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [ "${{ inputs.confirm }}" != "VERUS" ]; then
             echo "::error::Confirmation failed. Type VERUS in the confirm box to proceed."
@@ -142,13 +132,11 @@ jobs:
             require('fs').appendFileSync(process.env.GITHUB_ENV, 'DIRECT_URL=' + d.toString() + '\n');
           "
 
-      # `inputs.action` is empty on a scheduled run, so seeding must be the
-      # explicit default for cron and teardown must be explicitly manual-only.
-      # Written as two positive conditions rather than one negated pair: a new
-      # trigger added later then does nothing until someone decides what it
-      # should do, instead of silently falling through to a destructive step.
+      # Two positive conditions rather than one negated pair: if a non-manual
+      # trigger is ever added back, it does nothing until someone decides what
+      # it should do, instead of falling through to the destructive step.
       - name: Seed VERUS
-        if: ${{ github.event_name == 'schedule' || inputs.action == 'seed' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.action == 'seed' }}
         env:
           SEED_VERUS: confirm
         run: npm run seed:verus

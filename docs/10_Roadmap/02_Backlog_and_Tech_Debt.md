@@ -32,7 +32,7 @@ and product decisions — that would otherwise get lost between modules.
 | GL-5 | **Confirm `DATABASE_URL` = `?pgbouncer=true&connection_limit=1`** | P2 | PARTIAL | `pgbouncer=true` confirmed; add `&connection_limit=1`. |
 | GL-6 | **SSO credentials** (Google + Microsoft OAuth apps) if launching with SSO | P2 | OPEN | Config, not code. Credentials login works today. |
 | GL-7 | **Load test to ~60 concurrent** (Phase 7 NFR) | P2 | OPEN | Validate the scale targets in `05_Performance_and_Scalability.md`. |
-| GL-9 | **VERUS demo data must be absent from any client-handover database** (ADR-0033) | P1 | 🚩 OPEN | The VERUS demo org (~150 users, ~8k issues) is seeded via `prisma/verus/` into our **demo/staging** Supabase only, for stakeholder demos + at-scale dogfooding. It is one deletable org (id `verus-demo-org`). **Handover rule:** a client's database must never have it — either hand over a fresh DB (never run `seed:verus` against it) or run `npm run seed:verus:teardown` first. The seed refuses to run without `SEED_VERUS=confirm` and only ever touches the VERUS org. Verify at handover: `SELECT count(*) FROM organizations WHERE id='verus-demo-org';` must be `0`. **⚠ Changed 2026-08-08 — this got sharper.** `seed-verus.yml` now runs on a **weekly cron** (SEED-5), so seeding is no longer a thing someone has to choose to do. A one-time teardown is therefore no longer sufficient: if the `DATABASE_URL` secret is ever repointed at a client database, or this repo becomes the client's, the schedule writes VERUS back in every Monday. **Handover checklist gains a step: delete the `schedule:` trigger (or disable the workflow) *before* teardown, not after.** |
+| GL-9 | **VERUS demo data must be absent from any client-handover database** (ADR-0033) | P1 | 🚩 OPEN | The VERUS demo org (~150 users, ~8k issues) is seeded via `prisma/verus/` into our **demo/staging** Supabase only, for stakeholder demos + at-scale dogfooding. It is one deletable org (id `verus-demo-org`). **Handover rule:** a client's database must never have it — either hand over a fresh DB (never run `seed:verus` against it) or run `npm run seed:verus:teardown` first. The seed refuses to run without `SEED_VERUS=confirm` and only ever touches the VERUS org. Verify at handover: `SELECT count(*) FROM organizations WHERE id='verus-demo-org';` must be `0`. **Seeding is manual only** (SEED-5 — a weekly cron was briefly added, then removed), so a one-time teardown at handover is sufficient: nothing re-creates the org on its own. |
 | GL-8 | **Configure `STORAGE_*` env in prod** for Attachments (ADR-0017) | P1 | ✅ DONE 2026-07-28 | Prod now runs `STORAGE_PROVIDER=supabase` with a private `attachments` bucket + `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_STORAGE_BUCKET` set in Vercel; attachments + avatars persist across deploys. *(Original context:)* Attachments defaults to `STORAGE_PROVIDER=local` (on-disk), which is **ephemeral on serverless** — files vanish between deploys. Prod must set `STORAGE_PROVIDER=supabase` + `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_STORAGE_BUCKET` (or a future S3/GCS/Azure adapter). **No migration** — the `attachments` table already exists; this is config only. **Setup (do in prod):** create a **private** Supabase Storage bucket named `attachments`; set `STORAGE_PROVIDER=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server-only), `SUPABASE_STORAGE_BUCKET=attachments` in the Vercel env — all documented in `.env.example`. Avatars (module 16) use the same seam, so this also fixes avatar persistence. Verify by uploading an attachment + a profile avatar in prod and reloading after a redeploy. |
 
 ---
@@ -132,7 +132,7 @@ and product decisions — that would otherwise get lost between modules.
 | SEED-2 | Size what a team commits to | P1 | No | ✅ DONE 2026-08-08 | 55% of sprint issues carried no story points, which reduced the points burndown to a floor. Now ≥90% sized inside a sprint; patchy outside one, which is true to life (ADR-0033 r5). |
 | SEED-3 | Dataset clock follows the run clock | P1 | No | ✅ DONE 2026-08-08 | `NOW` was the literal `2026-08-05`, so the active sprint's burndown gained one flat day for every day since the last seed, and "due soon"/overdue/30-day windows drifted with it. Now `new Date()`; reproducibility stays with the PRNG (ADR-0033 r6). |
 | SEED-4 | Active sprint carries all three states | P2 | No | ✅ DONE 2026-08-08 | Every TODO went to a *planned* sprint, so the running sprint had an empty To Do column. |
-| SEED-5 | **Re-seed cadence for the deployed demo** | P2 | No | ✅ DONE 2026-08-08 | Decided: weekly. `seed-verus.yml` gains `cron: "0 3 * * 1"` (08:30 IST Monday). Scheduled runs seed only — teardown stays manual, because nothing should delete data on a timer — and the confirmation guard is skipped for `schedule`, which has no inputs. Caveat worth remembering: **GitHub disables scheduled workflows after 60 days with no repository activity**, so a stale demo means checking that first. |
+| SEED-5 | **Re-seed cadence for the deployed demo** | P2 | No | ✅ DECIDED 2026-08-08 — manual | A weekly cron was added and then removed the same day. The ageing is real — completions stop at the seed instant while the app keeps moving — but re-seeding is one click from the Actions tab, and a recurring automatic write to a production database only earns its keep if nobody would otherwise remember. **Re-seed before a demo, or when the active sprint starts looking quiet.** Side benefit: nothing to disarm at handover (GL-9). |
 
 ## Comments & Notifications (source: ADR-0016, ADR-0019, ADR-0038)
 
@@ -203,10 +203,17 @@ is built; these need modules we haven't shipped and are **not** blockers.
 | TD-1 | Consolidate the 5 issue-list-item mappers into one shared fn | P4 | No | OPEN | `issue.service.toListDto`, `board.service.toCardDto`, `home.service.toCard`, `backlog.service.toCardDto`, `sprint.service.toCardDto` are near-identical `IssueListItemDto` mappers; extract one `toIssueListItemDto` when convenient (kept per-feature for now, consistent with existing pattern). |
 
 ## Remaining V1 modules
-Tracked in `01_Development_Roadmap.md §2`. Core (Phase 4) complete: Auth, Projects,
-Issues, Board, **Home**. Phase 5: **Backlog** ✅ + **Sprint** ✅ (MVP) done. Next:
-Comments, Attachments; then Notifications, Reports, Search, Admin / User Management /
-Roles / Profile. Not duplicated here to avoid drift.
+Tracked in `01_Development_Roadmap.md §2`. **All V1 modules are built** as of
+2026-08-08 — Phase 4 (Auth, Projects, Issues, Board, Home), Phase 5 (Backlog,
+Sprint, Comments incl. mentions/threads per ADR-0038, Attachments) and Phase 6
+(Notifications, Reports, Search, Admin, User Management, Roles, Profile), plus
+Workload/Scheduling ahead of schedule.
+
+**Phase 4–6 is therefore closed and the program is at the Phase 7 gate
+(Hardening).** What remains is not modules: it is the security review (GL-2),
+the load test (GL-7), an accessibility pass and cost validation, plus the
+go-live blockers above. Individual feature gaps live in the per-module `FUT-*`
+and `CMT-*` rows — none of them blocks the gate.
 
 **Sprint adds no schema change or migration** — it reuses the existing `Sprint`
 table, `Issue.sprintId`/`rank`/`version`, and the `issues(projectId, sprintId, rank)`
