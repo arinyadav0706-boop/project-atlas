@@ -1,5 +1,6 @@
+import { CalendarDays } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
-import { HomeSection } from "@/features/home/components/home-section";
+import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
 import { HomeIssueList } from "@/features/home/components/home-issue-row";
 import type { Actor } from "@/shared/types/actor";
 
@@ -7,9 +8,22 @@ import type { Actor } from "@/shared/types/actor";
 // Hidden when nothing is due.
 export async function DueSoonSection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
   const items = await HomeService.dueSoon(actor, projectIds);
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <HomeSection title="Due soon" icon={<CalendarDays />}>
+        <HomeEmpty icon={<CalendarDays />} title="Nothing due soon">
+          Issues with a due date in the next two weeks will appear here.
+        </HomeEmpty>
+      </HomeSection>
+    );
+  }
   return (
-    <HomeSection title="Due soon" count={items.length}>
+    <HomeSection
+      title="Due soon"
+      icon={<CalendarDays />}
+      count={items.length}
+      viewAll={{ href: "/projects", label: "View all" }}
+    >
       <HomeIssueList items={items} />
     </HomeSection>
   );
