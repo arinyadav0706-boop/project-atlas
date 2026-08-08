@@ -24,7 +24,7 @@ import { ConflictError, ForbiddenError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(IssueService);
-const params = { params: { projectId: "proj-1" } };
+const params = { params: Promise.resolve({ projectId: "proj-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/projects/proj-1/issues";
 const emptyPage = {
@@ -70,7 +70,10 @@ describe("GET /projects/:id/issues", () => {
 describe("POST /projects/:id/issues", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    const res = await POST(jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }), params);
+    const res = await POST(
+      jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }),
+      params,
+    );
     expect(res.status).toBe(401);
     expect(svc.create).not.toHaveBeenCalled();
   });
@@ -84,28 +87,40 @@ describe("POST /projects/:id/issues", () => {
 
   it("422 on invalid enum (bad type)", async () => {
     actorMock.mockResolvedValue(actor);
-    const res = await POST(jsonReq({ type: "BANANA", title: "x", priority: "MEDIUM" }), params);
+    const res = await POST(
+      jsonReq({ type: "BANANA", title: "x", priority: "MEDIUM" }),
+      params,
+    );
     expect(res.status).toBe(422);
   });
 
   it("201 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.create.mockResolvedValue({ id: "i1", key: "ENG-1" } as never);
-    const res = await POST(jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }), params);
+    const res = await POST(
+      jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }),
+      params,
+    );
     expect(res.status).toBe(201);
   });
 
   it("maps ForbiddenError → 403", async () => {
     actorMock.mockResolvedValue(actor);
     svc.create.mockRejectedValue(new ForbiddenError());
-    const res = await POST(jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }), params);
+    const res = await POST(
+      jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }),
+      params,
+    );
     expect(res.status).toBe(403);
   });
 
   it("maps ConflictError (archived project) → 409", async () => {
     actorMock.mockResolvedValue(actor);
     svc.create.mockRejectedValue(new ConflictError("Archived projects are read-only."));
-    const res = await POST(jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }), params);
+    const res = await POST(
+      jsonReq({ type: "TASK", title: "x", priority: "MEDIUM" }),
+      params,
+    );
     expect(res.status).toBe(409);
   });
 });

@@ -8,11 +8,10 @@ import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { auditLogQuerySchema } from "@/features/admin/validation/admin.schemas";
 import { AuditLogView } from "@/features/admin/components/audit-log-view";
 
-export default async function AdminAuditLogPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function AdminAuditLogPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const actor = await getActor();
   if (!actor || !hasCapability(actor, AdminCapability.VIEW_AUDIT_LOG)) notFound();
 

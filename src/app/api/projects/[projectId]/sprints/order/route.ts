@@ -4,11 +4,12 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { SprintService } from "@/features/sprints/services/sprint.service";
 import { reorderSprintsSchema } from "@/features/sprints/validation/sprint.schemas";
 
-type Params = { params: { projectId: string } };
+type Params = { params: Promise<{ projectId: string }> };
 
 // PATCH /api/projects/{projectId}/sprints/order — reorder the planned-sprint
 // queue (FUT-8; LEAD). Body: { sprintIds: [...] } in the desired order.
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const { sprintIds } = reorderSprintsSchema.parse(await request.json());

@@ -4,14 +4,15 @@ import { requireActor } from "@/features/authentication/services/actor.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { parseIssueFilter } from "@/features/issues/validation/issue-filter.schemas";
 
-type Params = { params: { projectId: string } };
+type Params = { params: Promise<{ projectId: string }> };
 
 // GET /api/projects/{projectId}/backlog?<IssueFilter>&cursor=&take= — the
 // project's unscheduled issues (sprintId = null), ordered by rank, keyset-
 // paginated (06_backlog.md BR-1), narrowed by the same composable filter the
 // Board uses (ADR-0008). Reorder is the shared PATCH /issues/{id}/rank with
 // scope=backlog (ADR-0013).
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const url = request.nextUrl.searchParams;

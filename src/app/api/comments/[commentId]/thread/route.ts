@@ -3,12 +3,13 @@ import { handleRoute } from "@/shared/lib/api";
 import { requireActor } from "@/features/authentication/services/actor.service";
 import { CommentService } from "@/features/comments/services/comment.service";
 
-type Params = { params: { commentId: string } };
+type Params = { params: Promise<{ commentId: string }> };
 
 // GET /api/comments/{commentId}/thread?cursor=&take= — one thread's own page
 // (ADR-0038 §4): the root plus a keyset page of every reply. A long discussion
 // gets a URL instead of an ever-growing issue view.
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const url = request.nextUrl.searchParams;

@@ -4,10 +4,9 @@ import { SignInScreen } from "@/features/authentication/components/sign-in-scree
 // Thin server wrapper; the interactive split-screen UI lives in
 // SignInScreen (client), which wires the real Auth.js server actions from
 // features/authentication/api/sign-in-actions.ts.
-export default function SignInPage({
-  searchParams,
-}: {
-  searchParams?: { error?: string };
+export default async function SignInPage(props: {
+  searchParams?: Promise<{ error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   return <SignInScreen error={searchParams?.error} />;
 }

@@ -3,12 +3,13 @@ import { handleRoute } from "@/shared/lib/api";
 import { requireActor } from "@/features/authentication/services/actor.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
 
-type Params = { params: { attachmentId: string } };
+type Params = { params: Promise<{ attachmentId: string }> };
 
 // GET /api/attachments/{attachmentId}/download — RBAC-gated proxy of the blob
 // bytes (BR-5, ADR-0017). No public URL is ever exposed; every download passes
 // through the service's tenant + role check.
-export async function GET(_request: NextRequest, { params }: Params) {
+export async function GET(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
 

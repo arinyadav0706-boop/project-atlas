@@ -22,7 +22,7 @@ import { ConflictError, ForbiddenError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(ProjectService);
-const params = { params: { projectId: "proj-1", memberId: "member-2" } };
+const params = { params: Promise.resolve({ projectId: "proj-1", memberId: "member-2" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/projects/proj-1/members/member-2";
 
@@ -54,12 +54,16 @@ describe("PATCH /projects/:id/members/:memberId", () => {
   });
   it("maps ForbiddenError (non-LEAD) → 403", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.changeMemberRole.mockRejectedValue(new ForbiddenError("Only a project LEAD can perform this action."));
+    svc.changeMemberRole.mockRejectedValue(
+      new ForbiddenError("Only a project LEAD can perform this action."),
+    );
     expect((await PATCH(jsonReq({ role: "MEMBER" }), params)).status).toBe(403);
   });
   it("maps ConflictError (last LEAD) → 409", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.changeMemberRole.mockRejectedValue(new ConflictError("A project must have at least one LEAD"));
+    svc.changeMemberRole.mockRejectedValue(
+      new ConflictError("A project must have at least one LEAD"),
+    );
     expect((await PATCH(jsonReq({ role: "MEMBER" }), params)).status).toBe(409);
   });
 });
@@ -67,16 +71,24 @@ describe("PATCH /projects/:id/members/:memberId", () => {
 describe("DELETE /projects/:id/members/:memberId", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(401);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(401);
   });
   it("204 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.removeMember.mockResolvedValue(undefined as never);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(204);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(204);
   });
   it("maps ConflictError (last LEAD) → 409", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.removeMember.mockRejectedValue(new ConflictError("A project must have at least one LEAD"));
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(409);
+    svc.removeMember.mockRejectedValue(
+      new ConflictError("A project must have at least one LEAD"),
+    );
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(409);
   });
 });

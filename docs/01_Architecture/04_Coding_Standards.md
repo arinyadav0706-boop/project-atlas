@@ -97,3 +97,28 @@ These standards are enforced by ESLint/Prettier/TS config (Phase 3) and by
 - ESLint config extends `next/core-web-vitals` + `@typescript-eslint`
   strict rules; CI fails the build on lint errors (see
   `docs/06_Infrastructure/`).
+
+## 11. Dependency versions (ADR-0039)
+
+Added after `next@14` drifted three majors behind and five high-severity
+advisories with no fix on that branch turned a routine upgrade into a migration.
+The upgrade itself was avoidable; the drift was the actual defect.
+
+1. **Stay within one major of `latest`** for the framework tier — Next, React,
+   Prisma. One major behind is a planned afternoon. Three is a project with
+   codemods and a full regression pass.
+2. **Every major-version choice gets a recorded reason.** "It is what the
+   scaffolder emitted" is not a reason — that is precisely how `next@14` got
+   chosen on 2026-07-10 with nothing written down. If we deliberately lag, the
+   ADR says why and when we revisit.
+3. **Quarterly dependency review.** `npm outdated` + `npm audit`, minuted in
+   `docs/10_Roadmap/02_Backlog_and_Tech_Debt.md`. Fifteen minutes, four times a
+   year.
+4. **A security advisory with no fix on the current major is a P1 upgrade
+   trigger**, not a backlog row. That distinction is what turned SEC-5 from
+   housekeeping into a go-live blocker.
+
+Corollary for lint: a new framework major ships new lint rules. Adopting them is
+a **separate change** from the upgrade — an upgrade PR that also rewrites
+component behaviour cannot be reviewed. New rules land as `warn` with a written
+reason and a backlog row, then get fixed and promoted to `error`.

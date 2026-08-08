@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { ProfileService } from "@/features/profile/services/profile.service";
 import { updateProfileSchema } from "@/features/profile/validation/profile.schemas";
 

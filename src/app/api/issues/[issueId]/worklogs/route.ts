@@ -7,11 +7,12 @@ import {
 import { WorkLogService } from "@/features/time-tracking/services/work-log.service";
 import { createWorkLogSchema } from "@/features/time-tracking/validation/work-log.schemas";
 
-type Params = { params: { issueId: string } };
+type Params = { params: Promise<{ issueId: string }> };
 
 // GET /api/issues/{issueId}/worklogs — logs (newest-first, keyset) + summary
 // (19_time_tracking.md). Any org member who can see the issue may read.
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const url = request.nextUrl.searchParams;
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 // POST /api/issues/{issueId}/worklogs — log time (MEMBER/LEAD, BR-1/2).
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = createWorkLogSchema.parse(await request.json());

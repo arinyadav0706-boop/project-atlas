@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { IssueService } from "@/features/issues/services/issue.service";
 import { createIssueSchema } from "@/features/issues/validation/issue.schemas";
-import type {
-  IssueStatusDto,
-  IssueTypeDto,
-} from "@/features/issues/types/issue.types";
+import type { IssueStatusDto, IssueTypeDto } from "@/features/issues/types/issue.types";
 
-type Params = { params: { projectId: string } };
+type Params = { params: Promise<{ projectId: string }> };
 
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const url = request.nextUrl.searchParams;
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = createIssueSchema.parse(await request.json());

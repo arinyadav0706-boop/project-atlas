@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { TeamService } from "@/features/teams/services/team.service";
 import { createTeamSchema } from "@/features/teams/validation/team.schemas";
 
