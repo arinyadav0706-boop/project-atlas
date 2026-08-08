@@ -695,8 +695,11 @@ paths:
       tags: [comments]
       summary: Autocomplete candidates for an @mention (ADR-0038)
       description: >
-        Scoped to the caller's organization and ordered project-members-first.
-        Not a user directory — the caller must already be able to see the issue.
+        Ranked issue-participants → project-members → rest of the organisation
+        (ADR-0038 amendment). Matches name or email. Scope is the whole
+        organisation by design: mentioning someone from another team is normal,
+        so they are ranked lower rather than excluded. Not a user directory —
+        the caller must already be able to see the issue.
       responses:
         "200":
           description: OK
@@ -704,18 +707,27 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, totalMatches]
                 properties:
                   items:
                     type: array
                     items:
                       type: object
-                      required: [id, name, avatarUrl, isProjectMember]
+                      required: [id, name, avatarUrl, isProjectMember, isParticipant]
                       properties:
                         id: { type: string }
                         name: { type: string }
                         avatarUrl: { type: string, nullable: true }
                         isProjectMember: { type: boolean }
+                        isParticipant:
+                          type: boolean
+                          description: Assignee, reporter or a prior commenter on this issue.
+                  totalMatches:
+                    type: integer
+                    description: >
+                      Total people matching the search, not just the page returned —
+                      so the menu can say "8 of 34" rather than implying the
+                      organisation has eight members.
 
   /issues/{issueId}/attachments:
     parameters:

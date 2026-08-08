@@ -69,10 +69,22 @@ export interface CommentThreadDto {
   issue: { id: string; key: string; title: string; projectId: string };
 }
 
-// An autocomplete candidate. Project members sort first (ADR-0038 §5 note).
+// An autocomplete candidate, ranked participants → project members → org.
 export interface MentionableUserDto {
   id: string;
   name: string;
   avatarUrl: string | null;
   isProjectMember: boolean;
+  /** Assignee, reporter or a prior commenter on this issue. */
+  isParticipant: boolean;
+}
+
+export interface MentionableListDto {
+  items: MentionableUserDto[];
+  /**
+   * How many people match the search in total, not just the page shown. Lets
+   * the menu say "8 of 34 — keep typing" instead of implying the organisation
+   * has eight people in it.
+   */
+  totalMatches: number;
 }

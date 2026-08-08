@@ -23,7 +23,7 @@ import type {
   CommentDto,
   CommentPageDto,
   CommentThreadDto,
-  MentionableUserDto,
+  MentionableListDto,
 } from "@/features/comments/types/comment.types";
 import { parseMentions, plainPreview } from "@/features/comments/lib/mentions";
 import type {
@@ -208,22 +208,44 @@ export const CommentService = {
     };
   },
 
-  // Autocomplete candidates for the composer. Read-only and org-scoped; the
-  // caller must be able to see the project, so this cannot be used as a
-  // directory probe from outside.
+  /**
+   * Autocomplete candidates for the composer.
+   *
+   * Ranked participants-first (assignee, reporter, anyone who has already
+   * commented), then project members, then the rest of the organisation — the
+   * order Jira, Linear and GitHub all use, because the person being named is
+   * overwhelmingly someone already attached to the issue.
+   *
+   * Read-only and org-scoped; the caller must be able to see the project, so
+   * this cannot be used as a directory probe from outside.
+   */
   async mentionable(
     actor: Actor,
     issueId: string,
     query: string,
-  ): Promise<MentionableUserDto[]> {
+  ): Promise<MentionableListDto> {
     const issue = await IssueRepository.findProjectId(issueId);
     if (!issue) throw new NotFoundError("Issue not found.");
     const { context } = await resolve(issue.projectId, actor);
-    return CommentRepository.searchMentionable(
-      context.organizationId,
-      issue.projectId,
-      query.trim(),
-    );
+
+    const [target, commenters] = await Promise.all([
+      IssueRepository.findNotificationContext(issueId),
+      CommentRepository.participantIds(issueId),
+    ]);
+    const participantIds = [
+      ...new Set(
+        [target?.assigneeId, target?.reporterId, ...commenters].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    ];
+
+    return CommentRepository.searchMentionable({
+      organizationId: context.organizationId,
+      projectId: issue.projectId,
+      query: query.trim(),
+      participantIds,
+    });
   },
 
   // BR-1: any MEMBER/LEAD may comment on an issue they can see.

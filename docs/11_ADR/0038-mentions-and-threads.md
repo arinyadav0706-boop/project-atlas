@@ -140,6 +140,32 @@ Reddit-style unbounded nesting remains rejected: the staircase is unreadable at
 depth in a side panel, and every level multiplies the render and query cost of
 a single popular thread.
 
+## Amendment — 2026-08-08: who the menu offers, and in what order
+
+The endpoint searched the whole organisation, sorted by name, took the first 40
+and *then* promoted project members within that slice. With 150 users that made
+the candidate pool "the 40 alphabetically-first people in the org" — so an
+assignee named Krishna and a reporter named Mei were never fetched, never
+promoted, and did not exist as far as the menu was concerned. The code even
+carried a comment explaining that a plain LIMIT would cut members off before
+they could be promoted, and then did exactly that with a larger number.
+Over-fetching is not ranking; the ranking has to be in the query.
+
+The order is now **issue participants → project members → the rest of the
+organisation**, as three bounded queries whose sequence *is* the ranking. Jira,
+Linear and GitHub all rank this way for the same reason: the person being named
+is overwhelmingly already attached to the issue.
+
+Scope stays the whole organisation, deliberately — pulling in someone from
+another team is a normal reason to comment, and restricting mentions to project
+members would make that impossible rather than merely lower-ranked. Rank, don't
+exclude.
+
+Search also matches **email**, not just name, and the menu reports
+`totalMatches` so eight results out of thirty-four reads as a page rather than
+as the whole directory. Rows show *why* they rank where they do — "on this
+issue" beats guessing between two people with the same first name.
+
 ## What this does not do
 
 Reactions, edit history, and comment attachments stay out — see the backlog.

@@ -188,42 +188,90 @@ export const CommentRepository = {
     return rows.map((r) => r.id);
   },
 
-  // Users this actor can mention, ranked so project members come first.
-  // Not a directory: never leaves the actor's organization.
-  async searchMentionable(
-    organizationId: string,
-    projectId: string,
-    query: string,
-    take = 8,
-  ) {
-    const rows = await prisma.user.findMany({
-      where: {
-        organizationId,
-        isActive: true,
-        deletedAt: null,
-        ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        avatarUrl: true,
-        projectMemberships: { where: { projectId }, select: { id: true }, take: 1 },
-      },
-      orderBy: { name: "asc" },
-      // Over-fetch so the project-member sort below has something to reorder;
-      // a plain LIMIT would cut members off before they could be promoted.
-      take: take * 5,
-    });
+  /**
+   * Autocomplete candidates, ranked by how likely this person is the one being
+   * named: **issue participants → project members → everyone else in the org**.
+   *
+   * The previous version sorted in memory after the database had already
+   * applied `ORDER BY name LIMIT 40`. With 150 users that meant the candidate
+   * pool was "the 40 alphabetically-first people in the organisation", and the
+   * project-member promotion could only reorder within that slice — so an
+   * assignee called Krishna or a reporter called Mei was never fetched, never
+   * promoted, and simply did not exist as far as the menu was concerned. A
+   * bigger over-fetch would not have fixed it; ranking has to happen *in* the
+   * query, not after it.
+   *
+   * Three bounded queries instead, each already filtered by the search term.
+   * Ranking is the query order, so nothing can be truncated out of a tier it
+   * belongs in.
+   */
+  async searchMentionable(input: {
+    organizationId: string;
+    projectId: string;
+    query: string;
+    /** Assignee, reporter and prior commenters — the people usually meant. */
+    participantIds: string[];
+    take?: number;
+  }) {
+    const take = input.take ?? 8;
+    const where = {
+      organizationId: input.organizationId,
+      isActive: true,
+      deletedAt: null,
+      // Name or email: people search for a colleague by whichever they
+      // remember, and "arin" should find "Arin Yadav" either way.
+      ...(input.query
+        ? {
+            OR: [
+              { name: { contains: input.query, mode: "insensitive" as const } },
+              { email: { contains: input.query, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const select = { id: true, name: true, avatarUrl: true } as const;
 
-    return rows
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        avatarUrl: r.avatarUrl,
-        isProjectMember: r.projectMemberships.length > 0,
-      }))
-      .sort((a, b) => Number(b.isProjectMember) - Number(a.isProjectMember))
-      .slice(0, take);
+    const [participants, projectMembers, others, totalMatches] = await Promise.all([
+      input.participantIds.length > 0
+        ? prisma.user.findMany({
+            where: { ...where, id: { in: input.participantIds } },
+            select,
+            orderBy: { name: "asc" },
+            take,
+          })
+        : Promise.resolve([]),
+      prisma.user.findMany({
+        where: { ...where, projectMemberships: { some: { projectId: input.projectId } } },
+        select,
+        orderBy: { name: "asc" },
+        take,
+      }),
+      prisma.user.findMany({
+        where: { ...where, projectMemberships: { none: { projectId: input.projectId } } },
+        select,
+        orderBy: { name: "asc" },
+        take,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const participantIds = new Set(participants.map((u) => u.id));
+    const memberIds = new Set(projectMembers.map((u) => u.id));
+    const seen = new Set<string>();
+    const items = [...participants, ...projectMembers, ...others]
+      .filter((u) => (seen.has(u.id) ? false : (seen.add(u.id), true)))
+      .slice(0, take)
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        avatarUrl: u.avatarUrl,
+        isProjectMember: memberIds.has(u.id) || participantIds.has(u.id),
+        isParticipant: participantIds.has(u.id),
+      }));
+
+    // So the menu can say "showing 8 of 34 — keep typing" rather than looking
+    // like the organisation only has eight people in it.
+    return { items, totalMatches };
   },
 
   // Version-checked edit (ADR-0011): applies only if the comment is still at
