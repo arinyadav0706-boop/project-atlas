@@ -136,6 +136,12 @@ async function main(): Promise<void> {
     d.components.map((c) => ({ ...c, leadId: ridN(c.leadId), createdBy: ridN(c.createdBy) })),
   );
 
+  await insertMany<Prisma.LabelCreateManyInput>(
+    "labels",
+    (rows) => prisma.label.createMany({ data: rows }),
+    d.labels.map((l) => ({ ...l, createdBy: ridN(l.createdBy) })),
+  );
+
   await insertMany<Prisma.SprintCreateManyInput>(
     "sprints",
     (rows) => prisma.sprint.createMany({ data: rows }),
@@ -164,6 +170,12 @@ async function main(): Promise<void> {
     "issue-components",
     (rows) => prisma.issueComponent.createMany({ data: rows }),
     d.issueComponents.map((ic) => ({ ...ic, createdBy: ridN(ic.createdBy) })),
+  );
+
+  await insertMany<Prisma.IssueLabelCreateManyInput>(
+    "issue-labels",
+    (rows) => prisma.issueLabel.createMany({ data: rows }),
+    d.issueLabels.map((il) => ({ ...il, createdBy: ridN(il.createdBy) })),
   );
 
   await insertMany<Prisma.CommentCreateManyInput>(
@@ -205,10 +217,12 @@ async function main(): Promise<void> {
   );
 
   // ---- Self-check: the seed holds invariants the service layer normally would.
-  const [userCount, issueCount, membershipCount] = await Promise.all([
+  const [userCount, issueCount, membershipCount, labelCount, issueLabelCount] = await Promise.all([
     prisma.user.count({ where: { organizationId: ORG_ID } }),
     prisma.issue.count({ where: { project: { organizationId: ORG_ID } } }),
     prisma.teamMembership.count({ where: { team: { organizationId: ORG_ID } } }),
+    prisma.label.count({ where: { organizationId: ORG_ID } }),
+    prisma.issueLabel.count({ where: { issue: { project: { organizationId: ORG_ID } } } }),
   ]);
   const expectedUsers = d.stats.users!;
   const expectedIssues = d.stats.totalIssues!;
@@ -217,6 +231,13 @@ async function main(): Promise<void> {
   if (issueCount !== expectedIssues) problems.push(`issues ${issueCount} ≠ ${expectedIssues}`);
   if (membershipCount !== expectedUsers) {
     problems.push(`memberships ${membershipCount} ≠ ${expectedUsers} (one team per user)`);
+  }
+  // Labels were silently absent from an earlier version of this seed while the
+  // feature looked shipped (ADR-0033 amendment). Assert they landed, not just
+  // that the insert didn't throw.
+  if (labelCount !== d.stats.labels!) problems.push(`labels ${labelCount} ≠ ${d.stats.labels}`);
+  if (issueLabelCount !== d.stats.issueLabels!) {
+    problems.push(`issue-labels ${issueLabelCount} ≠ ${d.stats.issueLabels}`);
   }
   for (const p of d.projects) {
     const n = await prisma.issue.count({ where: { projectId: p.id! } });

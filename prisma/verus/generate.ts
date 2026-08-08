@@ -36,6 +36,7 @@ import {
   TASK_TEMPLATES,
   DESCRIPTIONS,
   COMMENTS,
+  LABELS,
   type ProjectSpec,
 } from "./data";
 
@@ -60,10 +61,12 @@ export interface VerusDataset {
   projects: Prisma.ProjectCreateManyInput[];
   projectMembers: Prisma.ProjectMemberCreateManyInput[];
   components: Prisma.ComponentCreateManyInput[];
+  labels: Prisma.LabelCreateManyInput[];
   sprints: Prisma.SprintCreateManyInput[];
   epics: Prisma.IssueCreateManyInput[];
   issues: Prisma.IssueCreateManyInput[];
   issueComponents: Prisma.IssueComponentCreateManyInput[];
+  issueLabels: Prisma.IssueLabelCreateManyInput[];
   comments: Prisma.CommentCreateManyInput[];
   workLogs: Prisma.WorkLogCreateManyInput[];
   auditLogs: Prisma.AuditLogCreateManyInput[];
@@ -99,6 +102,23 @@ const SPRINT_GOALS = [
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const pad = (n: number, w = 3): string => String(n).padStart(w, "0");
+
+// Multiplier on a label's base weight for a given issue type. Without it every
+// label sprays evenly across the backlog and a filter like `regression` returns
+// a set with no character — half of it stories. Anything not listed keeps its
+// base rate (1).
+const LABEL_AFFINITY: Readonly<Record<string, Partial<Record<Exclude<IssueType, "EPIC">, number>>>> = {
+  regression: { BUG: 3, STORY: 0.1, TASK: 0.2 },
+  "flaky-test": { BUG: 2.5, TASK: 1.2, STORY: 0.1 },
+  "customer-reported": { BUG: 2.5, STORY: 0.6, TASK: 0.3 },
+  "needs-design": { STORY: 2.5, BUG: 0.3, TASK: 0.4 },
+  "tech-debt": { TASK: 2.2, STORY: 0.5 },
+  documentation: { TASK: 2, BUG: 0.3 },
+};
+
+function labelAffinity(name: string, type: Exclude<IssueType, "EPIC">): number {
+  return LABEL_AFFINITY[name]?.[type] ?? 1;
+}
 
 // Epics carry curated per-project names (see ProjectSpec.epics); everything else
 // is composed from the word banks, with a context clause on roughly half of them
@@ -191,6 +211,20 @@ export function generateVerus(): VerusDataset {
     createdAt: daysAgo(rng.int(120, 320)),
   }));
 
+  // ---- Labels (org-scoped, so they live outside the project loop) ----
+  // Components are per-project and get created inside it; labels are shared by
+  // the whole org (ADR-0018 §2), which is exactly the distinction the demo
+  // should make visible — the same `regression` chip on a VMOB card and an OPS
+  // card is the same label row.
+  const labels: Prisma.LabelCreateManyInput[] = LABELS.map((spec, i) => ({
+    id: `verus-label-${pad(i)}`,
+    organizationId: ORG_ID,
+    name: spec.name,
+    color: spec.color,
+    createdAt: daysAgo(rng.int(240, 320)),
+    createdBy: GOOGLE_ADMIN_ID,
+  }));
+
   // ---- Projects, members, components, sprints ----
   const projects: Prisma.ProjectCreateManyInput[] = [];
   const projectMembers: Prisma.ProjectMemberCreateManyInput[] = [];
@@ -198,6 +232,7 @@ export function generateVerus(): VerusDataset {
   const sprints: Prisma.SprintCreateManyInput[] = [];
   const allIssues: Prisma.IssueCreateManyInput[] = [];
   const issueComponents: Prisma.IssueComponentCreateManyInput[] = [];
+  const issueLabels: Prisma.IssueLabelCreateManyInput[] = [];
   const comments: Prisma.CommentCreateManyInput[] = [];
   const workLogs: Prisma.WorkLogCreateManyInput[] = [];
   const auditLogs: Prisma.AuditLogCreateManyInput[] = [];
@@ -206,6 +241,7 @@ export function generateVerus(): VerusDataset {
   let workLogCounter = 0;
   let auditCounter = 0;
   let icCounter = 0;
+  let ilCounter = 0;
   const memberSizeByKey: Record<string, number> = { VWP: 70, VMOB: 45, VDP: 45, OPS: 40 };
   const AUDIT_CAP = 3600; // bound the transition history we synthesise
 
@@ -410,6 +446,22 @@ export function generateVerus(): VerusDataset {
         icCounter += 1;
       }
 
+      // Labels: an independent roll per label rather than "pick N of them", so
+      // the count per issue falls out of the weights instead of being imposed.
+      // With this pool that leaves ~⅓ of issues unlabelled, most of the rest on
+      // one or two, and a thin tail carrying enough to exercise the chip
+      // overflow (`+N`) and a multi-label filter.
+      LABELS.forEach((spec, li) => {
+        if (!rng.bool((spec.weight / 100) * labelAffinity(spec.name, type))) return;
+        issueLabels.push({
+          issueId: id,
+          labelId: `verus-label-${pad(li)}`,
+          createdAt,
+          createdBy: reporterId,
+        });
+        ilCounter += 1;
+      });
+
       // Comments: ~35% of issues, 1–4 each.
       if (rng.bool(0.35)) {
         const count = rng.int(1, 4);
@@ -562,11 +614,13 @@ export function generateVerus(): VerusDataset {
     projects: projects.length,
     projectMembers: projectMembers.length,
     components: components.length,
+    labels: labels.length,
     sprints: sprints.length,
     epics: epics.length,
     issues: issues.length,
     totalIssues: epics.length + issues.length,
     issueComponents: icCounter,
+    issueLabels: ilCounter,
     comments: comments.length,
     workLogs: workLogs.length,
     auditLogs: auditLogs.length,
@@ -575,8 +629,9 @@ export function generateVerus(): VerusDataset {
   };
 
   return {
-    org, admins, cast, teams, memberships, projects, projectMembers, components, sprints,
-    epics, issues, issueComponents, comments, workLogs, auditLogs, recentItems, favorites, stats,
+    org, admins, cast, teams, memberships, projects, projectMembers, components, labels, sprints,
+    epics, issues, issueComponents, issueLabels, comments, workLogs, auditLogs, recentItems,
+    favorites, stats,
   };
 }
 

@@ -1,4 +1,7 @@
 import { prisma } from "@/shared/lib/db";
+// The Issues list renders the same card as the Board and Backlog, so it reads
+// the same shape — chips included (ADR-0018).
+import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
 import { rankAppend } from "@/shared/lib/rank";
 import type { Prisma, IssueStatus, IssueType } from "@prisma/client";
 
@@ -10,19 +13,6 @@ const assigneeSelect = {
   select: { id: true, name: true, avatarUrl: true },
 } as const;
 
-const listSelect = {
-  id: true,
-  projectId: true,
-  key: true,
-  type: true,
-  title: true,
-  status: true,
-  priority: true,
-  storyPoints: true,
-  updatedAt: true,
-  version: true,
-  assignee: assigneeSelect,
-} as const;
 
 // Keyset pagination: never return an unbounded result set. `id` is the final
 // tiebreaker so the ordering is total and the cursor is deterministic.
@@ -51,7 +41,7 @@ export const IssueRepository = {
     const take = Math.min(page.take ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     return prisma.issue.findMany({
       where: issueWhere(projectId, filters),
-      select: listSelect,
+      select: issueCardSelect,
       orderBy: [
         { status: "asc" },
         { rank: "asc" },

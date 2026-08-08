@@ -1,11 +1,12 @@
 import { BoardRepository } from "@/features/board/repositories/board.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { ISSUE_STATUSES } from "@/features/issues/services/issue-workflow";
+// One card shape + mapper for every list surface (ADR-0018/0026).
+import { toIssueCardDto } from "@/features/issues/services/issue-card.mapper";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { BoardDto, BoardFilter } from "@/features/board/types/board.types";
 import type {
-  IssueListItemDto,
   IssueStatusCounts,
 } from "@/features/issues/types/issue.types";
 import { elevate, canWriteContent } from "@/features/authorization/permission";
@@ -14,28 +15,7 @@ import { elevate, canWriteContent } from "@/features/authorization/permission";
 // server-side. The reorder write lives in IssueService.reorder (shared with
 // the Backlog); this service owns the read-only board view.
 
-type CardRow = Awaited<
-  ReturnType<typeof BoardRepository.columnItems>
->[number];
 
-function toCardDto(row: CardRow): IssueListItemDto {
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    key: row.key,
-    type: row.type,
-    title: row.title,
-    status: row.status,
-    priority: row.priority,
-    storyPoints: row.storyPoints,
-    updatedAt: row.updatedAt.toISOString(),
-    version: row.version,
-    assignee: row.assignee,
-    labels: row.labels.map((il) => il.label),
-    components: row.components.map((ic) => ic.component),
-    epicKey: row.epic?.key,
-  };
-}
 
 const canWrite = canWriteContent;
 
@@ -63,7 +43,7 @@ export const BoardService = {
           status,
           items: (
             await BoardRepository.columnItems(projectId, status, filter)
-          ).map(toCardDto),
+          ).map(toIssueCardDto),
         })),
       ),
       BoardRepository.countByStatus(projectId, filter),

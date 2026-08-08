@@ -7,7 +7,8 @@ import { ProjectService } from "@/features/projects/services/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { BacklogDto } from "@/features/backlog/types/backlog.types";
-import type { IssueListItemDto } from "@/features/issues/types/issue.types";
+// One card mapper for every list surface — see issue-card.mapper.ts.
+import { toIssueCardDto } from "@/features/issues/services/issue-card.mapper";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 import { elevate, canWriteContent } from "@/features/authorization/permission";
 
@@ -15,31 +16,6 @@ import { elevate, canWriteContent } from "@/features/authorization/permission";
 // server-side. The reorder write lives in IssueService.reorder (scope=backlog,
 // ADR-0013); this service owns the read-only backlog view.
 
-type CardRow = Awaited<
-  ReturnType<typeof BacklogRepository.listUnscheduled>
->[number];
-
-function toCardDto(row: CardRow): IssueListItemDto {
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    key: row.key,
-    type: row.type,
-    title: row.title,
-    status: row.status,
-    priority: row.priority,
-    storyPoints: row.storyPoints,
-    updatedAt: row.updatedAt.toISOString(),
-    version: row.version,
-    assignee: row.assignee,
-    epicId: row.epicId ?? null,
-    epicKey: row.epic?.key,
-    // Same chips the board card carries (ADR-0018), so one issue reads the
-    // same way wherever it appears.
-    labels: row.labels.map((l) => l.label),
-    components: row.components.map((c) => c.component),
-  };
-}
 
 const canWrite = canWriteContent;
 
@@ -81,7 +57,7 @@ export const BacklogService = {
     const nextCursor = hasMore ? (items.at(-1)?.id ?? null) : null;
 
     return {
-      items: items.map(toCardDto),
+      items: items.map(toIssueCardDto),
       nextCursor,
       canWrite: canWrite(role),
       total,
