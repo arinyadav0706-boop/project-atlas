@@ -30,7 +30,9 @@ import type {
 // problems apply. What is lost is a rendered pill *shape* while typing, which
 // is cosmetic; what is gained is that the text reads like a sentence.
 
-const MENU_LIMIT = 8;
+// Jira and ClickUp both show roughly this many in a scrollable menu and rely on
+// typing to narrow. Showing all 150 would be a directory, not an autocomplete.
+const MENU_LIMIT = 10;
 
 export function CommentComposer({
   issueId,
@@ -203,43 +205,63 @@ export function CommentComposer({
         <ul
           role="listbox"
           aria-label="Mention a teammate"
-          className="absolute z-20 mt-1 max-h-60 w-72 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
+          className="absolute z-20 mt-1 max-h-72 w-80 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
         >
-          {candidates.map((user, i) => (
-            <li key={user.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={i === highlighted}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => choose(user)}
-                onMouseEnter={() => setHighlighted(i)}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
-                  i === highlighted ? "bg-accent/15 text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                <Avatar className="h-5 w-5 shrink-0">
-                  {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-                  <AvatarFallback className="text-[9px]">
-                    {user.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="truncate text-foreground">{user.name}</span>
-                {/* Why this person is where they are in the list. Two people
-                    can share a first name; "on this issue" is what tells them
-                    apart at a glance. */}
-                {user.isParticipant ? (
-                  <span className="ml-auto shrink-0 text-[10px] font-medium text-accent">
-                    on this issue
+          {candidates.map((user, i) => {
+            // Section headers, the way Jira/ClickUp/Asana group the same menu:
+            // the label appears on the first row of each tier rather than as a
+            // per-row tag, so the ranking reads as structure instead of noise.
+            const tier = user.isParticipant
+              ? "On this issue"
+              : user.isProjectMember
+                ? "Project members"
+                : "Others in the organisation";
+            const prev = candidates[i - 1];
+            const prevTier = !prev
+              ? null
+              : prev.isParticipant
+                ? "On this issue"
+                : prev.isProjectMember
+                  ? "Project members"
+                  : "Others in the organisation";
+
+            return (
+              <li key={user.id}>
+                {tier !== prevTier && (
+                  <div className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {tier}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === highlighted}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => choose(user)}
+                  onMouseEnter={() => setHighlighted(i)}
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${
+                    i === highlighted ? "bg-accent/15" : ""
+                  }`}
+                >
+                  <Avatar className="h-6 w-6 shrink-0">
+                    {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+                    <AvatarFallback className="text-[9px]">
+                      {user.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-foreground">{user.name}</span>
+                    {/* The disambiguator. Two people really are both called
+                        "Aditya Jones", and picking the wrong one notifies the
+                        wrong person silently. */}
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {user.email}
+                    </span>
                   </span>
-                ) : !user.isProjectMember ? (
-                  <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                    not on project
-                  </span>
-                ) : null}
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
           {totalMatches > candidates.length && (
             <li className="border-t border-border px-2 py-1.5 text-[11px] text-muted-foreground">
               Showing {candidates.length} of {totalMatches} — keep typing to narrow

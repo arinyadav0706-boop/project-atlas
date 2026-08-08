@@ -229,7 +229,7 @@ export const CommentRepository = {
           }
         : {}),
     };
-    const select = { id: true, name: true, avatarUrl: true } as const;
+    const select = { id: true, name: true, email: true, avatarUrl: true } as const;
 
     const [participants, projectMembers, others, totalMatches] = await Promise.all([
       input.participantIds.length > 0
@@ -264,6 +264,10 @@ export const CommentRepository = {
       .map((u) => ({
         id: u.id,
         name: u.name,
+        // Shown as a second line. Two people genuinely called "Aditya Jones"
+        // are indistinguishable by name alone, and picking the wrong one
+        // notifies the wrong person — which is silent and unrecoverable.
+        email: u.email,
         avatarUrl: u.avatarUrl,
         isProjectMember: memberIds.has(u.id) || participantIds.has(u.id),
         isParticipant: participantIds.has(u.id),

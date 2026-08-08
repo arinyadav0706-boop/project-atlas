@@ -73,6 +73,8 @@ export interface CommentThreadDto {
 export interface MentionableUserDto {
   id: string;
   name: string;
+  /** Second line in the menu — the only way to tell two same-named people apart. */
+  email: string;
   avatarUrl: string | null;
   isProjectMember: boolean;
   /** Assignee, reporter or a prior commenter on this issue. */
