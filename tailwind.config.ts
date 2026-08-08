@@ -35,6 +35,21 @@ const config: Config = {
       borderRadius: {
         lg: "0.75rem",
         xl: "1rem",
+        // Surface radius. Cards read softer than controls on purpose — the
+        // container should feel like paper, the control like a button.
+        "2xl": "1.25rem",
+      },
+      // Elevation, as three named steps rather than ad-hoc shadow utilities.
+      //
+      // Deliberately very low alpha: at this radius a heavy shadow reads as a
+      // 2010 drop-shadow, and the mockups get their depth from a hairline
+      // border plus a barely-there lift. Two stacked shadows give the contact
+      // shadow and the ambient one, which is what makes it look lit rather
+      // than outlined.
+      boxShadow: {
+        card: "0 1px 2px hsl(240 6% 10% / 0.04), 0 1px 3px hsl(240 6% 10% / 0.03)",
+        "card-hover": "0 2px 4px hsl(240 6% 10% / 0.05), 0 4px 12px hsl(240 6% 10% / 0.06)",
+        pop: "0 4px 8px hsl(240 6% 10% / 0.06), 0 12px 28px hsl(240 6% 10% / 0.10)",
       },
       fontFamily: {
         sans: [

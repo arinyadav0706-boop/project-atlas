@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection } from "@/features/home/components/home-section";
 import { StarButton } from "@/features/home/components/star-button";
@@ -14,7 +15,11 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
   const projects = [...starredProjects, ...recentProjects];
 
   return (
-    <HomeSection title="Projects" viewAll={{ href: "/projects", label: "All projects" }}>
+    <HomeSection
+      title="Projects"
+      icon={<FolderOpen />}
+      viewAll={{ href: "/projects", label: "View all projects" }}
+    >
       {projects.length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (

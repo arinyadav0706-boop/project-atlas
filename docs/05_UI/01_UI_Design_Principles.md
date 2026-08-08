@@ -148,3 +148,50 @@ by the architecture (ADR-0001):
 shared component library and tokens, never bespoke markup. A screen
 hand-rolled with ad-hoc divs/colors would make the later polish a rewrite
 instead of a swap. This is a hard rule for the "basic" gear.
+
+## Design system primitives (2026-08-08)
+
+Added when the UI moved from "correct" to "considered". The visual language is
+now four primitives in `src/shared/components/ui/`, not a set of class strings
+people copy between features.
+
+| Primitive | What it owns |
+|---|---|
+| `Card` (+ `CardHeader`, `CardContent`) | Every panel surface. `rounded-2xl`, hairline border, `shadow-card`. |
+| `StatTile` | A headline number: label, value, tinted icon chip, optional delta. |
+| `EmptyState` | Icon, title, one explanatory line. `compact` for inside a card. |
+| `PageHeader` | Icon chip, title, subtitle, actions. |
+
+**Why primitives and not utility classes.** `rounded-xl border border-border
+bg-background` was hand-written in five feature components. That is how a design
+drifts: someone softens a radius in one place and the app quietly stops matching
+itself — the same failure that lost the classification chips from the Issues
+list. One shape, one definition.
+
+### Rules that come with them
+
+1. **Elevation is three named steps** — `shadow-card`, `shadow-card-hover`,
+   `shadow-pop`. Very low alpha on purpose: at this radius a heavy shadow reads
+   as a 2010 drop-shadow. Depth comes from the hairline border plus a
+   barely-there lift.
+2. **Surfaces are softer than controls.** Cards `rounded-2xl`, buttons and
+   inputs `rounded-lg`. The container should feel like paper, the control like
+   a button.
+3. **Tints come from semantic tokens**, never new hexes. A `StatTile` tone is
+   `accent`/`success`/`warning`/`danger`/`neutral`; "a nice purple" is exactly
+   how the no-ad-hoc-colour rule gets broken.
+4. **Hover lift only on things that are clickable.** `Card interactive` exists
+   for that; a lift on a static panel invites a click that does nothing.
+5. **An empty state is a sentence, not a blank.** Icon, what the situation is,
+   what will fill it. In a multi-column grid an absent card is worse than an
+   empty one — it leaves a hole and shifts every card below it out of its pair.
+
+### What we are deliberately not copying from the mockups
+
+The Workload mockup included **AI Insights** and an **"Upgrade to Pro"** upsell.
+Both are omitted: there is no AI, and EAGLES is one organisation's internal tool
+with no paid tiers, so a pricing upsell would be fiction. Month-over-month trend
+deltas are omitted for now pending a check that they can be computed truthfully
+(user `createdAt` and audit-log status replay make some of them real; figures
+that depend on historical estimates do not, because `estimateMinutes` is not
+versioned). Tracked as UI-3/UI-4.
