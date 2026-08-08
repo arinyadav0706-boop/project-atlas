@@ -13,8 +13,6 @@ export async function GET(request: NextRequest, props: Params) {
   return handleRoute(async () => {
     const actor = await requireActor();
     const query = request.nextUrl.searchParams.get("q") ?? "";
-    return NextResponse.json({
-      items: await CommentService.mentionable(actor, params.issueId, query),
-    });
+    return NextResponse.json(await CommentService.mentionable(actor, params.issueId, query));
   });
 }

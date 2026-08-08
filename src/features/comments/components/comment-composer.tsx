@@ -11,7 +11,10 @@ import {
   tokensToDisplay,
   type PickedMention,
 } from "@/features/comments/lib/mentions";
-import type { MentionableUserDto } from "@/features/comments/types/comment.types";
+import type {
+  MentionableListDto,
+  MentionableUserDto,
+} from "@/features/comments/types/comment.types";
 
 // A comment box with `@` autocomplete (ADR-0038 §1, amended).
 //
@@ -55,6 +58,9 @@ export function CommentComposer({
   // can never become a mention.
   const [picked, setPicked] = useState<PickedMention[]>(initial.picked);
   const [candidates, setCandidates] = useState<MentionableUserDto[]>([]);
+  // Total matches, not just the page shown — a menu capped at 8 out of 150
+  // people otherwise looks like the whole directory.
+  const [totalMatches, setTotalMatches] = useState(0);
   const [highlighted, setHighlighted] = useState(0);
   const [trigger, setTrigger] = useState<{ query: string; from: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +70,7 @@ export function CommentComposer({
   const closeMenu = useCallback(() => {
     setTrigger(null);
     setCandidates([]);
+    setTotalMatches(0);
     setHighlighted(0);
   }, []);
 
@@ -73,11 +80,12 @@ export function CommentComposer({
     const seq = ++requestSeq.current;
     const timer = setTimeout(async () => {
       try {
-        const res = await apiRequest<{ items: MentionableUserDto[] }>(
+        const res = await apiRequest<MentionableListDto>(
           `/api/issues/${issueId}/mentionable?q=${encodeURIComponent(trigger.query)}`,
         );
         if (seq !== requestSeq.current) return;
         setCandidates(res.items.slice(0, MENU_LIMIT));
+        setTotalMatches(res.totalMatches);
         setHighlighted(0);
       } catch {
         // A failed lookup closes the menu rather than surfacing a toast — the
@@ -217,23 +225,33 @@ export function CommentComposer({
                   </AvatarFallback>
                 </Avatar>
                 <span className="truncate text-foreground">{user.name}</span>
-                {/* Everyone in the org is mentionable; this marks who is
-                    actually on the project, which is the useful distinction
-                    when two people share a first name. */}
-                {!user.isProjectMember && (
+                {/* Why this person is where they are in the list. Two people
+                    can share a first name; "on this issue" is what tells them
+                    apart at a glance. */}
+                {user.isParticipant ? (
+                  <span className="ml-auto shrink-0 text-[10px] font-medium text-accent">
+                    on this issue
+                  </span>
+                ) : !user.isProjectMember ? (
                   <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
                     not on project
                   </span>
-                )}
+                ) : null}
               </button>
             </li>
           ))}
+          {totalMatches > candidates.length && (
+            <li className="border-t border-border px-2 py-1.5 text-[11px] text-muted-foreground">
+              Showing {candidates.length} of {totalMatches} — keep typing to narrow
+            </li>
+          )}
         </ul>
       )}
 
       <div className="mt-2 flex items-center justify-end gap-2">
         <span className="mr-auto text-[11px] text-muted-foreground">
-          Type <kbd className="rounded border border-border px-1">@</kbd> to mention
+          Type <kbd className="rounded border border-border px-1">@</kbd> then a name or
+          email to mention
         </span>
         {onCancel && (
           <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
