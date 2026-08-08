@@ -38,6 +38,13 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
   await prisma.recentItem.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.favorite.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
+  // Mentions before comments: the FK is RESTRICT, so the reverse order fails.
+  // Replies and their roots go together in one statement — Postgres checks the
+  // self-referencing FK at statement end, the same reason teams.parentTeamId
+  // is safe above.
+  await prisma.commentMention.deleteMany({
+    where: { comment: { issue: { project: { organizationId: orgId } } } },
+  });
   await prisma.comment.deleteMany({ where: inOrgIssue });
   await prisma.workLog.deleteMany({ where: inOrgIssue });
   await prisma.attachment.deleteMany({ where: inOrgIssue });

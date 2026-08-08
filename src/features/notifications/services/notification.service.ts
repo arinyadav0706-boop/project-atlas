@@ -53,6 +53,9 @@ async function notify(
     const candidates = [...new Set(input.recipientIds)].filter(
       (id): id is string => Boolean(id) && id !== actor.userId,
     );
+    // Bail before touching the database. `commentPosted` calls this twice — once
+    // per type — and on most comments one of those two lists is empty.
+    if (candidates.length === 0) return;
     const recipients = await NotificationRepository.enabledRecipients(candidates);
     if (recipients.length === 0) return;
     await NotificationRepository.createMany(
@@ -88,16 +91,50 @@ export const NotificationService = {
     });
   },
 
-  issueCommented(
+  /**
+   * A comment was posted (or edited to name someone new) — ADR-0038 §3.
+   *
+   * Two audiences, and the precedence between them is the point: someone who is
+   * both mentioned and a participant gets **one** notification, typed
+   * `MENTIONED`. A mention is strictly more urgent than "there was activity",
+   * and two rows for one comment is the behaviour that makes people switch
+   * notifications off.
+   *
+   * No cap on `mentionedIds` (ADR-0038 §2) — the fan-out is one batched insert
+   * per type, and mutations are rate limited upstream.
+   */
+  async commentPosted(
     actor: Actor,
-    input: { issueId: string; issueKey: string; recipientIds: (string | null | undefined)[] },
-  ) {
-    return notify(actor, {
-      recipientIds: input.recipientIds,
+    input: {
+      issueId: string;
+      issueKey: string;
+      commentId: string;
+      preview: string;
+      mentionedIds: string[];
+      participantIds: (string | null | undefined)[];
+    },
+  ): Promise<void> {
+    const mentioned = new Set(input.mentionedIds);
+
+    await notify(actor, {
+      recipientIds: input.mentionedIds,
+      type: "MENTIONED",
+      entityType: "ISSUE",
+      entityId: input.issueId,
+      message: `You were mentioned on ${input.issueKey}: ${input.preview}`,
+    });
+
+    // Everyone else with a stake in the thread. Filtered before `notify` so the
+    // mentioned are excluded by identity, not by luck of ordering.
+    const others = input.participantIds.filter(
+      (id): id is string => typeof id === "string" && id.length > 0 && !mentioned.has(id),
+    );
+    await notify(actor, {
+      recipientIds: others,
       type: "COMMENT_ADDED",
       entityType: "ISSUE",
       entityId: input.issueId,
-      message: `New comment on ${input.issueKey}`,
+      message: `New comment on ${input.issueKey}: ${input.preview}`,
     });
   },
 

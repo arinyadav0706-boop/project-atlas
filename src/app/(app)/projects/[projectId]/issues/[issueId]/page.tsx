@@ -72,7 +72,11 @@ export default async function IssueDetailPage({
         </div>
         <TimeTrackingPanel issueId={params.issueId} initial={timeTracking} />
         <AttachmentsSection issueId={params.issueId} initial={attachments} />
-        <CommentsSection issueId={params.issueId} initialPage={comments} />
+        <CommentsSection
+          issueId={params.issueId}
+          projectId={params.projectId}
+          initialPage={comments}
+        />
       </div>
     );
   } catch (error) {

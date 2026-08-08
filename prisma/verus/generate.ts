@@ -68,6 +68,7 @@ export interface VerusDataset {
   issueComponents: Prisma.IssueComponentCreateManyInput[];
   issueLabels: Prisma.IssueLabelCreateManyInput[];
   comments: Prisma.CommentCreateManyInput[];
+  commentMentions: Prisma.CommentMentionCreateManyInput[];
   workLogs: Prisma.WorkLogCreateManyInput[];
   auditLogs: Prisma.AuditLogCreateManyInput[];
   recentItems: Prisma.RecentItemCreateManyInput[];
@@ -197,6 +198,12 @@ export function generateVerus(): VerusDataset {
     allUserIds.push(id);
   }
 
+  // Display names for mention tokens: the token stores the id, but it also
+  // carries the name as written, which is what the renderer shows.
+  const userNameById = new Map<string, string>(
+    [...admins, ...cast].map((u) => [u.id as string, (u.name as string) ?? "Teammate"]),
+  );
+
   // ---- Teams (people axis) ----
   // Managers: the two owner accounts run the two biggest branches so "My Team"
   // is rich when logged in as either; the rest go to senior cast members.
@@ -253,10 +260,12 @@ export function generateVerus(): VerusDataset {
   const issueComponents: Prisma.IssueComponentCreateManyInput[] = [];
   const issueLabels: Prisma.IssueLabelCreateManyInput[] = [];
   const comments: Prisma.CommentCreateManyInput[] = [];
+  const commentMentions: Prisma.CommentMentionCreateManyInput[] = [];
   const workLogs: Prisma.WorkLogCreateManyInput[] = [];
   const auditLogs: Prisma.AuditLogCreateManyInput[] = [];
 
   let commentCounter = 0;
+  let mentionCounter = 0;
   let workLogCounter = 0;
   let auditCounter = 0;
   let icCounter = 0;
@@ -530,23 +539,73 @@ export function generateVerus(): VerusDataset {
         ilCounter += 1;
       });
 
-      // Comments: ~35% of issues, 1–4 each.
+      // Comments: ~35% of issues, 1–4 roots each, some with reply threads and
+      // @mentions (ADR-0038).
+      //
+      // Generated because a module is not done until the seed exercises it
+      // (ADR-0033 r1) — mentions and threading would otherwise have shipped
+      // with nothing but fixtures behind them, exactly as labels did. The
+      // thread-overflow page in particular is unreachable in a demo unless
+      // some root actually carries more replies than the preview shows.
       if (rng.bool(0.35)) {
-        const count = rng.int(1, 4);
-        for (let c = 0; c < count; c++) {
+        const rootCount = rng.int(1, 4);
+        for (let c = 0; c < rootCount; c++) {
           const at = new Date(
             createdAt.getTime() + rng.int(1, Math.max(1, Math.floor((NOW.getTime() - createdAt.getTime()) / DAY))) * DAY,
           );
+          const rootId = `verus-cmt-${pad(commentCounter++, 6)}`;
+          const rootAt = at > NOW ? NOW : at;
+
+          // A quarter of comments name someone; 1–3 people, drawn from the
+          // issue's own cast so a mention reads plausibly.
+          const mentioned = rng.bool(0.25)
+            ? [...new Set(Array.from({ length: rng.int(1, 3) }, () => rng.pick(memberIds)))]
+            : [];
+          const mentionText = mentioned
+            .map((uid) => `@[${userNameById.get(uid) ?? "Teammate"}](user:${uid})`)
+            .join(" ");
+
           comments.push({
-            id: `verus-cmt-${pad(commentCounter++, 6)}`,
+            id: rootId,
             issueId: id,
             authorId: rng.pick(memberIds),
-            body: rng.pick(COMMENTS),
+            body: mentionText ? `${mentionText} ${rng.pick(COMMENTS)}` : rng.pick(COMMENTS),
             bodyFormat: "MARKDOWN",
-            editedAt: rng.bool(0.1) ? at : null,
-            createdAt: at > NOW ? NOW : at,
+            editedAt: rng.bool(0.1) ? rootAt : null,
+            createdAt: rootAt,
             createdBy: reporterId,
           });
+          for (const uid of mentioned) {
+            commentMentions.push({
+              id: `verus-cmtm-${pad(mentionCounter++, 6)}`,
+              commentId: rootId,
+              userId: uid,
+              createdAt: rootAt,
+              createdBy: reporterId,
+            });
+          }
+
+          // Threads: 30% of roots get replies. Most are short, but 1 in 5 runs
+          // past the 3-reply preview so "View all N replies" is reachable on
+          // real data rather than only in a test.
+          if (rng.bool(0.3)) {
+            const replyCount = rng.bool(0.2) ? rng.int(4, 11) : rng.int(1, 3);
+            for (let r = 0; r < replyCount; r++) {
+              const replyAt = new Date(
+                Math.min(rootAt.getTime() + (r + 1) * rng.int(1, 8) * 3_600_000, NOW.getTime()),
+              );
+              comments.push({
+                id: `verus-cmt-${pad(commentCounter++, 6)}`,
+                issueId: id,
+                parentCommentId: rootId,
+                authorId: rng.pick(memberIds),
+                body: rng.pick(COMMENTS),
+                bodyFormat: "MARKDOWN",
+                createdAt: replyAt,
+                createdBy: reporterId,
+              });
+            }
+          }
         }
       }
 
@@ -690,6 +749,7 @@ export function generateVerus(): VerusDataset {
     issueComponents: icCounter,
     issueLabels: ilCounter,
     comments: comments.length,
+    commentMentions: commentMentions.length,
     workLogs: workLogs.length,
     auditLogs: auditLogs.length,
     recentItems: recentItems.length,
@@ -698,7 +758,7 @@ export function generateVerus(): VerusDataset {
 
   return {
     org, admins, cast, teams, memberships, projects, projectMembers, components, labels, sprints,
-    epics, issues, issueComponents, issueLabels, comments, workLogs, auditLogs, recentItems,
+    epics, issues, issueComponents, issueLabels, comments, commentMentions, workLogs, auditLogs, recentItems,
     favorites, stats,
   };
 }

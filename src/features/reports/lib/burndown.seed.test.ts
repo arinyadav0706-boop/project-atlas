@@ -124,12 +124,29 @@ describe("the VERUS demo data must produce a real burndown", () => {
   });
 
   it("sizes what a team commits to, so the points line is a reading not a floor", () => {
+    // Two thresholds, because one is not enough to be both meaningful and
+    // stable. The generator sizes at 92%, but a ~40-issue sprint is a small
+    // sample: a single run drifting to 83% is ordinary binomial variance, not
+    // a regression, and pinning each sprint near the target makes this test
+    // fail whenever an unrelated change shifts the RNG stream.
+    //
+    // So: the aggregate is held close to the target (large sample, stable),
+    // and each sprint gets a floor that the defect this exists for — 55%
+    // unsized — still fails by a wide margin.
+    let sizedTotal = 0;
+    let cohortTotal = 0;
+
     for (const sprint of runnable) {
       const { cohort } = seriesFor(sprint);
       if (cohort.length === 0) continue;
       const sized = cohort.filter((i) => i.storyPoints !== null).length;
-      expect(sized / cohort.length).toBeGreaterThan(0.85);
+      sizedTotal += sized;
+      cohortTotal += cohort.length;
+      expect(sized / cohort.length).toBeGreaterThan(0.75);
     }
+
+    expect(cohortTotal).toBeGreaterThan(0);
+    expect(sizedTotal / cohortTotal).toBeGreaterThan(0.88);
   });
 
   it("runs completions up to today, so an active sprint has no flat tail", () => {

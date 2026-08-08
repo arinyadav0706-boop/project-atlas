@@ -32,10 +32,13 @@ beforeEach(() => {
 describe("fan-out", () => {
   it("dedupes recipients, drops the actor and empties, filters enabled", async () => {
     repo.enabledRecipients.mockResolvedValue(["u2"]); // pretend u3 disabled
-    await NotificationService.issueCommented(actor, {
+    await NotificationService.commentPosted(actor, {
       issueId: "i-1",
       issueKey: "ENG-1",
-      recipientIds: ["actor-1", "u2", "u2", null, undefined, "u3"],
+      commentId: "c-1",
+      preview: "hello",
+      mentionedIds: [],
+      participantIds: ["actor-1", "u2", "u2", null, undefined, "u3"],
     });
     // actor + null/undefined removed, u2 deduped → candidates [u2, u3]
     expect(repo.enabledRecipients).toHaveBeenCalledWith(["u2", "u3"]);

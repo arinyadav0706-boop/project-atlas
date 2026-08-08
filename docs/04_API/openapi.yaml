@@ -640,6 +640,83 @@ paths:
       responses:
         "204": { description: Deleted }
 
+  /comments/{commentId}/thread:
+    parameters:
+      - name: commentId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: cursor
+        in: query
+        schema: { type: string }
+      - name: take
+        in: query
+        schema: { type: integer, default: 50, maximum: 100 }
+    get:
+      tags: [comments]
+      summary: One thread — a root comment plus a keyset page of its replies (ADR-0038)
+      description: >
+        404 when the id names a reply rather than a root: threads are one level
+        deep, so only a top-level comment has a thread of its own.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [root, replies, nextCursor, canComment, replyCount, issue]
+                properties:
+                  root: { $ref: "#/components/schemas/Comment" }
+                  replies:
+                    type: array
+                    items: { $ref: "#/components/schemas/Comment" }
+                  nextCursor: { type: string, nullable: true }
+                  canComment: { type: boolean }
+                  replyCount: { type: integer }
+                  issue:
+                    type: object
+                    required: [id, key, title, projectId]
+                    properties:
+                      id: { type: string }
+                      key: { type: string }
+                      title: { type: string }
+                      projectId: { type: string }
+        "404": { description: No such root comment, or not visible to the caller }
+
+  /issues/{issueId}/mentionable:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+      - name: q
+        in: query
+        description: Name fragment; empty returns the first page of candidates.
+        schema: { type: string }
+    get:
+      tags: [comments]
+      summary: Autocomplete candidates for an @mention (ADR-0038)
+      description: >
+        Scoped to the caller's organization and ordered project-members-first.
+        Not a user directory — the caller must already be able to see the issue.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, avatarUrl, isProjectMember]
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        avatarUrl: { type: string, nullable: true }
+                        isProjectMember: { type: boolean }
+
   /issues/{issueId}/attachments:
     parameters:
       - $ref: "#/components/parameters/IssueIdParam"

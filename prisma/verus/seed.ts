@@ -184,6 +184,17 @@ async function main(): Promise<void> {
     d.comments.map((c) => ({ ...c, authorId: rid(c.authorId), createdBy: ridN(c.createdBy) })),
   );
 
+  // After comments — the FK points at them (ADR-0038).
+  await insertMany<Prisma.CommentMentionCreateManyInput>(
+    "comment mentions",
+    (rows) => prisma.commentMention.createMany({ data: rows }),
+    d.commentMentions.map((m) => ({
+      ...m,
+      userId: rid(m.userId),
+      createdBy: ridN(m.createdBy),
+    })),
+  );
+
   await insertMany<Prisma.WorkLogCreateManyInput>(
     "work logs",
     (rows) => prisma.workLog.createMany({ data: rows }),

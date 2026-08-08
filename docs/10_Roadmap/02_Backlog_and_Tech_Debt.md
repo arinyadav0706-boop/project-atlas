@@ -42,7 +42,7 @@ and product decisions — that would otherwise get lost between modules.
 | ID | Item | Pri | 🚩 | Status | Notes |
 |---|---|---|---|---|---|
 | PERF-1 | Region mismatch (Vercel↔Supabase) | P1 | — | ✅ DONE 2026-07-19 | Vercel → Mumbai; reads dropped to ~1–2 s. |
-| PERF-9 | Notification history index does not cover its sort | P3 | No | OPEN | `notifications` has `@@index([userId, isRead])`, which serves `unreadCount` (the 60s bell poll) well. `listByUser` filters on `userId` but orders by `(createdAt desc, id desc)`, which that index cannot satisfy — Postgres filters then sorts. Invisible today (few rows per user) and it becomes the `/notifications` page's cost as volume grows, so it lands naturally with the mentions work, which multiplies notification rows. Fix is a one-line additive migration: `@@index([userId, createdAt, id])`. Found in the pre-Comments audit, 2026-08-08. |
+| PERF-9 | Notification history index does not cover its sort | P3 | No | ✅ DONE 2026-08-08 | `notifications` had only `(userId, isRead)`, which serves the bell poll but cannot satisfy the history page's `(createdAt, id)` sort — Postgres filtered, then sorted. Added `(userId, createdAt, id)` in the ADR-0038 migration, as planned: it rode along with the change that multiplies notification rows rather than being a migration on its own. |
 | PERF-2 | Create: remove full-page `router.refresh()` → in-place insert | P2 | — | ✅ DONE 2026-07-19 | Create ~8 s → ~200 ms. |
 | PERF-3 | Same in-place pattern for **edit / transition / delete** | P2 | No | OPEN | These still full-refresh; make them instant like create. |
 | PERF-4 | Login: 3× `findByEmail` → 1× | P3 | No | OPEN | Redundant lookups (`auth-config.ts`). |
@@ -133,6 +133,23 @@ and product decisions — that would otherwise get lost between modules.
 | SEED-3 | Dataset clock follows the run clock | P1 | No | ✅ DONE 2026-08-08 | `NOW` was the literal `2026-08-05`, so the active sprint's burndown gained one flat day for every day since the last seed, and "due soon"/overdue/30-day windows drifted with it. Now `new Date()`; reproducibility stays with the PRNG (ADR-0033 r6). |
 | SEED-4 | Active sprint carries all three states | P2 | No | ✅ DONE 2026-08-08 | Every TODO went to a *planned* sprint, so the running sprint had an empty To Do column. |
 | SEED-5 | **Re-seed cadence for the deployed demo** | P2 | No | ✅ DONE 2026-08-08 | Decided: weekly. `seed-verus.yml` gains `cron: "0 3 * * 1"` (08:30 IST Monday). Scheduled runs seed only — teardown stays manual, because nothing should delete data on a timer — and the confirmation guard is skipped for `schedule`, which has no inputs. Caveat worth remembering: **GitHub disables scheduled workflows after 60 days with no repository activity**, so a stale demo means checking that first. |
+
+## Comments & Notifications (source: ADR-0016, ADR-0019, ADR-0038)
+
+| ID | Item | Pri | 🚩 | Status | Notes |
+|---|---|---|---|---|---|
+| CMT-1 | **@mentions** | P1 | No | ✅ DONE 2026-08-08 | ADR-0038 §1–2. Structured `@[Name](user:id)` tokens bound to the immutable id, so a rename cannot re-point or break historical comments. `comment_mentions` is a derived index rebuilt on edit. **No cap** by explicit decision. `NotificationType.MENTIONED` is no longer a dead enum value. |
+| CMT-2 | **Participant notifications** | P1 | No | ✅ DONE 2026-08-08 | ADR-0038 §3. Assignee + reporter + everyone who previously commented. Mention outranks participation — one notification, not two. An edit notifies only the names it added. |
+| CMT-3 | **Reply threads + overflow page** | P1 | No | ✅ DONE 2026-08-08 | ADR-0038 §4–5. One level deep (a reply to a reply re-parents to the root). Issue page shows the newest 3 replies per root; past that, `View all N replies` → `/projects/{p}/issues/{i}/comments/{c}`. Keeps the issue page's cost constant however large a discussion grows. |
+| CMT-4 | **Markdown rendering** | P2 | No | OPEN | `bodyFormat` still defaults to `MARKDOWN` while the renderer prints escaped plain text — the column continues to promise something the UI does not deliver. Deliberately **not** bundled with ADR-0038: it needs a sanitiser, which is its own security decision and does not belong in the same change as a notification fan-out. Mentions already render as chips, so the segment renderer is the seam it will slot into. |
+| CMT-5 | Reactions | P3 | No | OPEN | New table. Needs a picker and an aggregate-per-comment read. |
+| CMT-6 | Comment edit history | P3 | No | OPEN | New table. `version` already increments per edit, so the revision numbering exists; the bodies are not retained. |
+| CMT-7 | Comment attachments | P3 | No | OPEN | **`attachments.commentId` does not exist** — the column has to be added; earlier notes implying otherwise were wrong. |
+| CMT-8 | Rich-text composer (contenteditable) | P3 | No | OPEN | The textarea shows raw `@[Name](user:id)` tokens while typing. A pill-rendering editor fixes the cosmetics and brings selection/paste/IME bugs; deferred deliberately, not overlooked. |
+| CMT-9 | Mention a *group* (team) | P3 | No | OPEN | `@team-name` fanning out to members. Interacts with CMT-1's no-cap decision — a group mention makes the fan-out size implicit rather than typed, which is the case where a bound may genuinely be worth revisiting. |
+| NTF-1 | Real-time push (websocket/SSE) | P3 | No | OPEN | The bell polls every 60s. `NotificationService` is the seam a transport attaches to. |
+| NTF-2 | Email digest | P3 | No | OPEN | Needs a provider + unsubscribe handling. |
+| NTF-3 | Per-type notification preferences | P3 | No | OPEN | Today `notificationsEnabled` is one global switch per user. Per-type opt-out (mentions on, comment-added off) is the common next ask. |
 
 ## Sprint/Backlog page — deferred UI (depends on future modules)
 

@@ -217,6 +217,7 @@ model User {
   reportedIssues     Issue[]         @relation("IssueReporter")
   ledComponents      Component[]     @relation("ComponentLead")
   comments           Comment[]
+  commentMentions    CommentMention[]
   attachments        Attachment[]
   notifications      Notification[]
   recentItems        RecentItem[]
@@ -510,11 +511,41 @@ model Comment {
   updatedBy String?
   deletedAt DateTime?
 
+  mentions CommentMention[]
+
   // Ordered, keyset-paginated list per issue.
   @@index([issueId, createdAt])
-  // Reply lookups (future threading).
-  @@index([parentCommentId])
+  // Reply lookups + per-root reply counts (ADR-0038).
+  @@index([parentCommentId, createdAt])
+  // Top-level comments for an issue: the list query filters on all three.
+  @@index([issueId, parentCommentId, createdAt])
   @@map("comments")
+}
+
+// Who a comment mentions (ADR-0038 §1).
+//
+// A derived index, not the source of truth — the body is, via its
+// `@[Name](user:id)` tokens. This exists so "notify the mentioned" and "show me
+// my mentions" are indexed reads instead of a scan over comment text, and it is
+// rebuilt from the body on every edit.
+model CommentMention {
+  id        String  @id @default(cuid())
+  commentId String
+  comment   Comment @relation(fields: [commentId], references: [id])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  // One row per person per comment, however many times they are named in it.
+  @@unique([commentId, userId])
+  // "Mentions of me", newest first.
+  @@index([userId, createdAt])
+  @@map("comment_mentions")
 }
 
 model Attachment {
@@ -553,7 +584,10 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Serves the unread-count bell poll.
   @@index([userId, isRead])
+  // Serves the history page's sort, which the index above cannot (PERF-9).
+  @@index([userId, createdAt, id])
   @@map("notifications")
 }
 

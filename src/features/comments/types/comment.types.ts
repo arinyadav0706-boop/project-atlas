@@ -8,12 +8,21 @@ export interface CommentAuthorDto {
   avatarUrl: string | null;
 }
 
-// The comment shape. Designed to grow (ADR-0016): future `reactions`, `mentions`,
-// `attachments`, and `replyCount` are optional additions that won't break clients.
+// A person the comment names (ADR-0038 §1). Resolved from the body's tokens, so
+// the name shown is the *current* one — the token stores the id, and a rename
+// re-resolves rather than rewriting history.
+export interface CommentMentionDto {
+  userId: string;
+  name: string;
+}
+
+// The comment shape. Designed to grow (ADR-0016): future `reactions` and
+// `attachments` are optional additions that won't break clients.
 export interface CommentDto {
   id: string;
   issueId: string;
-  // Threading backbone (ADR-0016); null for a top-level comment. MVP renders flat.
+  // Null for a top-level comment; otherwise the root it hangs off. Threads are
+  // one level deep (ADR-0038 §4) — a reply to a reply re-parents to the root.
   parentCommentId: string | null;
   body: string;
   bodyFormat: CommentBodyFormatDto;
@@ -26,12 +35,44 @@ export interface CommentDto {
   // The viewer's rights on this comment, resolved server-side.
   canEdit: boolean;
   canDelete: boolean;
+  // Who this comment names, for rendering chips without a second lookup.
+  mentions: CommentMentionDto[];
+  // Total replies on this root — 0 on a reply, since threads are one deep.
+  replyCount: number;
+  /**
+   * The newest few replies, for the issue page (ADR-0038 §5). Present only on a
+   * root in a list response, and always in reading order. When `replyCount`
+   * exceeds this length the UI links to the thread page rather than loading
+   * the rest inline.
+   */
+  replies: CommentDto[];
 }
 
-// One keyset-paginated page of comments (oldest-first) plus the cursor.
+// One keyset-paginated page of top-level comments (oldest-first) plus the cursor.
 export interface CommentPageDto {
   items: CommentDto[];
   nextCursor: string | null;
   // Whether the viewer may post a comment (MEMBER/LEAD on a non-archived project).
   canComment: boolean;
+  // Every top-level comment on the issue, for the "N comments" heading.
+  totalCount: number;
+}
+
+// One thread's own page: the root plus a keyset page of all its replies.
+export interface CommentThreadDto {
+  root: CommentDto;
+  replies: CommentDto[];
+  nextCursor: string | null;
+  canComment: boolean;
+  replyCount: number;
+  // For the breadcrumb back to the issue, without a second request.
+  issue: { id: string; key: string; title: string; projectId: string };
+}
+
+// An autocomplete candidate. Project members sort first (ADR-0038 §5 note).
+export interface MentionableUserDto {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  isProjectMember: boolean;
 }

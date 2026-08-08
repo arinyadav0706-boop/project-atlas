@@ -1,42 +1,80 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
-import { Textarea } from "@/shared/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
+import { CommentComposer } from "@/features/comments/components/comment-composer";
+import { CommentRow } from "@/features/comments/components/comment-row";
 import type { CommentDto, CommentPageDto } from "@/features/comments/types/comment.types";
 
-// The Comments thread on an issue (08_comments.md). Flat list + composer; edit
-// and delete the viewer's own (a LEAD may delete any). Body is rendered as plain,
-// escaped text (React escapes by default) — the XSS boundary (ADR-0016); a
-// rich-text renderer swaps in later off `bodyFormat`.
+// The Comments thread on an issue (08_comments.md, ADR-0038).
+//
+// Top-level comments, each with its newest few replies. A thread bigger than
+// that preview links to its own page rather than expanding here — that is what
+// keeps this section's cost constant however large a discussion grows
+// (ADR-0038 §4).
 export function CommentsSection({
   issueId,
+  projectId,
   initialPage,
 }: {
   issueId: string;
+  projectId: string;
   initialPage: CommentPageDto;
 }) {
   const [items, setItems] = useState<CommentDto[]>(initialPage.items);
   const [nextCursor, setNextCursor] = useState<string | null>(initialPage.nextCursor);
-  const [draft, setDraft] = useState("");
+  const [total, setTotal] = useState(initialPage.totalCount);
   const [posting, setPosting] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const canComment = initialPage.canComment;
 
-  async function post() {
-    const body = draft.trim();
-    if (!body || posting) return;
+  function replaceIn(list: CommentDto[], updated: CommentDto): CommentDto[] {
+    return list.map((c) =>
+      c.id === updated.id
+        ? { ...updated, replies: c.replies, replyCount: c.replyCount }
+        : { ...c, replies: c.replies.map((r) => (r.id === updated.id ? updated : r)) },
+    );
+  }
+
+  function removeFrom(list: CommentDto[], id: string): CommentDto[] {
+    return list
+      .filter((c) => c.id !== id)
+      .map((c) =>
+        c.replies.some((r) => r.id === id)
+          ? {
+              ...c,
+              replies: c.replies.filter((r) => r.id !== id),
+              replyCount: Math.max(c.replyCount - 1, 0),
+            }
+          : c,
+      );
+  }
+
+  async function post(body: string, parentCommentId?: string) {
+    if (posting) return;
     setPosting(true);
     try {
       const created = await apiRequest<CommentDto>(`/api/issues/${issueId}/comments`, {
         method: "POST",
-        body: { body },
+        body: { body, ...(parentCommentId ? { parentCommentId } : {}) },
       });
-      setItems((prev) => [...prev, created]);
-      setDraft("");
+      if (parentCommentId) {
+        setItems((prev) =>
+          prev.map((c) =>
+            c.id === parentCommentId
+              ? { ...c, replies: [...c.replies, created], replyCount: c.replyCount + 1 }
+              : c,
+          ),
+        );
+        setReplyingTo(null);
+      } else {
+        setItems((prev) => [...prev, created]);
+        setTotal((t) => t + 1);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't post the comment.");
     } finally {
@@ -63,7 +101,7 @@ export function CommentsSection({
   return (
     <section className="mt-8">
       <h2 className="mb-3 text-sm font-semibold text-foreground">
-        Comments{items.length > 0 && ` (${items.length}${nextCursor ? "+" : ""})`}
+        Comments{total > 0 && ` (${total})`}
       </h2>
 
       {nextCursor && (
@@ -74,146 +112,64 @@ export function CommentsSection({
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {items.length === 0 && (
-          <p className="text-sm text-muted-foreground">No comments yet.</p>
-        )}
-        {items.map((comment) => (
-          <CommentRow
-            key={comment.id}
-            comment={comment}
-            onChanged={(updated) =>
-              setItems((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-            }
-            onDeleted={(id) => setItems((prev) => prev.filter((c) => c.id !== id))}
-          />
-        ))}
+      <div className="flex flex-col gap-4">
+        {items.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}
+
+        {items.map((comment) => {
+          const hidden = comment.replyCount - comment.replies.length;
+          return (
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              onReply={canComment ? () => setReplyingTo(comment.id) : undefined}
+              onChanged={(updated) => setItems((prev) => replaceIn(prev, updated))}
+              onDeleted={(id) => setItems((prev) => removeFrom(prev, id))}
+              footer={
+                (comment.replies.length > 0 || replyingTo === comment.id) && (
+                  <div className="mt-3 space-y-3 border-l-2 border-border pl-3">
+                    {hidden > 0 && (
+                      <Link
+                        href={`/projects/${projectId}/issues/${issueId}/comments/${comment.id}`}
+                        className="block text-xs font-medium text-accent hover:underline"
+                      >
+                        View all {comment.replyCount} replies
+                      </Link>
+                    )}
+
+                    {comment.replies.map((reply) => (
+                      <CommentRow
+                        key={reply.id}
+                        comment={reply}
+                        compact
+                        onChanged={(updated) => setItems((prev) => replaceIn(prev, updated))}
+                        onDeleted={(id) => setItems((prev) => removeFrom(prev, id))}
+                      />
+                    ))}
+
+                    {replyingTo === comment.id && (
+                      <CommentComposer
+                        issueId={issueId}
+                        autoFocus
+                        placeholder={`Reply to ${comment.author.name}…`}
+                        submitLabel="Reply"
+                        busy={posting}
+                        onSubmit={(body) => post(body, comment.id)}
+                        onCancel={() => setReplyingTo(null)}
+                      />
+                    )}
+                  </div>
+                )
+              }
+            />
+          );
+        })}
       </div>
 
       {canComment && (
         <div className="mt-4">
-          <Textarea
-            aria-label="Add a comment"
-            placeholder="Add a comment…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button size="sm" onClick={post} loading={posting} disabled={!draft.trim()}>
-              Comment
-            </Button>
-          </div>
+          <CommentComposer issueId={issueId} busy={posting} onSubmit={(body) => post(body)} />
         </div>
       )}
     </section>
-  );
-}
-
-function CommentRow({
-  comment,
-  onChanged,
-  onDeleted,
-}: {
-  comment: CommentDto;
-  onChanged: (c: CommentDto) => void;
-  onDeleted: (id: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.body);
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    const body = draft.trim();
-    if (!body || busy) return;
-    setBusy(true);
-    try {
-      const updated = await apiRequest<CommentDto>(`/api/comments/${comment.id}`, {
-        method: "PATCH",
-        body: { body, expectedVersion: comment.version },
-      });
-      onChanged(updated);
-      setEditing(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't save the edit.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await apiRequest(`/api/comments/${comment.id}`, { method: "DELETE" });
-      onDeleted(comment.id);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't delete the comment.");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex gap-3">
-      <Avatar className="h-7 w-7 shrink-0">
-        {comment.author.avatarUrl && (
-          <AvatarImage src={comment.author.avatarUrl} alt={comment.author.name} />
-        )}
-        <AvatarFallback className="text-[11px]">
-          {comment.author.name.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{comment.author.name}</span>
-          <span>{new Date(comment.createdAt).toLocaleString()}</span>
-          {comment.editedAt && <span>· edited</span>}
-        </div>
-
-        {editing ? (
-          <div className="mt-2">
-            <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Edit comment" />
-            <div className="mt-2 flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={save} loading={busy} disabled={!draft.trim()}>
-                Save
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
-            {comment.body}
-          </p>
-        )}
-
-        {!editing && (comment.canEdit || comment.canDelete) && (
-          <div className="mt-1.5 flex gap-3 text-xs">
-            {comment.canEdit && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDraft(comment.body);
-                  setEditing(true);
-                }}
-                className="text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:underline"
-              >
-                Edit
-              </button>
-            )}
-            {comment.canDelete && (
-              <button
-                type="button"
-                onClick={remove}
-                disabled={busy}
-                className="text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:underline"
-              >
-                Delete
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
