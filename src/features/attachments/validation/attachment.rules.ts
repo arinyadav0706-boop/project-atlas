@@ -49,6 +49,10 @@ export function assertValidUpload(mimeType: string, sizeBytes: number): void {
   }
 }
 
+// Matching control characters is the entire purpose here — they are what gets
+// stripped out of an attacker-supplied filename — so the rule that warns about
+// them in a regex is inverted in this one case.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = new RegExp("[\\u0000-\\u001f\\u007f]", "g");
 
 // Use the file's own name only for display — never as the storage key (ADR-0017).

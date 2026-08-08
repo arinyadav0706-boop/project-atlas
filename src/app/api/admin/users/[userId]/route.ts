@@ -4,11 +4,12 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { UserManagementService } from "@/features/user-management/services/user-management.service";
 import { updateUserAdminSchema } from "@/features/user-management/validation/user-management.schemas";
 
-type Params = { params: { userId: string } };
+type Params = { params: Promise<{ userId: string }> };
 
 // PATCH /api/admin/users/{userId} — change org role and/or active status
 // (audited, last-admin guard, MANAGE_USERS).
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = updateUserAdminSchema.parse(await request.json());

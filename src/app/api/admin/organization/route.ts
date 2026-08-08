@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { OrganizationService } from "@/features/admin/services/organization.service";
 import { updateOrganizationSchema } from "@/features/admin/validation/admin.schemas";
 

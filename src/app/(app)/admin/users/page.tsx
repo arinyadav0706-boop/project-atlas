@@ -8,11 +8,10 @@ import { UserManagementService } from "@/features/user-management/services/user-
 import { userListQuerySchema } from "@/features/user-management/validation/user-management.schemas";
 import { UsersView } from "@/features/user-management/components/users-view";
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
+export default async function AdminUsersPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const actor = await getActor();
   if (!actor || !hasCapability(actor, AdminCapability.MANAGE_USERS)) notFound();
 

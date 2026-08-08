@@ -22,7 +22,7 @@ import { NotFoundError, ForbiddenError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(IssueService);
-const params = { params: { issueId: "issue-1" } };
+const params = { params: Promise.resolve({ issueId: "issue-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/issues/issue-1";
 
@@ -56,7 +56,9 @@ describe("GET /issues/:id", () => {
 describe("PATCH /issues/:id", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(401);
+    expect(
+      (await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status,
+    ).toBe(401);
   });
   it("422 on invalid body (title too long)", async () => {
     actorMock.mockResolvedValue(actor);
@@ -67,28 +69,38 @@ describe("PATCH /issues/:id", () => {
   it("200 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.update.mockResolvedValue({ id: "issue-1" } as never);
-    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(200);
+    expect(
+      (await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status,
+    ).toBe(200);
   });
   it("maps ForbiddenError → 403", async () => {
     actorMock.mockResolvedValue(actor);
     svc.update.mockRejectedValue(new ForbiddenError());
-    expect((await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status).toBe(403);
+    expect(
+      (await PATCH(jsonReq({ title: "y", expectedVersion: 0 }, "PATCH"), params)).status,
+    ).toBe(403);
   });
 });
 
 describe("DELETE /issues/:id", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(401);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(401);
   });
   it("204 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.delete.mockResolvedValue(undefined as never);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(204);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(204);
   });
   it("maps ForbiddenError → 403", async () => {
     actorMock.mockResolvedValue(actor);
     svc.delete.mockRejectedValue(new ForbiddenError());
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(403);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(403);
   });
 });

@@ -22,7 +22,7 @@ import { ConflictError, ForbiddenError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(IssueService);
-const params = { params: { issueId: "issue-1" } };
+const params = { params: Promise.resolve({ issueId: "issue-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/issues/issue-1/rank";
 
@@ -61,7 +61,10 @@ it("422 when expectedVersion is missing (OCC token required, ADR-0011)", async (
 it("200 on a valid reorder", async () => {
   actorMock.mockResolvedValue(actor);
   svc.reorder.mockResolvedValue({ id: "issue-1", status: "TODO", version: 1 } as never);
-  const res = await PATCH(jsonReq({ beforeId: "b", afterId: "c", expectedVersion: 0 }), params);
+  const res = await PATCH(
+    jsonReq({ beforeId: "b", afterId: "c", expectedVersion: 0 }),
+    params,
+  );
   expect(res.status).toBe(200);
   expect(svc.reorder).toHaveBeenCalledWith(actor, "issue-1", {
     // The schema defaults scope to "board" so existing callers are unaffected

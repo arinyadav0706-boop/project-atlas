@@ -21,7 +21,7 @@ import { NotFoundError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(FavoriteService);
-const params = { params: { projectId: "p1" } };
+const params = { params: Promise.resolve({ projectId: "p1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const req = new Request("http://localhost/api/projects/p1/star");
 

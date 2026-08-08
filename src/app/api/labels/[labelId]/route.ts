@@ -4,10 +4,11 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { LabelService } from "@/features/labels/services/label.service";
 import { updateLabelSchema } from "@/features/labels/validation/label.schemas";
 
-type Params = { params: { labelId: string } };
+type Params = { params: Promise<{ labelId: string }> };
 
 // PATCH /api/labels/{id} — rename/recolor (manage-gated, BR-2).
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = updateLabelSchema.parse(await request.json());
@@ -16,7 +17,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 // DELETE /api/labels/{id} — soft delete (manage-gated, BR-2/BR-6).
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await LabelService.delete(actor, params.labelId);

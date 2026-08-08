@@ -4,21 +4,21 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { CommentService } from "@/features/comments/services/comment.service";
 import { updateCommentSchema } from "@/features/comments/validation/comment.schemas";
 
-type Params = { params: { commentId: string } };
+type Params = { params: Promise<{ commentId: string }> };
 
 // PATCH /api/comments/{commentId} — edit your own comment; OCC (BR-3).
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = updateCommentSchema.parse(await request.json());
-    return NextResponse.json(
-      await CommentService.update(actor, params.commentId, input),
-    );
+    return NextResponse.json(await CommentService.update(actor, params.commentId, input));
   });
 }
 
 // DELETE /api/comments/{commentId} — delete your own (or any, as LEAD) (BR-4).
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await CommentService.delete(actor, params.commentId);

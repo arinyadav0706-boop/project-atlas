@@ -4,9 +4,10 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { ProjectService } from "@/features/projects/services/project.service";
 import { updateProjectMemberSchema } from "@/features/projects/validation/project.schemas";
 
-type Params = { params: { projectId: string; memberId: string } };
+type Params = { params: Promise<{ projectId: string; memberId: string }> };
 
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = updateProjectMemberSchema.parse(await request.json());
@@ -20,7 +21,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   });
 }
 
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await ProjectService.removeMember(actor, params.projectId, params.memberId);

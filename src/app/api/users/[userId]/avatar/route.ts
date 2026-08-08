@@ -3,13 +3,14 @@ import { handleRoute } from "@/shared/lib/api";
 import { requireActor } from "@/features/authentication/services/actor.service";
 import { ProfileService } from "@/features/profile/services/profile.service";
 
-type Params = { params: { userId: string } };
+type Params = { params: Promise<{ userId: string }> };
 
 // GET /api/users/{userId}/avatar — org-scoped proxy of a user's avatar bytes
 // (16_profile.md BR-4/F-1). This is the URL rendered in <img> across the app.
 // Content-type is sniffed from the bytes; the caller's avatarUrl carries a
 // cache-busting token, so a long private cache is safe (a new upload = new URL).
-export async function GET(_request: NextRequest, { params }: Params) {
+export async function GET(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const { mimeType, body } = await ProfileService.getAvatarBytes(actor, params.userId);

@@ -4,10 +4,11 @@ import { requireMutationActor } from "@/features/authentication/services/actor.s
 import { TeamService } from "@/features/teams/services/team.service";
 import { addTeamMemberSchema } from "@/features/teams/validation/team.schemas";
 
-type Params = { params: { teamId: string } };
+type Params = { params: Promise<{ teamId: string }> };
 
 // POST /api/admin/teams/{teamId}/members — add a user (moves if already teamed).
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const { userId } = addTeamMemberSchema.parse(await request.json());

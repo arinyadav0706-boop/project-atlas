@@ -3,11 +3,12 @@ import { handleRoute } from "@/shared/lib/api";
 import { requireMutationActor } from "@/features/authentication/services/actor.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
 
-type Params = { params: { attachmentId: string } };
+type Params = { params: Promise<{ attachmentId: string }> };
 
 // DELETE /api/attachments/{attachmentId} — the uploader, or a project LEAD,
 // removes the file (BR-1/BR-6). Soft-deletes the row; blob removal is best-effort.
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await AttachmentService.delete(actor, params.attachmentId);

@@ -7,7 +7,9 @@ import { ADMIN_SECTIONS } from "@/features/admin/registry/admin-sections";
 export default async function AdminIndexPage() {
   const actor = await getActor();
   const first = actor
-    ? [...ADMIN_SECTIONS].sort((a, b) => a.order - b.order).find((s) => hasCapability(actor, s.capability))
+    ? [...ADMIN_SECTIONS]
+        .sort((a, b) => a.order - b.order)
+        .find((s) => hasCapability(actor, s.capability))
     : undefined;
   if (!first) notFound();
   redirect(first.href);

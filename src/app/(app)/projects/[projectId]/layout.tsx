@@ -13,13 +13,14 @@ import { StarProjectButton } from "@/features/projects/components/star-project-b
 // Shared project shell: back-link, title, and tab nav around every
 // project-scoped page (Issues, Settings, …). Fetched once here so pages
 // render only their own content.
-export default async function ProjectLayout({
-  children,
-  params,
-}: {
+export default async function ProjectLayout(props: {
   children: React.ReactNode;
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }) {
+  const params = await props.params;
+
+  const { children } = props;
+
   const actor = await getActor();
   if (!actor) redirect("/sign-in");
 

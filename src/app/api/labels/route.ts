@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { LabelService } from "@/features/labels/services/label.service";
 import { createLabelSchema } from "@/features/labels/validation/label.schemas";
 

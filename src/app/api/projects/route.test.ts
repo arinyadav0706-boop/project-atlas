@@ -65,7 +65,9 @@ describe("POST /projects", () => {
   });
   it("maps ConflictError (duplicate key) → 409", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.create.mockRejectedValue(new ConflictError("A project with key ENG already exists."));
+    svc.create.mockRejectedValue(
+      new ConflictError("A project with key ENG already exists."),
+    );
     expect((await POST(jsonReq({ key: "ENG", name: "Engineering" }))).status).toBe(409);
   });
 });

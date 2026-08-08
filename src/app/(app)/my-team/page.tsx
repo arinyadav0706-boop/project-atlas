@@ -33,7 +33,9 @@ export default async function MyTeamPage() {
             <li key={r.userId} className="flex items-center gap-3 px-4 py-3">
               <Avatar className="h-8 w-8">
                 {r.avatarUrl && <AvatarImage src={r.avatarUrl} alt={r.name} />}
-                <AvatarFallback className="text-xs">{r.name.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarFallback className="text-xs">
+                  {r.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-foreground">{r.name}</div>

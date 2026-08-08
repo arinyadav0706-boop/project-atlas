@@ -22,7 +22,7 @@ import { NotFoundError, ForbiddenError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(ProjectService);
-const params = { params: { projectId: "proj-1" } };
+const params = { params: Promise.resolve({ projectId: "proj-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/projects/proj-1";
 
@@ -60,7 +60,9 @@ describe("PATCH /projects/:id", () => {
   });
   it("maps ForbiddenError (non-LEAD) → 403", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.update.mockRejectedValue(new ForbiddenError("Only a project LEAD can perform this action."));
+    svc.update.mockRejectedValue(
+      new ForbiddenError("Only a project LEAD can perform this action."),
+    );
     expect((await PATCH(jsonReq({ name: "New" }, "PATCH"), params)).status).toBe(403);
   });
 });
@@ -68,16 +70,24 @@ describe("PATCH /projects/:id", () => {
 describe("DELETE /projects/:id", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(401);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(401);
   });
   it("204 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.delete.mockResolvedValue(undefined as never);
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(204);
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(204);
   });
   it("maps ForbiddenError (non-LEAD) → 403", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.delete.mockRejectedValue(new ForbiddenError("Only a project LEAD can perform this action."));
-    expect((await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status).toBe(403);
+    svc.delete.mockRejectedValue(
+      new ForbiddenError("Only a project LEAD can perform this action."),
+    );
+    expect(
+      (await DELETE(new NextRequest(URL_BASE, { method: "DELETE" }), params)).status,
+    ).toBe(403);
   });
 });

@@ -22,7 +22,7 @@ import { ForbiddenError, ValidationError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(ProjectService);
-const params = { params: { projectId: "proj-1" } };
+const params = { params: Promise.resolve({ projectId: "proj-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 const URL_BASE = "http://localhost/api/projects/proj-1/members";
 
@@ -51,7 +51,9 @@ describe("GET /projects/:id/members", () => {
 describe("POST /projects/:id/members", () => {
   it("401 when unauthenticated", async () => {
     actorMock.mockResolvedValue(null);
-    expect((await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status).toBe(401);
+    expect(
+      (await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status,
+    ).toBe(401);
   });
   it("422 on invalid email", async () => {
     actorMock.mockResolvedValue(actor);
@@ -62,16 +64,26 @@ describe("POST /projects/:id/members", () => {
   it("201 on success", async () => {
     actorMock.mockResolvedValue(actor);
     svc.addMember.mockResolvedValue({ id: "m1" } as never);
-    expect((await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status).toBe(201);
+    expect(
+      (await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status,
+    ).toBe(201);
   });
   it("maps ForbiddenError (non-LEAD) → 403", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.addMember.mockRejectedValue(new ForbiddenError("Only a project LEAD can perform this action."));
-    expect((await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status).toBe(403);
+    svc.addMember.mockRejectedValue(
+      new ForbiddenError("Only a project LEAD can perform this action."),
+    );
+    expect(
+      (await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status,
+    ).toBe(403);
   });
   it("maps ValidationError (no such user) → 422", async () => {
     actorMock.mockResolvedValue(actor);
-    svc.addMember.mockRejectedValue(new ValidationError("No active user exists with that email."));
-    expect((await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status).toBe(422);
+    svc.addMember.mockRejectedValue(
+      new ValidationError("No active user exists with that email."),
+    );
+    expect(
+      (await POST(jsonReq({ email: "a@b.com", role: "MEMBER" }), params)).status,
+    ).toBe(422);
   });
 });

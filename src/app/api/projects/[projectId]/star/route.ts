@@ -3,10 +3,11 @@ import { handleRoute } from "@/shared/lib/api";
 import { requireMutationActor } from "@/features/authentication/services/actor.service";
 import { FavoriteService } from "@/features/home/services/favorite.service";
 
-type Params = { params: { projectId: string } };
+type Params = { params: Promise<{ projectId: string }> };
 
 // Toggle a starred project for the Home strip (ADR-0012).
-export async function POST(_request: Request, { params }: Params) {
+export async function POST(_request: Request, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await FavoriteService.starProject(actor, params.projectId);
@@ -14,7 +15,8 @@ export async function POST(_request: Request, { params }: Params) {
   });
 }
 
-export async function DELETE(_request: Request, { params }: Params) {
+export async function DELETE(_request: Request, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     await FavoriteService.unstarProject(actor, params.projectId);

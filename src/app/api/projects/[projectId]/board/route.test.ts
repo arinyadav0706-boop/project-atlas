@@ -22,7 +22,7 @@ import { NotFoundError } from "@/shared/lib/errors";
 
 const actorMock = vi.mocked(getActor);
 const svc = vi.mocked(BoardService);
-const params = { params: { projectId: "proj-1" } };
+const params = { params: Promise.resolve({ projectId: "proj-1" }) };
 const actor = { userId: "u1", orgRole: "MEMBER" as const, organizationId: "org-1" };
 
 function req(query = "") {
@@ -38,7 +38,12 @@ it("401 when unauthenticated", async () => {
 
 it("200 with an empty filter when no query params are given", async () => {
   actorMock.mockResolvedValue(actor);
-  svc.getBoard.mockResolvedValue({ columns: [], counts: {}, appliedFilter: {}, canWrite: true } as never);
+  svc.getBoard.mockResolvedValue({
+    columns: [],
+    counts: {},
+    appliedFilter: {},
+    canWrite: true,
+  } as never);
   const res = await GET(req(), params);
   expect(res.status).toBe(200);
   expect(svc.getBoard).toHaveBeenCalledWith(actor, "proj-1", {});

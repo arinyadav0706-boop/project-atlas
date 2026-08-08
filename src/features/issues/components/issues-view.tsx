@@ -102,7 +102,6 @@ export function IssuesView({
 
   useEffect(() => {
     setLiveCounts(counts);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [counts]);
 
   // Server-driven filtering: refetch the first page when the filter changes.

@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
-import { requireActor, requireMutationActor } from "@/features/authentication/services/actor.service";
+import {
+  requireActor,
+  requireMutationActor,
+} from "@/features/authentication/services/actor.service";
 import { CommentService } from "@/features/comments/services/comment.service";
 import { createCommentSchema } from "@/features/comments/validation/comment.schemas";
 
-type Params = { params: { issueId: string } };
+type Params = { params: Promise<{ issueId: string }> };
 
 // GET /api/issues/{issueId}/comments?cursor=&take= — the issue's comments,
 // oldest-first, keyset-paginated (08_comments.md BR-2).
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireActor();
     const url = request.nextUrl.searchParams;
@@ -23,7 +27,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 // POST /api/issues/{issueId}/comments — post a comment (MEMBER/LEAD, BR-1).
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(request: NextRequest, props: Params) {
+  const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
     const input = createCommentSchema.parse(await request.json());
