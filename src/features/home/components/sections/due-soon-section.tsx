@@ -1,7 +1,7 @@
 import { CalendarDays } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
-import { HomeIssueList } from "@/features/home/components/home-issue-row";
+import { DueSoonList } from "@/features/home/components/due-soon-row";
 import type { Actor } from "@/shared/types/actor";
 
 // "Due soon" — my time-sensitive items (within the window, plus overdue).
@@ -24,7 +24,7 @@ export async function DueSoonSection({ actor, projectIds }: { actor: Actor; proj
       count={items.length}
       viewAll={{ href: "/projects", label: "View all" }}
     >
-      <HomeIssueList items={items} />
+      <DueSoonList items={items} />
     </HomeSection>
   );
 }

@@ -29,6 +29,19 @@ export interface IssueListItemDto {
   assignee: IssueAssigneeDto | null;
   storyPoints: number | null;
   updatedAt: string;
+  /**
+   * Optional, like the classification chips: only the surfaces that show a date
+   * populate it. Home does — a row that says "Jul 25" is the difference between
+   * a list and a plan.
+   */
+  dueDate?: string | null;
+  /**
+   * Whether `dueDate` is in the past, decided by the service against a single
+   * request-time clock. The UI must not work this out itself: reading the clock
+   * during render is impure, and two rows rendered a tick apart could disagree
+   * about the same instant.
+   */
+  dueOverdue?: boolean;
   // Optimistic-concurrency token (ADR-0011). The client sends this back on a
   // reorder; a stale value is rejected instead of silently overwriting.
   version: number;

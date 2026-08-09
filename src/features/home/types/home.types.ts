@@ -40,6 +40,8 @@ export interface HomeProjectDto {
   id: string;
   key: string;
   name: string;
+  /** Shown as the tile's second line; null renders a neutral placeholder. */
+  description: string | null;
   starred: boolean;
 }
 

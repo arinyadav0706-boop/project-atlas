@@ -28,14 +28,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppProviders>
       <div className="flex h-screen">
-        <Sidebar isOrgAdmin={actor.orgRole === "ADMIN"} managesTeam={managesTeam} />
+        <Sidebar
+          isOrgAdmin={actor.orgRole === "ADMIN"}
+          managesTeam={managesTeam}
+          user={{
+            name: session.user.name ?? session.user.email ?? "User",
+            email: session.user.email ?? "",
+            image: session.user.image,
+          }}
+        />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar
             userName={session.user.name ?? session.user.email ?? "User"}
             userImage={session.user.image}
             searchEnabled={searchEnabled}
           />
-          <main className="flex-1 overflow-y-auto bg-background p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto bg-background px-8 py-7">{children}</main>
         </div>
       </div>
     </AppProviders>
