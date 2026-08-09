@@ -35,8 +35,12 @@ export default async function HomePage() {
       {/* Two columns from `lg` up, matched in pairs: the two lists people scan
           first sit side by side, then the two time-based ones, then projects
           full width. Below `lg` it collapses to the original single column —
-          the pairing is a convenience at width, not the information order. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          the pairing is a convenience at width, not the information order.
+
+          `items-start` matters: without it the grid stretches every card in a
+          row to the tallest, so a five-item card beside an eight-item one grows
+          a large empty area under its last row. Cards size to content. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <Suspense fallback={<SectionSkeleton rows={3} />}>
           <MyWorkSection actor={actor} projectIds={projectIds} />
         </Suspense>

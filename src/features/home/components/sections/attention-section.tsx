@@ -25,15 +25,19 @@ export async function AttentionSection({ actor, projectIds }: { actor: Actor; pr
 
   return (
     <HomeSection title="Needs your attention" icon={<Inbox />} count={items.length}>
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="flex flex-col gap-1.5">
         {items.map((item) => (
           <Link
             key={item.id}
             href={item.href}
-            className="flex items-center gap-3 border-b border-border bg-background px-4 py-2.5 last:border-b-0 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+            className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 transition-all duration-150 hover:border-accent/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            <Bell className="h-4 w-4 shrink-0 text-amber-500" strokeWidth={1.8} />
-            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+            {/* Token, not `text-amber-500` — an ad-hoc palette colour here is
+                exactly what the no-hex rule exists to stop. */}
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-warning/10">
+              <Bell className="h-3.5 w-3.5 text-warning" strokeWidth={2} />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground">
               {item.title}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">

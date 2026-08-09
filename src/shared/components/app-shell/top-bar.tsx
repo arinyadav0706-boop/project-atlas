@@ -39,7 +39,9 @@ export function TopBar({
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-5">
-      <div className="flex-1">{searchEnabled && <SearchPalette />}</div>
+      {/* Bounded rather than `flex-1`: a search field stretched across a
+          1600px window reads as a page-wide input, not a control. */}
+      <div className="flex-1 md:max-w-md">{searchEnabled && <SearchPalette />}</div>
       <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

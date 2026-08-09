@@ -37,7 +37,7 @@ const DECAY_HALF_LIFE_MS = 24 * 60 * 60 * 1000;
 
 type IssueCardRow = Awaited<ReturnType<typeof HomeRepository.myWork>>[number];
 
-function toCard(row: IssueCardRow): IssueListItemDto {
+function toCard(row: IssueCardRow, now = Date.now()): IssueListItemDto {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -47,6 +47,8 @@ function toCard(row: IssueCardRow): IssueListItemDto {
     status: row.status,
     priority: row.priority,
     storyPoints: row.storyPoints,
+    dueDate: row.dueDate ? row.dueDate.toISOString() : null,
+    dueOverdue: row.dueDate ? row.dueDate.getTime() < now : false,
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     assignee: row.assignee,
@@ -126,16 +128,20 @@ export const HomeService = {
         : Promise.resolve([]),
     ]);
 
-    const toProject = (
-      row: { id: string; key: string; name: string },
-      starred: boolean,
-    ): HomeProjectDto => ({ id: row.id, key: row.key, name: row.name, starred });
+    type ProjectRow = { id: string; key: string; name: string; description: string | null };
+    const toProject = (row: ProjectRow, starred: boolean): HomeProjectDto => ({
+      id: row.id,
+      key: row.key,
+      name: row.name,
+      description: row.description,
+      starred,
+    });
 
     // Preserve recency order (projectsByIds may reorder).
     const recentById = new Map(recentRows.map((r) => [r.id, r]));
     const recentProjects = recentIds
       .map((id) => recentById.get(id))
-      .filter((r): r is { id: string; key: string; name: string } => r != null)
+      .filter((r): r is ProjectRow => r != null)
       .slice(0, RECENT_PROJECTS_LIMIT)
       .map((r) => toProject(r, false));
 

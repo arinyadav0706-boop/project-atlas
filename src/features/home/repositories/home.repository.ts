@@ -14,6 +14,7 @@ const issueCardSelect = {
   status: true,
   priority: true,
   storyPoints: true,
+  dueDate: true,
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
@@ -109,7 +110,7 @@ export const HomeRepository = {
   projectsByIds(ids: string[], organizationId: string) {
     return prisma.project.findMany({
       where: { id: { in: ids }, organizationId, status: "ACTIVE", deletedAt: null },
-      select: { id: true, key: true, name: true },
+      select: { id: true, key: true, name: true, description: true },
     });
   },
 };
