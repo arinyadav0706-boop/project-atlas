@@ -16,6 +16,7 @@ import {
   DatasetComponent,
   VisualMapComponent,
   AriaComponent,
+  TitleComponent,
 } from "echarts/components";
 import { LabelLayout } from "echarts/features";
 import { CanvasRenderer } from "echarts/renderers";
@@ -32,6 +33,11 @@ echarts.use([
   TooltipComponent,
   LegendComponent,
   MarkLineComponent, // the dashed average line on velocity
+  // Both donuts put their headline figure in the hole via `title`. Without
+  // this, ECharts logs "Component title is used but not imported" to the
+  // console and silently draws an empty ring — which is exactly what the
+  // status donut on Reports has been doing.
+  TitleComponent,
   DatasetComponent,
   VisualMapComponent, // heat-grid intensity ramp
   AriaComponent, // canvas has no DOM; this is what a screen reader gets

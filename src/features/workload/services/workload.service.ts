@@ -21,6 +21,7 @@ import type {
   WorkloadGridDto,
   WorkloadGridRowDto,
   WorkloadIssueDto,
+  WorkloadProjectDto,
   WorkloadRowDto,
   WorkloadTotalsDto,
   WorkingWeekDto,
@@ -120,6 +121,21 @@ interface DatedIssue {
   sprint: { startDate: Date | null; endDate: Date | null } | null;
 }
 
+// One project's slice of the team's open work, accumulated during the same
+// pass that builds the rows (BR-16). Kept as a mutable accumulator rather than
+// a second query so the regrouping cannot drift from the totals.
+interface ProjectAccumulator {
+  key: string;
+  name: string;
+  openIssues: number;
+  unestimated: number;
+  remainingMinutes: number;
+  // userId → remaining minutes. A member whose work here is entirely
+  // unestimated is present with 0, because they are still a person on this
+  // project and must count toward its divisor (acceptance 20).
+  byUser: Map<string, number>;
+}
+
 function placeIssue(
   phasing: Phasing,
   issue: DatedIssue,
@@ -177,6 +193,7 @@ export const WorkloadService = {
     const blank = {
       rows: [],
       grid: emptyGrid(now, week),
+      projects: [],
       totals: { ...EMPTY_TOTALS },
       workingWeek,
     };
@@ -208,7 +225,7 @@ export const WorkloadService = {
       throw new NotFoundError("Team not found.");
     }
 
-    const { rows, grid } = await this.aggregateTeam(actor, selectedTeamId, week, now);
+    const { rows, grid, projects } = await this.aggregateTeam(actor, selectedTeamId, week, now);
     const totals = rows.reduce<WorkloadTotalsDto>(
       (acc, r) => ({
         people: acc.people + 1,
@@ -221,7 +238,7 @@ export const WorkloadService = {
       { ...EMPTY_TOTALS },
     );
 
-    return { teams, selectedTeamId, rows, grid, totals, workingWeek };
+    return { teams, selectedTeamId, rows, grid, projects, totals, workingWeek };
   },
 
   // Aggregation for one team's direct members (BR-1..BR-7, BR-13). Two bounded
@@ -235,10 +252,14 @@ export const WorkloadService = {
     teamId: string,
     week: WorkingWeek = DEFAULT_WORKING_WEEK,
     now: Date = new Date(),
-  ): Promise<{ rows: WorkloadRowDto[]; grid: WorkloadGridDto }> {
+  ): Promise<{
+    rows: WorkloadRowDto[];
+    grid: WorkloadGridDto;
+    projects: WorkloadProjectDto[];
+  }> {
     const weeklyCapacity = weeklyCapacityMinutes(week);
     const members = (await WorkloadRepository.teamMembers(teamId)).map((m) => m.user);
-    if (members.length === 0) return { rows: [], grid: emptyGrid(now, week) };
+    if (members.length === 0) return { rows: [], grid: emptyGrid(now, week), projects: [] };
 
     const issues = await WorkloadRepository.openIssuesForUsers(
       members.map((m) => m.id),
@@ -276,6 +297,8 @@ export const WorkloadService = {
       ]),
     );
 
+    const byProject = new Map<string, ProjectAccumulator>();
+
     for (const issue of issues) {
       // assigneeId is non-null by the query, but the column is nullable.
       const bucket = issue.assigneeId ? byUser.get(issue.assigneeId) : undefined;
@@ -289,6 +312,29 @@ export const WorkloadService = {
         bucket.estimated += issue.estimateMinutes;
         bucket.remaining += remainingMinutes(issue.estimateMinutes, logged);
       }
+
+      // Same issue, second grouping (BR-16). Counts mirror the person bucket
+      // exactly, so the two views are one arithmetic.
+      let project = byProject.get(issue.project.id);
+      if (!project) {
+        project = {
+          key: issue.project.key,
+          name: issue.project.name,
+          openIssues: 0,
+          unestimated: 0,
+          remainingMinutes: 0,
+          byUser: new Map(),
+        };
+        byProject.set(issue.project.id, project);
+      }
+      project.openIssues += 1;
+      if (issue.estimateMinutes === null) project.unestimated += 1;
+      const projectRemaining = remainingMinutes(issue.estimateMinutes, logged);
+      project.remainingMinutes += projectRemaining;
+      project.byUser.set(
+        issue.assigneeId!,
+        (project.byUser.get(issue.assigneeId!) ?? 0) + projectRemaining,
+      );
 
       // Unestimated work contributes 0 minutes (BR-4), so it cannot move a cell
       // and there is nothing to place.
@@ -338,8 +384,44 @@ export const WorkloadService = {
       };
     });
 
+    // Built after `rows` because a segment carries the person's status band,
+    // which is only known once their whole load is summed.
+    const bandByUser = new Map(rows.map((r) => [r.userId, r]));
+    const projects: WorkloadProjectDto[] = [...byProject.entries()]
+      .map(([projectId, p]) => {
+        const segments = [...p.byUser.entries()]
+          .map(([userId, minutes]) => {
+            const person = bandByUser.get(userId)!;
+            return { userId, name: person.name, minutes, status: person.status };
+          })
+          .sort((a, b) =>
+            b.minutes !== a.minutes ? b.minutes - a.minutes : a.name.localeCompare(b.name),
+          );
+        const people = segments.length;
+        return {
+          projectId,
+          key: p.key,
+          name: p.name,
+          openIssues: p.openIssues,
+          unestimated: p.unestimated,
+          remainingMinutes: p.remainingMinutes,
+          people,
+          // `people` cannot be 0 — a project only exists here because an issue
+          // put someone in it — but dividing by a map size deserves the guard.
+          weeksPerPerson:
+            people === 0 ? 0 : weeksOfWork(p.remainingMinutes / people, weeklyCapacity),
+          segments,
+        };
+      })
+      .sort((a, b) =>
+        b.remainingMinutes !== a.remainingMinutes
+          ? b.remainingMinutes - a.remainingMinutes
+          : a.name.localeCompare(b.name),
+      );
+
     return {
       rows,
+      projects,
       grid: {
         weeks: weekColumns(now, week),
         rows: gridRows,

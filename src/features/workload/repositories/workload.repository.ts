@@ -75,6 +75,9 @@ export const WorkloadRepository = {
         assigneeId: true,
         estimateMinutes: true,
         dueDate: true,
+        // Project balance (BR-16) regroups this same result set, so the project
+        // travels with the issue rather than costing a second read.
+        project: { select: { id: true, key: true, name: true } },
         sprint: { select: { startDate: true, endDate: true } },
       },
     });

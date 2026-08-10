@@ -27,10 +27,11 @@ export {
   type StatusSegment,
 } from "./options/status-donut-option";
 export {
-  distributionBarOption,
-  distributionBarSummary,
-  type DistributionSegment,
-} from "./options/distribution-bar-option";
+  ringDonutOption,
+  ringDonutSummary,
+  type RingCenter,
+  type RingSegment,
+} from "./options/ring-donut-option";
 export {
   capacityBarsOption,
   capacityBarsSummary,

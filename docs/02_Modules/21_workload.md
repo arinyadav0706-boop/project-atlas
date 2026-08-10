@@ -1,7 +1,13 @@
 # 21 — Workload
 
-**Version:** 1.0 · **Status:** Implemented (V2 Epic 3) · **ADR:** ADR-0034
-(model), ADR-0032 (manager visibility), ADR-0030 (time tracking)
+**Version:** 2.0 · **Status:** Implemented (V2 Epic 3) · **ADR:** ADR-0034
+(model), ADR-0032 (manager visibility), ADR-0030 (time tracking), ADR-0036
+(charts)
+
+**v2.0 (2026-08-10)** — the page is rebuilt on the design-system primitives
+(§5 rewritten) and gains one new panel, **Project balance**, which needs one
+new derived field on the response (BR-16). No schema change: the project a
+person's work belongs to is already on `Issue.projectId`.
 
 ## 1. Overview
 
@@ -33,6 +39,7 @@ the existing Issues/Board UI; Workload is the instrument, not the lever.
 | BR-13 | **Time phasing (ADR-0035).** Each open issue's remaining effort is placed in time by the scheduling chain, first match wins: (1) the issue's own `startDate`+`dueDate` — *dormant, the column does not exist yet (WL-4)*; (2) `dueDate` alone → spread from **today** to the due date; (3) the issue's sprint `startDate`+`endDate`; (4) none of these → **Unscheduled**. A window is clamped to today, and a window whose end has already passed becomes **Overdue** — that covers both a missed due date and work still open in a sprint that has ended. Effort divides evenly across the **working days** of the window (BR-5's week), then sums into UTC Monday-start week buckets. |
 | BR-14 | **The grid never invents or drops effort.** A person's Overdue + four week columns + Later + Unscheduled always sums exactly to the `remainingMinutes` the list view shows for them. `Later` exists precisely to hold effort spreading beyond the fourth week, so the horizon cannot silently swallow it. |
 | BR-15 | **Inference is visible.** Effort placed from *sprint* dates rather than the issue's own is marked in the UI (`S`), because a manager must be able to tell a real date from a guess. |
+| BR-16 | **Project balance.** The same open issues, regrouped by their project: for each project the team has open work in, `remainingMinutes`, `openIssues`, the number of *distinct team members* carrying that work, and `weeksPerPerson = (remainingMinutes ÷ people) ÷ weeklyCapacity`. Per-project effort is broken down per person, so a project bar shows *whose* load it is. Projects sort by remaining effort descending. This is a regrouping of the rows, not a second query: the totals reconcile with `totals.remainingMinutes` by construction. **`weeksPerPerson` is a spread, not a forecast** — it says how the queue would sit if that project's work were split evenly among the people already on it, and the UI must label it as such. |
 
 ## 3. Database
 
@@ -75,6 +82,18 @@ workload cannot function without it.
     "remainingMinutes": 28800, "overloaded": 2, "idle": 1
   },
 
+  // The same effort as `rows`, regrouped by project (BR-16). Sums to
+  // totals.remainingMinutes; a project appears only if the team has open work
+  // in it.
+  "projects": [{
+    "projectId": "…", "key": "EAG", "name": "EAGLES Platform",
+    "openIssues": 34, "unestimated": 9,
+    "remainingMinutes": 12600, "people": 5, "weeksPerPerson": 1.1,
+    // Whose load this project is, most first. Bounded by team size (BR-7);
+    // a member with only unestimated work here appears with 0 minutes.
+    "segments": [{ "userId": "…", "name": "…", "minutes": 4800, "status": "OVERLOADED" }]
+  }],
+
   // The same effort as `rows`, redistributed across weeks (BR-13, ADR-0035).
   // One service call feeds both views, so they cannot disagree.
   "grid": {
@@ -100,11 +119,51 @@ workload cannot function without it.
 Route `/workload`, reached from the sidebar (shown to team managers and org
 admins — a convenience; the boundary is server-side).
 
-- **Team picker** — the teams in scope, with member counts.
-- **Summary strip** — people, open issues, total remaining, overloaded count.
-- **Team mix** — one horizontal stacked bar of how many people sit in each
-  status band, with counts in the legend. The shape of the team in one glance,
-  before any individual name.
+Built on the shared design-system primitives (`Card`, `StatTile`, `PageHeader`,
+`EmptyState` — `docs/05_UI/01_UI_Design_Principles.md` §7), so the page matches
+Home rather than carrying its own look.
+
+**Layout.** Page header, then the summary tiles, then the estimate-coverage
+banner, then a 3-column dashboard grid at `lg` and above:
+
+| | Left column (1 col) | Right column (2 cols) |
+|---|---|---|
+| top | Team mix (donut) | Weeks queued per person |
+| | People at a glance | Overloaded · Has room (side by side) |
+| | Project balance | |
+
+Below the grid, full width, **All people** — the grouped, expandable rows that
+carry the drill-in (BR-11). Everything collapses to a single column below `lg`
+in that same reading order: the shape of the team, then the individuals.
+
+- **Team picker** — the teams in scope, with member counts, in the header row
+  beside the By person / By week toggle.
+- **Summary tiles** — people, open issues, total remaining, overloaded count;
+  the overloaded tile turns `destructive` only when the count is non-zero.
+  **No trend deltas and no sparklines.** Both need a historical series EAGLES
+  does not record, and two of the four figures cannot be reconstructed
+  truthfully because `estimateMinutes` is not versioned (backlog **UI-4**).
+- **Estimate-coverage banner** — "153 of these 259 open issues have no
+  estimate, so the figures below understate the real load", shown only when
+  `unestimated > 0`. This is the single most important caveat on the page: it
+  is the difference between "the team is fine" and "the team looks fine
+  because half the work is uncounted".
+- **Team mix** — a donut of how many people sit in each status band, the team
+  size in the hole, and an HTML legend carrying label, count and percentage in
+  aligned columns. The legend is DOM rather than ECharts' own so the three
+  columns line up; the ring is the only part that needs a canvas.
+- **People at a glance** — the four bands as four small tiles, each stating its
+  own threshold (`> 2 wk`, `0.5 – 2 wk`, `< 0.5 wk`, `0 issues`). The bands are
+  the page's vocabulary, so they are written down rather than left to a legend.
+- **Project balance** (BR-16) — one row per project: name, a bar segmented by
+  person and coloured by that person's status band, and `N wk per person`. A
+  bar that is mostly red means the project's work sits on people who are
+  already over. Capped at six rows with a `+N more` line, so a team spanning
+  the whole org does not turn one card into the page.
+- **Overloaded** and **Has room** — the two actionable lists, side by side,
+  because rebalancing is a move *from* one *to* the other. Selecting a person
+  expands and scrolls to their row in All people, so the chevron leads
+  somewhere real instead of decorating.
 - **Weeks queued per person** — a horizontal bar chart, one bar per person on a
   shared zero-based axis in weeks, most loaded at the top, coloured by status
   band, with dashed reference lines at the **0.5** and **2** week band edges
@@ -113,6 +172,10 @@ admins — a convenience; the boundary is server-side).
   two people comparable: the CSS mini-bars it replaced were scaled to a fixed
   2-week width with no ticks, so "how full is this" was unanswerable and people
   in different status groups could not be compared at all (backlog UI-2).
+  The chart's y-axis carries names only, **not** avatars: it is a canvas, and
+  a reliable avatar there would mean drawing image-or-initials fallbacks into
+  ECharts rich text for no information the name does not already give. Avatars
+  appear in every DOM list on the page, where they cost nothing.
 - **Grouped rows** — beneath the chart, people are grouped under status headings
   (Overloaded → Balanced → Has room → No open work) with a count each. Status is
   carried by the heading (text **and** colour, never colour alone), and the
@@ -182,6 +245,15 @@ list above) stays the default and answers *who is overloaded*; "By week" answers
     in the list view, including when work spreads past the horizon (BR-14).
 17. A team with nothing overdue sees no `Overdue` column.
 18. The grid lists people in the same order as the list view.
+19. Every project's `remainingMinutes` summed equals `totals.remainingMinutes`,
+    and every project's `segments` summed equals that project's own remaining
+    (BR-16) — the regrouping neither invents nor loses effort.
+20. A project whose only open issues are unestimated still appears, with
+    `remainingMinutes: 0` and its `openIssues` count intact — the same
+    "counted, never guessed" rule as BR-4, so a project does not vanish
+    because nobody has estimated it.
+21. Selecting a person in the Overloaded or Has-room list expands that
+    person's row in All people.
 
 ## 7. Validation
 

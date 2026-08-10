@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
-import { ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
+import { useCallback, useState } from "react";
+import { Activity, BarChart3, Smile, Users } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
+import { Card } from "@/shared/components/ui/card";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import {
   Select,
   SelectContent,
@@ -13,59 +14,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Chart,
-  capacityBarsHeight,
-  capacityBarsOption,
-  capacityBarsSummary,
-  distributionBarOption,
-  distributionBarSummary,
-  type CapacityBar,
-  type CapacityReference,
-  type ChartTheme,
-  type ChartTone,
-  type DistributionSegment,
-} from "@/shared/components/charts";
-import { formatDuration } from "@/features/time-tracking/lib/duration";
-import { LIGHT_WEEKS, OVERLOADED_WEEKS } from "@/features/workload/lib/capacity";
 import { WorkloadGrid } from "@/features/workload/components/workload-grid";
-import type {
-  WorkloadDto,
-  WorkloadIssueDto,
-  WorkloadRowDto,
-  WorkloadStatus,
-} from "@/features/workload/types/workload.types";
-
-// Status is carried by a label AND a colour, never colour alone (21_workload.md §5).
-// `tone` is the same meaning expressed for the canvas, so a status is never one
-// colour in a chart and a different one in a row.
-const STATUS_META: Record<WorkloadStatus, { label: string; dot: string; tone: ChartTone }> = {
-  OVERLOADED: { label: "Overloaded", dot: "bg-destructive", tone: "danger" },
-  BALANCED: { label: "Balanced", dot: "bg-accent", tone: "accent" },
-  LIGHT: { label: "Has room", dot: "bg-success", tone: "success" },
-  IDLE: { label: "No open work", dot: "bg-muted-foreground/40", tone: "neutral" },
-};
-
-// Most urgent first — the whole point of the page is spotting the top group.
-const SECTION_ORDER: WorkloadStatus[] = ["OVERLOADED", "BALANCED", "LIGHT", "IDLE"];
-
-// The band edges from BR-6, drawn on the chart so the colours are explained by
-// the axis rather than only by the legend.
-const CAPACITY_REFERENCES: CapacityReference[] = [
-  { weeks: LIGHT_WEEKS, label: `${LIGHT_WEEKS} wk` },
-  { weeks: OVERLOADED_WEEKS, label: `${OVERLOADED_WEEKS} wk` },
-];
-
-function hours(minutes: number): string {
-  return minutes === 0 ? "—" : formatDuration(minutes);
-}
-
-function rowCaption(row: WorkloadRowDto): string {
-  if (row.openIssues === 0) return "no open work";
-  return `${hours(row.remainingMinutes)} · ${row.openIssues} ${
-    row.openIssues === 1 ? "issue" : "issues"
-  }`;
-}
+import { CapacityCard } from "@/features/workload/components/capacity-card";
+import { PeopleAtAGlanceCard } from "@/features/workload/components/people-glance-card";
+import {
+  PEOPLE_SECTION_ID,
+  PeopleSection,
+  personRowId,
+} from "@/features/workload/components/people-section";
+import { PersonFocusList } from "@/features/workload/components/person-focus-list";
+import { ProjectBalanceCard } from "@/features/workload/components/project-balance-card";
+import { TeamMixCard } from "@/features/workload/components/team-mix-card";
+import {
+  EstimateCoverageBanner,
+  WorkloadSummary,
+} from "@/features/workload/components/workload-summary";
+import type { WorkloadDto } from "@/features/workload/types/workload.types";
 
 // Two questions, two views of one service call: the list answers "who is
 // overloaded", the grid answers "when" (ADR-0035). The list stays the default.
@@ -75,49 +39,93 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
   const [data, setData] = useState<WorkloadDto>(initial);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<ViewMode>("list");
+  // Owned here, not by each row, because the Overloaded and Has-room cards
+  // expand rows they do not themselves render.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
   const selectTeam = useCallback(async (teamId: string) => {
     setLoading(true);
     try {
       setData(await apiRequest<WorkloadDto>(`/api/workload?teamId=${teamId}`));
+      // A different team is a different set of people; carrying expansions
+      // across would leave ids open that are no longer on screen.
+      setExpanded(new Set());
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const toggleExpanded = useCallback((userId: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(userId)) next.add(userId);
+      return next;
+    });
+  }, []);
+
+  // Expand the person and bring their row into view. Found by id rather than
+  // through a ref map: the target lives inside a grandchild list, so a ref
+  // would have to be threaded through two components to save one lookup in a
+  // click handler.
+  const focusPerson = useCallback((userId: string) => {
+    setExpanded((current) => new Set(current).add(userId));
+    scrollToId(personRowId(userId));
+  }, []);
+
+  const viewAllPeople = useCallback(() => scrollToId(PEOPLE_SECTION_ID), []);
+
+  const header = (
+    <PageHeader
+      icon={<BarChart3 />}
+      title="Workload"
+      subtitle="Unfinished work queued against each person, across every project."
+    />
+  );
+
   if (data.teams.length === 0) {
     return (
-      <div>
-        <Header />
-        <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          You don&apos;t manage a team yet. An admin can assign you as a team manager.
-        </p>
+      <div className="mx-auto max-w-7xl">
+        {header}
+        <Card className="mt-6">
+          <EmptyState
+            icon={<Users />}
+            title="You don't manage a team yet"
+            description="An admin can assign you as a team manager, and this page will show that team's load."
+          />
+        </Card>
       </div>
     );
   }
 
-  const { totals } = data;
+  const { rows, totals } = data;
+  const overloaded = rows.filter((r) => r.status === "OVERLOADED");
+  const hasRoom = rows.filter((r) => r.status === "LIGHT");
 
   return (
-    <div>
-      <Header />
+    <div className="mx-auto max-w-7xl">
+      {header}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mt-5 flex flex-wrap items-center gap-3">
         <div className="w-full sm:w-72">
           <Select value={data.selectedTeamId ?? undefined} onValueChange={selectTeam}>
             <SelectTrigger>
               <SelectValue placeholder="Choose a team" />
             </SelectTrigger>
             <SelectContent>
-              {data.teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name} · {t.memberCount} {t.memberCount === 1 ? "person" : "people"}
+              {data.teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name} · {team.memberCount}{" "}
+                  {team.memberCount === 1 ? "person" : "people"}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="View">
+        <div
+          className="flex rounded-xl border border-border bg-background p-0.5 shadow-card"
+          role="group"
+          aria-label="View"
+        >
           <ModeButton current={mode} value="list" onSelect={setMode}>
             By person
           </ModeButton>
@@ -128,64 +136,77 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
         {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="People" value={String(totals.people)} />
-        <Stat label="Open issues" value={String(totals.openIssues)} />
-        <Stat label="Work remaining" value={hours(totals.remainingMinutes)} />
-        <Stat label="Overloaded" value={String(totals.overloaded)} emphasise={totals.overloaded > 0} />
+      <div className="mt-5 space-y-5">
+        <WorkloadSummary totals={totals} />
+        <EstimateCoverageBanner totals={totals} />
+
+        {rows.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={<Users />}
+              title="This team has no members yet"
+              description="Add people to the team in Admin → Teams and their load will appear here."
+            />
+          </Card>
+        ) : mode === "grid" ? (
+          <WorkloadGrid grid={data.grid} workingWeek={data.workingWeek} />
+        ) : (
+          <>
+            {/* Left column is the shape of the team, right column its people.
+                `items-start` keeps every card at its content height instead of
+                stretching it to the tallest in the row. */}
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+              {/* Narrow column: the four "who" cards, all of them short lists.
+                  Wide column: the two visuals that need horizontal room — the
+                  per-person axis, and project bars whose per-person segments
+                  are unreadable at a third of the width. */}
+              <div className="space-y-5">
+                <TeamMixCard rows={rows} />
+                <PeopleAtAGlanceCard rows={rows} onViewAll={viewAllPeople} />
+                <PersonFocusList
+                  status="OVERLOADED"
+                  rows={overloaded}
+                  icon={<Activity />}
+                  emptyText="Nobody is over two weeks queued."
+                  onSelect={focusPerson}
+                  onViewAll={viewAllPeople}
+                />
+                <PersonFocusList
+                  status="LIGHT"
+                  rows={hasRoom}
+                  icon={<Smile />}
+                  emptyText="Nobody has spare capacity right now."
+                  onSelect={focusPerson}
+                  onViewAll={viewAllPeople}
+                />
+              </div>
+
+              <div className="space-y-5 lg:col-span-2">
+                <CapacityCard rows={rows} />
+                <ProjectBalanceCard projects={data.projects} />
+              </div>
+            </div>
+
+            <PeopleSection rows={rows} expanded={expanded} onToggle={toggleExpanded} />
+
+            <p className="text-xs text-muted-foreground">
+              Based on a {data.workingWeek.label}. Two of those weeks queued counts as
+              overloaded. An admin can change it in Admin → Organization.
+            </p>
+          </>
+        )}
       </div>
-
-      {totals.unestimated > 0 && (
-        <p className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            {totals.unestimated} of these {totals.openIssues} open issues have no estimate, so the
-            figures below understate the real load.
-          </span>
-        </p>
-      )}
-
-      {data.rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          This team has no members yet.
-        </p>
-      ) : mode === "grid" ? (
-        <WorkloadGrid grid={data.grid} workingWeek={data.workingWeek} />
-      ) : (
-        <>
-          <TeamCharts rows={data.rows} />
-
-          {/* Grouped by status so the eye lands on the people who need attention
-              instead of scanning 17 near-identical rows. */}
-          <div className="flex flex-col gap-5">
-            {SECTION_ORDER.map((status) => {
-              const rows = data.rows.filter((r) => r.status === status);
-              if (rows.length === 0) return null;
-              return (
-                <section key={status}>
-                  <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)} aria-hidden />
-                    {STATUS_META[status].label}
-                    <span className="font-normal normal-case">({rows.length})</span>
-                  </h2>
-                  <div className="flex flex-col gap-2">
-                    {rows.map((row) => (
-                      <PersonRow key={row.userId} row={row} />
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-
-          <p className="mt-6 text-xs text-muted-foreground">
-            Based on a {data.workingWeek.label}. Two of those weeks queued counts as overloaded.
-            An admin can change it in Admin → Organization.
-          </p>
-        </>
-      )}
     </div>
   );
+}
+
+// Honours a reduced-motion preference: a long smooth scroll is exactly the kind
+// of movement that setting exists to suppress.
+function scrollToId(id: string): void {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
 
 function ModeButton({
@@ -206,198 +227,11 @@ function ModeButton({
       onClick={() => onSelect(value)}
       aria-pressed={active}
       className={cn(
-        "rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "rounded-[0.6rem] px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
     </button>
-  );
-}
-
-// The shape of the team, then every person on one comparable axis. Reading
-// beats scanning: the mini bars these replace had no ticks, so "how full" was
-// unanswerable and two people in different status groups could not be compared
-// (docs/05_UI/03_Data_Visualisation.md §7, backlog UI-2).
-function TeamCharts({ rows }: { rows: WorkloadRowDto[] }) {
-  const segments: DistributionSegment[] = useMemo(
-    () =>
-      SECTION_ORDER.map((status) => ({
-        key: status,
-        label: STATUS_META[status].label,
-        count: rows.filter((r) => r.status === status).length,
-        tone: STATUS_META[status].tone,
-      })),
-    [rows],
-  );
-
-  // Already sorted most-loaded first by the service (BR-10); the chart keeps
-  // that order so it reads in the same sequence as the rows beneath it.
-  const bars: CapacityBar[] = useMemo(
-    () =>
-      rows.map((row) => ({
-        key: row.userId,
-        label: row.name,
-        weeks: row.weeksOfWork,
-        tone: STATUS_META[row.status].tone,
-        caption: rowCaption(row),
-      })),
-    [rows],
-  );
-
-  const mixOption = useCallback(
-    (theme: ChartTheme) => distributionBarOption(segments, theme),
-    [segments],
-  );
-  const barsOption = useCallback(
-    (theme: ChartTheme) => capacityBarsOption(bars, CAPACITY_REFERENCES, theme),
-    [bars],
-  );
-
-  return (
-    <div className="mb-5 flex flex-col gap-4">
-      <section className="rounded-lg border border-border bg-background px-4 py-3">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Team mix
-        </h2>
-        <Chart
-          buildOption={mixOption}
-          height={78}
-          summary={distributionBarSummary(segments, "people")}
-        />
-      </section>
-
-      <section className="rounded-lg border border-border bg-background px-4 py-3">
-        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Weeks queued per person
-        </h2>
-        <Chart
-          buildOption={barsOption}
-          height={capacityBarsHeight(bars.length)}
-          summary={capacityBarsSummary(bars)}
-        />
-      </section>
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <div className="mb-6">
-      <h1 className="text-lg font-semibold text-foreground">Workload</h1>
-      <p className="text-sm text-muted-foreground">
-        Unfinished work queued against each person, across every project.
-      </p>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  emphasise = false,
-}: {
-  label: string;
-  value: string;
-  emphasise?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "text-lg font-semibold",
-          emphasise ? "text-destructive" : "text-foreground",
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function PersonRow({ row }: { row: WorkloadRowDto }) {
-  const [open, setOpen] = useState(false);
-  const [issues, setIssues] = useState<WorkloadIssueDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (!next || issues) return;
-    try {
-      setIssues(await apiRequest<WorkloadIssueDto[]>(`/api/workload/users/${row.userId}`));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load their issues.");
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-background">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        {open ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-        <Avatar className="h-8 w-8">
-          {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt={row.name} />}
-          <AvatarFallback className="text-xs">{row.name.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-
-        {/* Status is the section heading, and the load bar now lives in the
-            chart above, so the row carries the name and the two figures only. */}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-          {row.name}
-        </span>
-
-        <div className="w-36 shrink-0 text-right">
-          <div className="text-sm font-medium text-foreground">
-            {row.openIssues === 0 ? "—" : `${row.weeksOfWork} wk`}
-          </div>
-          <div className="text-xs text-muted-foreground">{rowCaption(row)}</div>
-        </div>
-      </button>
-
-      {open && (
-        <div className="border-t border-border px-4 py-3">
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : !issues ? (
-            <p className="text-sm text-muted-foreground">Loading issues…</p>
-          ) : issues.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No open issues.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {issues.map((i) => (
-                <li key={i.id} className="flex items-center gap-3 py-2 text-sm">
-                  <Link
-                    href={`/projects/${i.projectId}/issues/${i.id}`}
-                    className="font-mono text-xs text-accent hover:underline"
-                  >
-                    {i.key}
-                  </Link>
-                  <span className="min-w-0 flex-1 truncate text-foreground">{i.title}</span>
-                  <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                    {i.projectKey}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {i.status.replace("_", " ").toLowerCase()}
-                  </span>
-                  <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
-                    {i.estimateMinutes === null ? "no est." : hours(i.remainingMinutes)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
   );
 }

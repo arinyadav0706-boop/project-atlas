@@ -35,6 +35,12 @@ const team = (id: string, name: string, memberships = 2) =>
 const user = (id: string, name: string) =>
   ({ user: { id, name, email: `${id}@x.com`, avatarUrl: null } }) as never;
 
+// Every open issue belongs to a project — the query selects it, and project
+// balance (BR-16) regroups by it. Tests that are not about projects put
+// everything in one.
+const ALPHA = { id: "p1", key: "A", name: "Alpha" };
+const BETA = { id: "p2", key: "B", name: "Beta" };
+
 beforeEach(() => {
   vi.clearAllMocks();
   repo.workingWeek.mockResolvedValue({ workingMinutesPerDay: 480, workingDaysPerWeek: 5 } as never);
@@ -99,9 +105,9 @@ describe("aggregation (BR-1..BR-6)", () => {
 
   it("computes remaining effort net of logged time, per person", async () => {
     repo.openIssuesForUsers.mockResolvedValue([
-      { id: "i1", assigneeId: "u1", estimateMinutes: 480 },
-      { id: "i2", assigneeId: "u1", estimateMinutes: 120 },
-      { id: "i3", assigneeId: "u2", estimateMinutes: 60 },
+      { id: "i1", assigneeId: "u1", estimateMinutes: 480, project: ALPHA },
+      { id: "i2", assigneeId: "u1", estimateMinutes: 120, project: ALPHA },
+      { id: "i3", assigneeId: "u2", estimateMinutes: 60, project: ALPHA },
     ] as never);
     repo.loggedByIssue.mockResolvedValue([
       { issueId: "i1", _sum: { minutes: 180 } },
@@ -120,8 +126,8 @@ describe("aggregation (BR-1..BR-6)", () => {
 
   it("counts unestimated issues without inventing effort (BR-4)", async () => {
     repo.openIssuesForUsers.mockResolvedValue([
-      { id: "i1", assigneeId: "u1", estimateMinutes: null },
-      { id: "i2", assigneeId: "u1", estimateMinutes: null },
+      { id: "i1", assigneeId: "u1", estimateMinutes: null, project: ALPHA },
+      { id: "i2", assigneeId: "u1", estimateMinutes: null, project: ALPHA },
     ] as never);
 
     const res = await WorkloadService.getWorkload(manager);
@@ -134,7 +140,7 @@ describe("aggregation (BR-1..BR-6)", () => {
 
   it("clamps an overrun to zero rather than crediting negative load", async () => {
     repo.openIssuesForUsers.mockResolvedValue([
-      { id: "i1", assigneeId: "u1", estimateMinutes: 60 },
+      { id: "i1", assigneeId: "u1", estimateMinutes: 60, project: ALPHA },
     ] as never);
     repo.loggedByIssue.mockResolvedValue([
       { issueId: "i1", _sum: { minutes: 600 } },
@@ -152,8 +158,8 @@ describe("aggregation (BR-1..BR-6)", () => {
 
   it("sorts most-loaded first and totals the team (BR-10)", async () => {
     repo.openIssuesForUsers.mockResolvedValue([
-      { id: "i1", assigneeId: "u2", estimateMinutes: 6000 },
-      { id: "i2", assigneeId: "u1", estimateMinutes: 60 },
+      { id: "i1", assigneeId: "u2", estimateMinutes: 6000, project: ALPHA },
+      { id: "i2", assigneeId: "u1", estimateMinutes: 60, project: ALPHA },
     ] as never);
 
     const res = await WorkloadService.getWorkload(manager);
@@ -169,12 +175,110 @@ describe("aggregation (BR-1..BR-6)", () => {
   });
 });
 
+// ── Project balance (BR-16) ─────────────────────────────────────────────────
+// A regrouping of the same issues, so the tests that matter are the ones that
+// pin it to the rows: the same effort, split a different way.
+
+describe("project balance (BR-16)", () => {
+  beforeEach(() => {
+    repo.teamMembers.mockResolvedValue([user("u1", "Ana"), user("u2", "Bo")] as never);
+  });
+
+  it("regroups the same effort by project without inventing or losing any", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u1", estimateMinutes: 600, project: ALPHA },
+      { id: "i2", assigneeId: "u2", estimateMinutes: 300, project: ALPHA },
+      { id: "i3", assigneeId: "u1", estimateMinutes: 120, project: BETA },
+    ] as never);
+    repo.loggedByIssue.mockResolvedValue([{ issueId: "i1", _sum: { minutes: 100 } }] as never);
+
+    const res = await WorkloadService.getWorkload(manager);
+
+    const summed = res.projects.reduce((n, p) => n + p.remainingMinutes, 0);
+    expect(summed).toBe(res.totals.remainingMinutes);
+    // And each project's segments sum to that project (acceptance 19).
+    for (const project of res.projects) {
+      expect(project.segments.reduce((n, s) => n + s.minutes, 0)).toBe(project.remainingMinutes);
+    }
+  });
+
+  it("sorts by remaining effort, heaviest project first", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u1", estimateMinutes: 120, project: ALPHA },
+      { id: "i2", assigneeId: "u2", estimateMinutes: 900, project: BETA },
+    ] as never);
+
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.projects.map((p) => p.key)).toEqual(["B", "A"]);
+  });
+
+  it("counts distinct people per project and spreads the queue across them", async () => {
+    // 4800 minutes in Alpha across two people = 2400 each = exactly one week.
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u1", estimateMinutes: 2400, project: ALPHA },
+      { id: "i2", assigneeId: "u2", estimateMinutes: 2400, project: ALPHA },
+      { id: "i3", assigneeId: "u1", estimateMinutes: 480, project: BETA },
+    ] as never);
+
+    const res = await WorkloadService.getWorkload(manager);
+    const alpha = res.projects.find((p) => p.key === "A")!;
+    const beta = res.projects.find((p) => p.key === "B")!;
+
+    expect(alpha.people).toBe(2);
+    expect(alpha.weeksPerPerson).toBe(1);
+    expect(beta.people).toBe(1);
+    expect(beta.weeksPerPerson).toBe(0.2); // 480 / 2400
+  });
+
+  // Acceptance 20 — the mirror of BR-4. A project must not disappear because
+  // nobody has estimated its work; that is precisely the blind spot the
+  // coverage banner exists to warn about.
+  it("keeps a project whose open work is entirely unestimated", async () => {
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u1", estimateMinutes: 600, project: ALPHA },
+      { id: "i2", assigneeId: "u2", estimateMinutes: null, project: BETA },
+      { id: "i3", assigneeId: "u2", estimateMinutes: null, project: BETA },
+    ] as never);
+
+    const res = await WorkloadService.getWorkload(manager);
+    const beta = res.projects.find((p) => p.key === "B")!;
+
+    expect(beta.remainingMinutes).toBe(0);
+    expect(beta.openIssues).toBe(2);
+    expect(beta.unestimated).toBe(2);
+    // Still counted as a person on the project, so the divisor is honest.
+    expect(beta.people).toBe(1);
+    expect(beta.weeksPerPerson).toBe(0);
+  });
+
+  it("labels each segment with the person's team-wide band, not a per-project one", async () => {
+    // Bo is overloaded overall (6000m = 2.5 wk), but holds only a sliver here.
+    repo.openIssuesForUsers.mockResolvedValue([
+      { id: "i1", assigneeId: "u2", estimateMinutes: 5940, project: BETA },
+      { id: "i2", assigneeId: "u2", estimateMinutes: 60, project: ALPHA },
+      { id: "i3", assigneeId: "u1", estimateMinutes: 60, project: ALPHA },
+    ] as never);
+
+    const res = await WorkloadService.getWorkload(manager);
+    const alpha = res.projects.find((p) => p.key === "A")!;
+    const bo = alpha.segments.find((s) => s.userId === "u2")!;
+
+    expect(bo.status).toBe("OVERLOADED");
+    expect(bo.minutes).toBe(60);
+  });
+
+  it("is empty when the team has no open work at all", async () => {
+    const res = await WorkloadService.getWorkload(manager);
+    expect(res.projects).toEqual([]);
+  });
+});
+
 describe("the organization's working week drives the bands (ADR-0034 amendment)", () => {
   beforeEach(() => {
     repo.teamMembers.mockResolvedValue([user("u1", "Ana")] as never);
     // 6000 minutes = 100 hours queued.
     repo.openIssuesForUsers.mockResolvedValue([
-      { id: "i1", assigneeId: "u1", estimateMinutes: 6000 },
+      { id: "i1", assigneeId: "u1", estimateMinutes: 6000, project: ALPHA },
     ] as never);
   });
 
@@ -276,6 +380,7 @@ describe("time-phased grid (BR-13, ADR-0035)", () => {
     estimateMinutes: null,
     dueDate: null,
     sprint: null,
+    project: ALPHA,
     ...over,
   });
 

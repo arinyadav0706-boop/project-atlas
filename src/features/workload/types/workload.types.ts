@@ -26,6 +26,36 @@ export interface WorkloadRowDto {
   status: WorkloadStatus;
 }
 
+// ── Project balance (BR-16) ─────────────────────────────────────────────────
+// The same open issues as `rows`, regrouped by project. A regrouping, not a
+// second query, so the two views cannot disagree about how much work exists.
+
+// Whose load a project's remaining effort is. `status` is the person's
+// team-wide band, not a per-project one: a project bar made of red segments
+// means its work sits on people who are already over across everything they
+// own, which is the thing worth spotting.
+export interface WorkloadProjectSegmentDto {
+  userId: string;
+  name: string;
+  minutes: number;
+  status: WorkloadStatus;
+}
+
+export interface WorkloadProjectDto {
+  projectId: string;
+  key: string;
+  name: string;
+  openIssues: number;
+  unestimated: number;
+  remainingMinutes: number;
+  // Distinct team members holding open work here — the divisor below.
+  people: number;
+  // A spread, not a forecast: how the queue would sit if this project's work
+  // were split evenly among the people already on it (BR-16).
+  weeksPerPerson: number;
+  segments: WorkloadProjectSegmentDto[];
+}
+
 export interface WorkloadTotalsDto {
   people: number;
   openIssues: number;
@@ -98,6 +128,8 @@ export interface WorkloadDto {
   selectedTeamId: string | null;
   rows: WorkloadRowDto[];
   grid: WorkloadGridDto;
+  // Most remaining effort first (BR-16).
+  projects: WorkloadProjectDto[];
   totals: WorkloadTotalsDto;
   workingWeek: WorkingWeekDto;
 }
