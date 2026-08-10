@@ -186,6 +186,47 @@ list. One shape, one definition.
    what will fill it. In a multi-column grid an absent card is worse than an
    empty one — it leaves a hole and shifts every card below it out of its pair.
 
+### Canvas vs. surface (2026-08-10)
+
+`--canvas` is the page body; `--background` is the card. They are different
+colours, and that is the whole point.
+
+The first pass shipped both as pure white, so a card was separated from the page
+only by a hairline border. Every shadow step above was invisible — you cannot
+elevate something above a surface it is already the same colour as — and the
+result read flat next to a mockup that looked lit. The chrome (sidebar, top bar)
+stays `--background`, so the tinted canvas is the content area only and the
+frame reads as one continuous surface around it.
+
+In dark mode the relationship inverts: the canvas is *darker* than the card, so
+the card is still the raised thing.
+
+### Detail routes, not in-page anchors (2026-08-10)
+
+**A summary card links to a route. It never scrolls you to an anchor further
+down the same page.** This applies to every "View all" in EAGLES from here on.
+
+Workload's "View all people" originally scrolled to a section at the bottom of
+the dashboard. Three things were wrong with it, and they generalise:
+
+1. It looked like nothing happened — a scroll is indistinguishable from the page
+   having jumped, so the affordance read as broken.
+2. It required the full list to be *on* the dashboard. Seventeen people made the
+   page 3.1 viewport-heights tall and pushed every chart out of reach, which is
+   not how a report behaves.
+3. An anchor cannot be linked to, bookmarked, or backed out of.
+
+The pattern instead: the card shows a bounded top-N, and the complete list is a
+route (`/workload/people`, `/workload/projects`) with a back link and the scope
+carried in the query string. Detail routes take `?teamId=` rather than reading
+client state, so a link always lands on the team the reader was looking at.
+
+**Corollary for growth.** Truncating a card is not hiding data as long as the
+full list has a home. Project balance shows five projects and states the true
+total in its link; a team spanning thirty projects gets all thirty on the detail
+route without the dashboard turning into the list. Bounding the summary is what
+keeps the ranking readable as the org grows.
+
 ### What we are deliberately not copying from the mockups
 
 The Workload mockup included **AI Insights** and an **"Upgrade to Pro"** upsell.

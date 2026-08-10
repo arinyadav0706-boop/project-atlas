@@ -41,11 +41,15 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-background p-4 shadow-card",
+        "rounded-2xl border border-border bg-background px-4 py-3.5 shadow-card",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      {/* The mockup's tile carries a trend line and a sparkline under the
+          number, which is what gives it its height. We show neither (no
+          historical series — backlog UI-4), so the same height left a third of
+          the tile empty. Sized to what it actually holds instead. */}
+      <div className="flex items-center justify-between gap-3">
         <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
         {icon && (
           <span
@@ -59,7 +63,7 @@ export function StatTile({
         )}
       </div>
 
-      <p className="mt-2 text-[26px] font-semibold leading-none tracking-[-0.02em] text-foreground">
+      <p className="mt-2.5 text-[27px] font-semibold leading-none tracking-[-0.025em] text-foreground">
         {value}
       </p>
 

@@ -9,6 +9,12 @@
 :root {
   --background: 0 0% 100%;
   --surface: 240 20% 99%;
+  /* The page canvas the cards sit ON, distinct from the cards themselves.
+     Without it, a white card on a white page is separated only by a hairline
+     border and the whole app reads flat — which is precisely the gap between
+     our Workload page and the mockup it was built from. Elevation needs
+     something to be elevated above. */
+  --canvas: 228 33% 97%;
   --foreground: 240 4% 12%;
   --border: 240 6% 90%;
   --accent: 217 91% 55%;
@@ -30,6 +36,9 @@
 .dark {
   --background: 222 47% 8%;
   --surface: 222 41% 11%;
+  /* Inverted relationship: in dark the canvas recedes BELOW the cards, so the
+     card is the lighter surface. Same idea, opposite direction. */
+  --canvas: 222 47% 6%;
   --foreground: 210 40% 96%;
   --border: 222 20% 22%;
   --accent: 217 91% 60%;

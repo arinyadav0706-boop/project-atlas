@@ -30,18 +30,28 @@ const CAPACITY_REFERENCES: CapacityReference[] = [
 // text, and no seeded user even has an avatar URL. The name is the information;
 // avatars appear in every DOM list on this page, where they are free.
 export function CapacityCard({ rows }: { rows: WorkloadRowDto[] }) {
+  // People with nothing queued are excluded from the plot.
+  //
+  // They were five of seventeen rows on the seeded team, each a name against an
+  // empty track reading "no open work" — a third of the chart's height spent
+  // saying nothing, and every real bar squashed to make room. The count is not
+  // lost: it is a band in Team mix, a tile in People at a glance, and a group in
+  // All people. A chart of queued weeks should plot the people who have some.
+  const queued = useMemo(() => rows.filter((row) => row.openIssues > 0), [rows]);
+  const idle = rows.length - queued.length;
+
   // Already most-loaded-first from the service (BR-10); the chart keeps that
-  // order so it reads in the same sequence as All people below.
+  // order so it reads in the same sequence as All people.
   const bars: CapacityBar[] = useMemo(
     () =>
-      rows.map((row) => ({
+      queued.map((row) => ({
         key: row.userId,
         label: row.name,
         weeks: row.weeksOfWork,
         tone: STATUS_META[row.status].tone,
         caption: rowCaption(row),
       })),
-    [rows],
+    [queued],
   );
 
   const buildOption = useCallback(
@@ -51,13 +61,29 @@ export function CapacityCard({ rows }: { rows: WorkloadRowDto[] }) {
 
   return (
     <Card>
-      <CardHeader icon={<BarChart3 />} title="Weeks queued per person" />
+      <CardHeader
+        icon={<BarChart3 />}
+        title="Weeks queued per person"
+        action={
+          idle > 0 && (
+            <span className="text-[12px] text-muted-foreground">
+              {idle} with no open work not shown
+            </span>
+          )
+        }
+      />
       <CardContent>
-        <Chart
-          buildOption={buildOption}
-          height={capacityBarsHeight(bars.length)}
-          summary={capacityBarsSummary(bars)}
-        />
+        {bars.length === 0 ? (
+          <p className="py-10 text-center text-[13px] text-muted-foreground">
+            Nobody on this team has open work queued.
+          </p>
+        ) : (
+          <Chart
+            buildOption={buildOption}
+            height={capacityBarsHeight(bars.length)}
+            summary={capacityBarsSummary(bars)}
+          />
+        )}
       </CardContent>
     </Card>
   );

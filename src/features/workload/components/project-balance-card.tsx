@@ -1,6 +1,7 @@
 "use client";
 
-import { Scale } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Scale } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { cn } from "@/shared/lib/utils";
@@ -14,22 +15,46 @@ import type { WorkloadProjectDto } from "@/features/workload/types/workload.type
 // is parked on people who are already over. Bar *lengths* are relative to the
 // heaviest project, so the column reads as a ranking.
 
-// Six is where a card stops being a summary. A team spanning the org would
-// otherwise turn one panel into the whole page.
-const MAX_ROWS = 6;
+// Five is where a card stops being a summary.
+//
+// A manager IS entitled to see every project their team touches — that is the
+// whole question this card answers — but a team spanning the org would turn one
+// panel into the whole page, and the ranking (which project is heaviest) stops
+// being readable somewhere around a dozen bars. So the card shows the top five
+// by remaining effort and hands the complete, unbounded list to
+// /workload/projects. The count in the link is the real total, so it is always
+// visible how much is not being shown.
+const MAX_ROWS = 5;
 // Below this a segment is a hairline that reads as a rendering artefact; it
 // still counts in the totals and the tooltip, it just stops being drawn as its
 // own stripe.
 const MIN_SEGMENT_PERCENT = 2;
 
-export function ProjectBalanceCard({ projects }: { projects: WorkloadProjectDto[] }) {
-  const shown = projects.slice(0, MAX_ROWS);
+export function ProjectBalanceCard({
+  projects,
+  /** Omit on the full-list route, where there is nowhere further to go. */
+  viewAllHref,
+}: {
+  projects: WorkloadProjectDto[];
+  viewAllHref?: string;
+}) {
+  const shown = viewAllHref ? projects.slice(0, MAX_ROWS) : projects;
   const hidden = projects.length - shown.length;
-  const heaviest = projects.reduce((max, p) => Math.max(max, p.remainingMinutes), 0);
+  // Relative to the heaviest SHOWN project, so the top bar always fills the
+  // track and the five rows read as a ranking among themselves.
+  const heaviest = shown.reduce((max, p) => Math.max(max, p.remainingMinutes), 0);
 
   return (
     <Card>
-      <CardHeader icon={<Scale />} title="Project balance" />
+      <CardHeader
+        icon={<Scale />}
+        title="Project balance"
+        action={
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {projects.length}
+          </span>
+        }
+      />
       <CardContent>
         {projects.length === 0 ? (
           <EmptyState
@@ -41,13 +66,29 @@ export function ProjectBalanceCard({ projects }: { projects: WorkloadProjectDto[
           <>
             <ul className="space-y-3.5">
               {shown.map((project) => (
-                <ProjectRow key={project.projectId} project={project} heaviest={heaviest} />
+                <ProjectRow
+                  key={project.projectId}
+                  project={project}
+                  heaviest={heaviest}
+                />
               ))}
             </ul>
-            {hidden > 0 && (
-              <p className="mt-3.5 text-[12px] text-muted-foreground">
-                +{hidden} more {hidden === 1 ? "project" : "projects"} with open work
-              </p>
+            {/* Shown whenever there is a route to go to, not only once the list
+                overflows. With four seeded projects nothing was hidden, so the
+                link never rendered and /workload/projects was unreachable —
+                a manager could not get to the full list until their team
+                happened to span six projects. The destination is worth having
+                at any size: full width, nothing truncated. */}
+            {viewAllHref && (
+              <Link
+                href={viewAllHref}
+                className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {hidden > 0
+                  ? `View all ${projects.length} projects`
+                  : "View project detail"}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             )}
           </>
         )}
@@ -72,7 +113,10 @@ function ProjectRow({
   return (
     <li className="flex items-center gap-4">
       <div className="w-52 shrink-0">
-        <p className="truncate text-[13px] font-medium text-foreground" title={project.name}>
+        <p
+          className="truncate text-[13px] font-medium text-foreground"
+          title={project.name}
+        >
           {project.name}
         </p>
         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">

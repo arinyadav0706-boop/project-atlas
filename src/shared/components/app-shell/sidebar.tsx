@@ -41,7 +41,9 @@ export function Sidebar({
   // Below md the sidebar collapses to an icon rail so the app stays usable
   // on small screens; a full mobile drawer is tracked as a later pass.
   return (
-    <nav className="flex h-full w-14 flex-col border-r border-border bg-surface md:w-60">
+    // White, like the cards — the tinted canvas is the page body only, so the
+    // chrome reads as one continuous frame around it.
+    <nav className="flex h-full w-14 shrink-0 flex-col border-r border-border bg-background md:w-60">
       <div className="flex h-14 items-center justify-center gap-2 md:justify-start md:px-4">
         <LogoMark className="h-7 w-7" />
         <span className="hidden text-[15px] font-semibold tracking-tight text-foreground md:inline">

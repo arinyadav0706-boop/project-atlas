@@ -129,12 +129,28 @@ banner, then a 3-column dashboard grid at `lg` and above:
 | | Left column (1 col) | Right column (2 cols) |
 |---|---|---|
 | top | Team mix (donut) | Weeks queued per person |
-| | People at a glance | Overloaded · Has room (side by side) |
-| | Project balance | |
+| | People at a glance | Project balance |
+| | Overloaded | |
+| | Has room | |
 
-Below the grid, full width, **All people** — the grouped, expandable rows that
-carry the drill-in (BR-11). Everything collapses to a single column below `lg`
-in that same reading order: the shape of the team, then the individuals.
+Everything collapses to a single column below `lg` in that same reading order:
+the shape of the team, then the individuals.
+
+**The dashboard holds no full lists.** It ends after the grid. All people and
+the complete project ranking are their own routes:
+
+| Route | Holds |
+|---|---|
+| `/workload/people?teamId=&person=` | Every member, grouped by band, with the per-person drill-in (BR-11). `person` deep-links one row open and scrolls to it. |
+| `/workload/projects?teamId=` | Every project the team has open work in, unbounded. |
+
+This replaced an in-page **All people** section that the summary cards scrolled
+to. Seventeen members made the dashboard 3.1 viewport-heights tall — measured,
+not estimated — so the charts it exists for were below the fold, and "View all
+people" moved the page in a way indistinguishable from a jump. `?teamId` is
+carried on every link because the team is client state on the dashboard and must
+not be re-guessed by the detail route. The general rule is in
+`docs/05_UI/01_UI_Design_Principles.md` — "Detail routes, not in-page anchors".
 
 - **Team picker** — the teams in scope, with member counts, in the header row
   beside the By person / By week toggle.
@@ -158,12 +174,19 @@ in that same reading order: the shape of the team, then the individuals.
 - **Project balance** (BR-16) — one row per project: name, a bar segmented by
   person and coloured by that person's status band, and `N wk per person`. A
   bar that is mostly red means the project's work sits on people who are
-  already over. Capped at six rows with a `+N more` line, so a team spanning
-  the whole org does not turn one card into the page.
-- **Overloaded** and **Has room** — the two actionable lists, side by side,
-  because rebalancing is a move *from* one *to* the other. Selecting a person
-  expands and scrolls to their row in All people, so the chevron leads
-  somewhere real instead of decorating.
+  already over. **Capped at five rows**, with the true project count in the
+  header pill and a link to `/workload/projects` for the complete list. The cap
+  is about readability, not permission: a manager is entitled to every project
+  their team touches, and gets them all on the detail route. Around a dozen bars
+  the ranking — which is what the card is for — stops being legible. The link
+  renders whenever the route exists, not only when rows overflow; gating it on
+  overflow left the route unreachable for a team with four projects.
+- **Overloaded** and **Has room** — the two actionable lists, stacked in the
+  narrow column, because rebalancing is a move *from* one *to* the other.
+  Selecting a person opens `/workload/people?person=<id>` with their row already
+  expanded and scrolled into view. When a list is empty its card stays compact:
+  "Nobody is over two weeks queued" is one line of good news and should not
+  occupy the height of a five-person list.
 - **Weeks queued per person** — a horizontal bar chart, one bar per person on a
   shared zero-based axis in weeks, most loaded at the top, coloured by status
   band, with dashed reference lines at the **0.5** and **2** week band edges
@@ -172,6 +195,11 @@ in that same reading order: the shape of the team, then the individuals.
   two people comparable: the CSS mini-bars it replaced were scaled to a fixed
   2-week width with no ticks, so "how full is this" was unanswerable and people
   in different status groups could not be compared at all (backlog UI-2).
+  **People with nothing queued are excluded from the plot**, with the count
+  stated in the card header ("5 with no open work not shown"). They were five of
+  seventeen rows on the seeded team — a third of the chart's height spent on
+  empty tracks, squashing every real bar. The count is not lost: it is a band in
+  Team mix, a tile in People at a glance, and a group on the All people route.
   The chart's y-axis carries names only, **not** avatars: it is a canvas, and
   a reliable avatar there would mean drawing image-or-initials fallbacks into
   ECharts rich text for no information the name does not already give. Avatars

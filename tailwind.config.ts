@@ -12,6 +12,7 @@ const config: Config = {
       colors: {
         background: "hsl(var(--background))",
         surface: "hsl(var(--surface))",
+        canvas: "hsl(var(--canvas))",
         foreground: "hsl(var(--foreground))",
         border: "hsl(var(--border))",
         accent: {

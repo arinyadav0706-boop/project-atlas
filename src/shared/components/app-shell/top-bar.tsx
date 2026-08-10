@@ -42,28 +42,33 @@ export function TopBar({
       {/* Bounded rather than `flex-1`: a search field stretched across a
           1600px window reads as a page-wide input, not a control. */}
       <div className="flex-1 md:max-w-md">{searchEnabled && <SearchPalette />}</div>
-      <NotificationBell />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={image ?? undefined} alt={name} />
-              <AvatarFallback className="text-xs font-medium">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">{name}</div>
-          <DropdownMenuItem asChild>
-            <a href="/profile">Profile</a>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/sign-in" })}>
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* `ml-auto` pins the cluster to the right edge. Without it the bounded
+          search box stops stretching and the bell and avatar sit stranded in
+          the middle of a wide window instead of at the corner. */}
+      <div className="ml-auto flex items-center gap-2">
+        <NotificationBell />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={image ?? undefined} alt={name} />
+                <AvatarFallback className="text-xs font-medium">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">{name}</div>
+            <DropdownMenuItem asChild>
+              <a href="/profile">Profile</a>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/sign-in" })}>
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

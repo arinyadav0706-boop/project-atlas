@@ -17,11 +17,6 @@ import {
 import { WorkloadGrid } from "@/features/workload/components/workload-grid";
 import { CapacityCard } from "@/features/workload/components/capacity-card";
 import { PeopleAtAGlanceCard } from "@/features/workload/components/people-glance-card";
-import {
-  PEOPLE_SECTION_ID,
-  PeopleSection,
-  personRowId,
-} from "@/features/workload/components/people-section";
 import { PersonFocusList } from "@/features/workload/components/person-focus-list";
 import { ProjectBalanceCard } from "@/features/workload/components/project-balance-card";
 import { TeamMixCard } from "@/features/workload/components/team-mix-card";
@@ -39,40 +34,23 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
   const [data, setData] = useState<WorkloadDto>(initial);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<ViewMode>("list");
-  // Owned here, not by each row, because the Overloaded and Has-room cards
-  // expand rows they do not themselves render.
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
   const selectTeam = useCallback(async (teamId: string) => {
     setLoading(true);
     try {
       setData(await apiRequest<WorkloadDto>(`/api/workload?teamId=${teamId}`));
-      // A different team is a different set of people; carrying expansions
-      // across would leave ids open that are no longer on screen.
-      setExpanded(new Set());
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const toggleExpanded = useCallback((userId: string) => {
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (!next.delete(userId)) next.add(userId);
-      return next;
-    });
-  }, []);
-
-  // Expand the person and bring their row into view. Found by id rather than
-  // through a ref map: the target lives inside a grandchild list, so a ref
-  // would have to be threaded through two components to save one lookup in a
-  // click handler.
-  const focusPerson = useCallback((userId: string) => {
-    setExpanded((current) => new Set(current).add(userId));
-    scrollToId(personRowId(userId));
-  }, []);
-
-  const viewAllPeople = useCallback(() => scrollToId(PEOPLE_SECTION_ID), []);
+  // The team is client state on this page but a route parameter on the detail
+  // routes, so every link out carries it. Without that, "View all people" on
+  // Mobile Squad would land on whichever team the server picks by default.
+  const teamQuery = data.selectedTeamId ? `?teamId=${data.selectedTeamId}` : "";
+  const peopleHref = `/workload/people${teamQuery}`;
+  const personHref = (userId: string) =>
+    `/workload/people${teamQuery}${teamQuery ? "&" : "?"}person=${userId}`;
 
   const header = (
     <PageHeader
@@ -162,32 +140,37 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
                   are unreadable at a third of the width. */}
               <div className="space-y-5">
                 <TeamMixCard rows={rows} />
-                <PeopleAtAGlanceCard rows={rows} onViewAll={viewAllPeople} />
+                <PeopleAtAGlanceCard rows={rows} viewAllHref={peopleHref} />
                 <PersonFocusList
                   status="OVERLOADED"
                   rows={overloaded}
                   icon={<Activity />}
                   emptyText="Nobody is over two weeks queued."
-                  onSelect={focusPerson}
-                  onViewAll={viewAllPeople}
+                  personHref={personHref}
+                  viewAllHref={peopleHref}
                 />
                 <PersonFocusList
                   status="LIGHT"
                   rows={hasRoom}
                   icon={<Smile />}
                   emptyText="Nobody has spare capacity right now."
-                  onSelect={focusPerson}
-                  onViewAll={viewAllPeople}
+                  personHref={personHref}
+                  viewAllHref={peopleHref}
                 />
               </div>
 
               <div className="space-y-5 lg:col-span-2">
                 <CapacityCard rows={rows} />
-                <ProjectBalanceCard projects={data.projects} />
+                <ProjectBalanceCard
+                  projects={data.projects}
+                  viewAllHref={`/workload/projects${teamQuery}`}
+                />
               </div>
             </div>
 
-            <PeopleSection rows={rows} expanded={expanded} onToggle={toggleExpanded} />
+            {/* All people used to sit here — seventeen rows that made this page
+                3.1 screens tall and buried the charts. It is /workload/people
+                now. A dashboard should fit the question, not the whole answer. */}
 
             <p className="text-xs text-muted-foreground">
               Based on a {data.workingWeek.label}. Two of those weeks queued counts as
@@ -198,15 +181,6 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
       </div>
     </div>
   );
-}
-
-// Honours a reduced-motion preference: a long smooth scroll is exactly the kind
-// of movement that setting exists to suppress.
-function scrollToId(id: string): void {
-  const target = document.getElementById(id);
-  if (!target) return;
-  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
 
 function ModeButton({
@@ -228,7 +202,9 @@ function ModeButton({
       aria-pressed={active}
       className={cn(
         "rounded-[0.6rem] px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
       {children}

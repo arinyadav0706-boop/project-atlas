@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Users } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
@@ -14,44 +14,78 @@ import {
   rowCaption,
   weeksLabel,
 } from "@/features/workload/components/status-meta";
-import type { WorkloadIssueDto, WorkloadRowDto } from "@/features/workload/types/workload.types";
+import type {
+  WorkloadIssueDto,
+  WorkloadRowDto,
+} from "@/features/workload/types/workload.types";
 
 // Everyone on the team, grouped by band, most urgent group first — and the only
-// place on the page that can answer "what work, exactly" (BR-11).
+// place in the feature that can answer "what work, exactly" (BR-11).
 //
-// `open` is owned by the parent rather than by each row, because the Overloaded
-// and Has-room cards need to expand a row they do not render. The loaded issues
-// stay row-local: they are a cache of a fetch, not shared state, and hoisting
-// them would make the parent re-render the whole team on every drill-in.
+// This used to live at the bottom of the Workload dashboard, where seventeen
+// ~90px rows made the page 3.1 screens tall and pushed every chart above the
+// fold out of reach. It is now its own route (/workload/people); the dashboard
+// links here instead of scrolling to an anchor, which is what made "View all
+// people" feel like it went nowhere.
+//
+// Expansion is owned here, not by a parent: the focus lists now navigate rather
+// than reach in and open a row. The loaded issues stay row-local — they are a
+// cache of a fetch, not shared state, and hoisting them would re-render the
+// whole team on every drill-in.
 
-/** Anchor id, also the scroll target used by the focus lists. */
+/** Anchor id, used to bring a deep-linked person into view. */
 export function personRowId(userId: string): string {
   return `workload-person-${userId}`;
 }
 
-export const PEOPLE_SECTION_ID = "workload-all-people";
-
 export function PeopleSection({
   rows,
-  expanded,
-  onToggle,
+  /** Deep link from the dashboard's focus lists: expand and reveal this person. */
+  focusUserId,
+  /** Suppressed on /workload/people, where the page title already says it. */
+  hideHeader = false,
 }: {
   rows: WorkloadRowDto[];
-  expanded: ReadonlySet<string>;
-  onToggle: (userId: string) => void;
+  focusUserId?: string;
+  hideHeader?: boolean;
 }) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(focusUserId ? [focusUserId] : []),
+  );
+
+  const toggle = useCallback((userId: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(userId)) next.add(userId);
+      return next;
+    });
+  }, []);
+
+  // Arriving from "View all overloaded" should land ON the person, not at the
+  // top of a seventeen-row list. Runs once per target rather than on every
+  // render, so a later manual collapse is not undone.
+  useEffect(() => {
+    if (!focusUserId) return;
+    const target = document.getElementById(personRowId(focusUserId));
+    if (!target) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
+  }, [focusUserId]);
+
   return (
-    <Card id={PEOPLE_SECTION_ID} className="scroll-mt-6">
-      <CardHeader
-        icon={<Users />}
-        title="All people"
-        action={
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-            {rows.length}
-          </span>
-        }
-      />
-      <div className="flex flex-col gap-5 px-5 pb-5">
+    <Card>
+      {!hideHeader && (
+        <CardHeader
+          icon={<Users />}
+          title="All people"
+          action={
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+              {rows.length}
+            </span>
+          }
+        />
+      )}
+      <div className={cn("flex flex-col gap-5 px-5 pb-5", hideHeader && "pt-5")}>
         {SECTION_ORDER.map((status) => {
           const group = rows.filter((r) => r.status === status);
           if (group.length === 0) return null;
@@ -71,7 +105,7 @@ export function PeopleSection({
                     key={row.userId}
                     row={row}
                     open={expanded.has(row.userId)}
-                    onToggle={() => onToggle(row.userId)}
+                    onToggle={() => toggle(row.userId)}
                   />
                 ))}
               </div>
@@ -141,7 +175,9 @@ function PersonRow({
         )}
         <Avatar className="h-8 w-8 shrink-0">
           {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
-          <AvatarFallback className="text-xs">{row.name.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className="text-xs">
+            {row.name.charAt(0).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
 
         {/* The band is the group heading and the load bar lives in the chart
@@ -154,7 +190,9 @@ function PersonRow({
           <span className="block text-[14px] font-semibold tabular-nums text-foreground">
             {weeksLabel(row)}
           </span>
-          <span className="block text-[12px] text-muted-foreground">{rowCaption(row)}</span>
+          <span className="block text-[12px] text-muted-foreground">
+            {rowCaption(row)}
+          </span>
         </span>
       </button>
 
@@ -176,7 +214,9 @@ function PersonRow({
                   >
                     {issue.key}
                   </Link>
-                  <span className="min-w-0 flex-1 truncate text-foreground">{issue.title}</span>
+                  <span className="min-w-0 flex-1 truncate text-foreground">
+                    {issue.title}
+                  </span>
                   <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
                     {issue.projectKey}
                   </span>
@@ -184,7 +224,9 @@ function PersonRow({
                     {issue.status.replace("_", " ").toLowerCase()}
                   </span>
                   <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                    {issue.estimateMinutes === null ? "no est." : hours(issue.remainingMinutes)}
+                    {issue.estimateMinutes === null
+                      ? "no est."
+                      : hours(issue.remainingMinutes)}
                   </span>
                 </li>
               ))}

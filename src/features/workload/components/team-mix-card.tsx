@@ -12,10 +12,20 @@ import {
   type RingSegment,
 } from "@/shared/components/charts";
 import { cn } from "@/shared/lib/utils";
-import { SECTION_ORDER, STATUS_META, countByStatus } from "@/features/workload/components/status-meta";
-import type { WorkloadRowDto, WorkloadStatus } from "@/features/workload/types/workload.types";
+import {
+  SECTION_ORDER,
+  STATUS_META,
+  countByStatus,
+} from "@/features/workload/components/status-meta";
+import type {
+  WorkloadRowDto,
+  WorkloadStatus,
+} from "@/features/workload/types/workload.types";
 
-const RING_SIZE = 168;
+// Sized so the legend beside it keeps a full label on one line in the narrow
+// column. At 168 it did not: every entry rendered truncated ("Overl… 0 0%"),
+// which is a legend that has stopped being a legend.
+const RING_SIZE = 132;
 
 // The shape of the team, before any individual name.
 //
@@ -53,7 +63,7 @@ export function TeamMixCard({ rows }: { rows: WorkloadRowDto[] }) {
   return (
     <Card>
       <CardHeader icon={<PieChart />} title="Team mix" />
-      <CardContent className="flex items-center gap-5">
+      <CardContent className="flex items-center gap-4">
         <div className="shrink-0" style={{ width: RING_SIZE }}>
           <Chart
             buildOption={buildOption}
@@ -62,17 +72,25 @@ export function TeamMixCard({ rows }: { rows: WorkloadRowDto[] }) {
           />
         </div>
 
+        {/* `auto` for the label column, not `1fr`: the longest label sets the
+            width and the count/percent columns line up after it, instead of the
+            label being squeezed to whatever is left and ellipsised. */}
         <dl className="min-w-0 flex-1 space-y-3">
           {segments.map((segment) => (
             <div
               key={segment.key}
-              className="grid grid-cols-[auto_1fr_auto_2.5rem] items-center gap-x-2.5"
+              className="grid grid-cols-[auto_1fr_auto_2.5rem] items-center gap-x-2"
             >
               <span
-                className={cn("h-2 w-2 rounded-full", STATUS_META[segment.key].dot)}
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-full",
+                  STATUS_META[segment.key].dot,
+                )}
                 aria-hidden
               />
-              <dt className="truncate text-[13px] text-muted-foreground">{segment.label}</dt>
+              <dt className="whitespace-nowrap text-[12.5px] text-muted-foreground">
+                {segment.label}
+              </dt>
               <dd className="text-[13px] font-semibold tabular-nums text-foreground">
                 {segment.value}
               </dd>

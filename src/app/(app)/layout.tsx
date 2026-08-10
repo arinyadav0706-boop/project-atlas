@@ -37,13 +37,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             image: session.user.image,
           }}
         />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        {/* `min-w-0`/`min-h-0`: a flex child defaults to min-size:auto, so it
+            refuses to shrink below its content and the column grows past
+            h-screen. That put a SECOND scrollbar on the document — the window
+            scrolled the whole shell while <main> scrolled its own content, and
+            the top bar slid away with it. Measured, not guessed:
+            documentElement.scrollHeight was 955 against a 900px viewport. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar
             userName={session.user.name ?? session.user.email ?? "User"}
             userImage={session.user.image}
             searchEnabled={searchEnabled}
           />
-          <main className="flex-1 overflow-y-auto bg-background px-8 py-7">{children}</main>
+          {/* Canvas, not background: cards are white and need something to sit
+              on. See globals.css --canvas. */}
+          <main className="min-h-0 flex-1 overflow-y-auto bg-canvas px-8 py-7">
+            {children}
+          </main>
         </div>
       </div>
     </AppProviders>
