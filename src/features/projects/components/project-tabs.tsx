@@ -1,41 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/shared/lib/utils";
+import { Columns3, KanbanSquare, LineChart, ListTodo, Settings } from "lucide-react";
+import { TabNav } from "@/shared/components/ui/tab-nav";
 
-// Project-scoped sub-navigation. Sprint tab arrives with its module; for now,
-// Issues (primary), Board, Backlog, and Settings.
+// Project-scoped sub-navigation, on the shared `TabNav` so it is the same
+// control as the admin console's — same underline, weight and rhythm.
+//
+// Icons added to match: the admin tabs already had them, these did not, and two
+// tab strips in the same screen position looking different is exactly the
+// inconsistency this pass exists to remove.
+//
+// Client component for the same reason as AdminConsoleNav: the icons are
+// component references, and the project layout that renders this is a server
+// component. Passing them across that boundary throws.
 export function ProjectTabs({ projectId }: { projectId: string }) {
-  const pathname = usePathname();
-  const tabs = [
-    { href: `/projects/${projectId}/issues`, label: "Issues" },
-    { href: `/projects/${projectId}/board`, label: "Board" },
-    { href: `/projects/${projectId}/backlog`, label: "Backlog" },
-    { href: `/projects/${projectId}/reports`, label: "Reports" },
-    { href: `/projects/${projectId}/settings`, label: "Settings" },
-  ];
-
+  const base = `/projects/${projectId}`;
   return (
-    <nav className="flex gap-1 border-b border-border">
-      {tabs.map((tab) => {
-        const active = pathname.startsWith(tab.href);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={cn(
-              "relative px-3 py-2.5 text-sm font-medium transition-colors",
-              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.label}
-            {active && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />
-            )}
-          </Link>
-        );
-      })}
-    </nav>
+    <TabNav
+      items={[
+        { href: `${base}/issues`, label: "Issues", icon: ListTodo },
+        { href: `${base}/board`, label: "Board", icon: KanbanSquare },
+        { href: `${base}/backlog`, label: "Backlog", icon: Columns3 },
+        { href: `${base}/reports`, label: "Reports", icon: LineChart },
+        { href: `${base}/settings`, label: "Settings", icon: Settings },
+      ]}
+    />
   );
 }

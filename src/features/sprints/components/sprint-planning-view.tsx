@@ -542,7 +542,7 @@ export function SprintPlanningView({
       </div>
 
       {initialSprint.sprints.length === 0 ? (
-        <p className="mb-6 rounded-xl border border-dashed border-border/60 bg-surface/40 px-6 py-8 text-center text-sm text-muted-foreground">
+        <p className="mb-6 rounded-2xl border border-border bg-background px-6 py-8 text-center text-sm text-muted-foreground shadow-card">
           {canManage
             ? "No sprints yet. Create one, then drag issues from the backlog to plan it."
             : "No sprints are planned yet."}
@@ -632,7 +632,7 @@ export function SprintPlanningView({
         )}
 
         {backlogItems.length === 0 && filterActive && (
-          <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-xl bg-muted/50 px-4 py-8 text-center text-sm text-muted-foreground">
             No unscheduled issues match this filter.
           </p>
         )}
@@ -698,7 +698,7 @@ export function SprintPlanningView({
 
       {/* Bulk action bar — appears while issues are selected */}
       {selected.size > 0 && (
-        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
+        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-pop backdrop-blur">
           <span className="text-sm font-medium text-foreground">
             {selected.size} selected
           </span>
@@ -764,7 +764,7 @@ function SprintSection({
     sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
-    <section className="rounded-xl border border-border/60 bg-surface/20 p-3">
+    <section className="rounded-2xl border border-border bg-background p-3 shadow-card">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
@@ -822,7 +822,7 @@ function SprintSection({
         {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
       </p>
       <div className="mb-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-xs tabular-nums text-muted-foreground">
@@ -872,7 +872,7 @@ function CompletedSprintCard({
 }) {
   const { doneIssues, totalIssues } = sprint.progress;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/30 px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-foreground">{sprint.name}</span>
@@ -915,7 +915,7 @@ function DroppableList({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-16 flex-col gap-2 rounded-xl border border-border/60 bg-surface/30 p-2 transition-colors",
+        "flex min-h-16 flex-col gap-2 rounded-xl bg-muted/50 p-2 transition-colors",
         isOver && "border-accent/50 bg-accent/5",
       )}
     >
@@ -960,7 +960,7 @@ function BacklogGroup({
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-surface/20 p-2">
+    <div className="rounded-2xl border border-border bg-background p-2 shadow-card">
       <button
         type="button"
         onClick={onToggle}

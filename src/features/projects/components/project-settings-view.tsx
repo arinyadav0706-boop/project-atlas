@@ -83,7 +83,7 @@ export function ProjectSettingsView({
     <TooltipProvider delayDuration={300}>
       <div className="max-w-3xl">
         {!isLead && (
-          <p className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 text-[13px] text-muted-foreground">
+          <p className="mb-6 rounded-xl border border-border bg-muted/40 px-4 py-3 text-[13px] text-muted-foreground">
             You&apos;re viewing this project&apos;s settings
             {project.myRole
               ? ` as a ${project.myRole.toLowerCase()}`
@@ -137,8 +137,8 @@ function SectionCard({
     <section
       className={
         destructive
-          ? "rounded-xl border border-destructive/25 bg-background"
-          : "rounded-xl border border-border bg-background"
+          ? "rounded-2xl border border-destructive/25 bg-background shadow-card"
+          : "rounded-2xl border border-border bg-background shadow-card"
       }
     >
       <div

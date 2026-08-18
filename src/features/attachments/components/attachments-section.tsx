@@ -145,7 +145,7 @@ function AttachmentRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2">
       <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{attachment.fileName}</p>

@@ -86,32 +86,39 @@ export function IssueDetailView({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="grid gap-8 lg:grid-cols-[1fr_260px]"
     >
-      <div className="min-w-0">
-        <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-          <IssueTypeIcon type={issue.type} />
-          <span className="font-mono text-xs">{issue.key}</span>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {issue.title}
-        </h1>
+      <div className="min-w-0 space-y-5">
+        {/* Title and description on one sheet. They were bare on the page; with
+            the canvas tinted that left the most important text in the app
+            sitting on grey with nothing behind it. */}
+        <div className="rounded-2xl border border-border bg-background p-5 shadow-card">
+          <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <IssueTypeIcon type={issue.type} />
+            <span className="font-mono text-xs">{issue.key}</span>
+          </div>
+          <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+            {issue.title}
+          </h1>
 
-        <div className="mt-8">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Description
-          </h2>
-          {issue.description ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {issue.description}
-            </p>
-          ) : (
-            <p className="text-sm italic text-muted-foreground">No description.</p>
-          )}
+          <div className="mt-5">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Description
+            </h2>
+            {issue.description ? (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {issue.description}
+              </p>
+            ) : (
+              <p className="text-sm italic text-muted-foreground">No description.</p>
+            )}
+          </div>
         </div>
 
         <HierarchySection projectId={projectId} issue={issue} />
       </div>
 
-      <aside className="space-y-6">
+      {/* One sheet for the whole metadata rail, with hairline rules between
+          fields — six separate floating labels read as debris, not a panel. */}
+      <aside className="h-fit space-y-4 rounded-2xl border border-border bg-background p-5 shadow-card">
         <div>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Status
@@ -280,7 +287,7 @@ function HierarchySection({
   if (!isEpic && !issue.epic) return null;
 
   return (
-    <div className="mt-8">
+    <div className="rounded-2xl border border-border bg-background p-5 shadow-card">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {isEpic ? "Child issues" : "Parent epic"}
       </h2>

@@ -227,6 +227,49 @@ total in its link; a team spanning thirty projects gets all thirty on the detail
 route without the dashboard turning into the list. Bounding the summary is what
 keeps the ranking readable as the org grows.
 
+### Page frame: one width, one header, one tab strip (2026-08-10)
+
+Three more primitives, added when the system was rolled out past Home and
+Workload:
+
+| Primitive | What it owns |
+|---|---|
+| `PageShell` | Page width. Two options only — `wide` (`max-w-7xl`) for dense data, default (`max-w-6xl`) for everything else. |
+| `TabNav` | Section tabs. One underline, one weight, one rhythm. |
+| `PageHeader` | Already existed; now used by *every* page, not three of them. |
+
+Page width had been picked per page: Home `max-w-6xl`, Workload `max-w-7xl`,
+Admin and the project shell `max-w-5xl`, Projects unbounded. Navigating shifted
+the content column sideways, so the app felt like several products even where
+the styling matched. There is deliberately no third width — a page that "needs"
+one is disagreeing with its own content type.
+
+There were also two tab implementations that sat in the same screen position and
+did the same job: the admin console drew its active state with `border-b-2` on
+the link, the project shell with an inset absolutely-positioned span. Different
+underline widths, different weights.
+
+**Both tab components must stay client components.** Their icons are React
+component references, and a server component cannot pass a function to a client
+one. Dropping `"use client"` from either 500s every route that renders it —
+which is exactly what happened to all six admin routes, and then to every
+project route, during this pass.
+
+### Where cards stop
+
+Not everything is a card. The rule is one level of nesting:
+
+- **Panels are cards** — a raised sheet on the tinted canvas.
+- **Items inside a panel are flat** — a border and a radius, no shadow. Comment
+  bubbles, attachment rows and issue rows stay flat, because a thread where
+  every message has its own elevation reads as a pile of loose paper.
+- **Wells are recessed** — `bg-muted/50` inside a white card, for kanban columns
+  and sprint drop zones. That gives three legible depths: canvas → card → well,
+  with the draggable cards raised out of the well.
+
+`shadow-pop` is reserved for things genuinely lifted off the page: a drag
+overlay and the backlog's sticky action bar. Nothing at rest uses it.
+
 ### What we are deliberately not copying from the mockups
 
 The Workload mockup included **AI Insights** and an **"Upgrade to Pro"** upsell.

@@ -55,10 +55,10 @@ export function BacklogItem({
       style={style}
       {...dragProps}
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm",
+        "flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 shadow-card",
         canWrite && "cursor-grab touch-none active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
-        overlay && "cursor-grabbing shadow-md ring-1 ring-accent",
+        overlay && "cursor-grabbing shadow-pop ring-1 ring-accent",
       )}
     >
       {leading}

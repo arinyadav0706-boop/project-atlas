@@ -85,7 +85,7 @@ export function CommentRow({
           {comment.author.name.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <div className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2">
+      <div className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{comment.author.name}</span>
           <span>{new Date(comment.createdAt).toLocaleString()}</span>

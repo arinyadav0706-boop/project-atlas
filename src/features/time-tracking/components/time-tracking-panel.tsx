@@ -62,7 +62,7 @@ export function TimeTrackingPanel({
     <section className="mt-8">
       <h2 className="mb-3 text-sm font-semibold text-foreground">Time tracking</h2>
 
-      <div className="rounded-lg border border-border bg-background p-4">
+      <div className="rounded-2xl border border-border bg-background p-4 shadow-card">
         <SummaryBar
           summary={summary}
           canEdit={initial.canSetEstimate}

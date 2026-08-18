@@ -75,7 +75,7 @@ export function TeamsView({
       </div>
 
       {creating && (
-        <div className="mb-6 grid gap-3 rounded-lg border border-border bg-background p-4 sm:grid-cols-4">
+        <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-background shadow-card p-4 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <Label htmlFor="team-name">Name</Label>
             <Input id="team-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Platform" />
@@ -106,7 +106,7 @@ export function TeamsView({
 
       <div className="flex flex-col gap-2">
         {teams.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          <p className="rounded-2xl border border-border bg-background shadow-card px-4 py-10 text-center text-sm text-muted-foreground">
             No teams yet. Create one to model your reporting structure.
           </p>
         )}
@@ -221,7 +221,7 @@ function TeamRow({
   const otherTeams = teams.filter((t) => t.id !== team.id);
 
   return (
-    <div className="rounded-lg border border-border bg-background">
+    <div className="rounded-2xl border border-border bg-background shadow-card">
       <div className="flex items-center gap-3 px-4 py-3">
         <button type="button" onClick={toggle} aria-label="Toggle members" className="text-muted-foreground">
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}

@@ -36,7 +36,7 @@ export function ReportCard({
   projectId: string;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-2xl border border-border bg-background p-4 shadow-card">
       <h2 className="text-sm font-semibold text-foreground">{result.name}</h2>
       <div className="mt-4">
         {result.chartType === "bar" && <VelocityChart data={result.data as VelocityData} />}
@@ -124,7 +124,7 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             ))}
           </select>
         )}
-        <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Unit">
+        <div className="flex rounded-xl border border-border bg-background p-0.5 shadow-card" role="group" aria-label="Unit">
           {UNITS.map((u) => (
             <button
               key={u.value}

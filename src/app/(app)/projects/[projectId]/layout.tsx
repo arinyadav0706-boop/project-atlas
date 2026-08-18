@@ -7,6 +7,8 @@ import { RecentItemService } from "@/features/home/services/recent-item.service"
 import { FavoriteService } from "@/features/home/services/favorite.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { Badge } from "@/shared/components/ui/badge";
+import { PageHeader } from "@/shared/components/ui/page-header";
+import { PageShell } from "@/shared/components/ui/page-shell";
 import { ProjectTabs } from "@/features/projects/components/project-tabs";
 import { StarProjectButton } from "@/features/projects/components/star-project-button";
 
@@ -39,27 +41,39 @@ export default async function ProjectLayout(props: {
   const starred = await FavoriteService.isProjectStarred(actor, params.projectId);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    // `wide`: project pages carry the board, the issue table and the backlog —
+    // the densest surfaces in the app. They were capped at max-w-5xl, narrower
+    // than Workload, so moving between them shifted the content column.
+    <PageShell width="wide">
       <Link
         href="/projects"
-        className="mb-5 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-3.5 w-3.5" />
         Projects
       </Link>
 
-      <div className="mb-4 flex items-center gap-3">
-        <Badge variant="accent">{project.key}</Badge>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          {project.name}
-        </h1>
-        <StarProjectButton projectId={params.projectId} initialStarred={starred} />
-        {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
-      </div>
+      {/* The project key is this page's icon chip — the same slot Home,
+          Workload and Admin fill with a lucide glyph, carrying identity
+          instead of decoration. */}
+      <PageHeader
+        icon={
+          <span className="text-[13px] font-semibold tracking-tight">{project.key}</span>
+        }
+        title={project.name}
+        subtitle={project.description ?? undefined}
+        actions={
+          <>
+            <StarProjectButton projectId={params.projectId} initialStarred={starred} />
+            {project.status === "ARCHIVED" && <Badge variant="outline">Archived</Badge>}
+          </>
+        }
+        className="mb-5"
+      />
 
       <ProjectTabs projectId={params.projectId} />
 
-      <div className="pt-6">{children}</div>
-    </div>
+      <div className="pt-5">{children}</div>
+    </PageShell>
   );
 }

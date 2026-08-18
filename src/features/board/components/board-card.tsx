@@ -38,10 +38,13 @@ export function BoardCard({
       style={style}
       {...dragProps}
       className={cn(
-        "group rounded-lg border border-border bg-background p-3 shadow-sm",
+        // Named elevation steps, not Tailwind's defaults: `shadow-card` at
+        // rest, `shadow-pop` while a card is lifted under the cursor. The
+        // drag overlay is the one place in the app that earns the top step.
+        "group rounded-xl border border-border bg-background p-3 shadow-card",
         canWrite && "cursor-grab active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
-        overlay && "rotate-1 cursor-grabbing shadow-md ring-1 ring-accent",
+        overlay && "rotate-1 cursor-grabbing shadow-pop ring-1 ring-accent",
       )}
     >
       <div className="flex items-start justify-between gap-2">

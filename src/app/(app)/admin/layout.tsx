@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
 import { getActor } from "@/features/authentication/services/actor.service";
 import { hasCapability } from "@/features/admin/authz/capabilities";
 import { ADMIN_SECTIONS } from "@/features/admin/registry/admin-sections";
 import { AdminConsoleNav } from "@/features/admin/components/admin-console-nav";
+import { PageHeader } from "@/shared/components/ui/page-header";
+import { PageShell } from "@/shared/components/ui/page-shell";
 
 // The admin console shell (13_admin.md, ADR-0022 §3). Tabs come from the
 // section registry, filtered to the sections the actor's capabilities allow —
@@ -16,15 +19,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (allowedIds.length === 0) notFound();
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Admin</h1>
-        <p className="text-sm text-muted-foreground">
-          Organization control plane — settings, feature flags, and audit trail.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        icon={<ShieldCheck />}
+        title="Admin"
+        subtitle="Organization control plane — settings, feature flags, and audit trail."
+        className="mb-5"
+      />
       <AdminConsoleNav allowedIds={allowedIds} />
-      <div className="mt-6">{children}</div>
-    </div>
+      <div className="mt-5">{children}</div>
+    </PageShell>
   );
 }

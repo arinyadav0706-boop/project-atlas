@@ -29,17 +29,24 @@ export function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({ id: columnDroppableId(status) });
 
   return (
-    <div className="flex min-w-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-1">
+    // A white column containing a recessed well, so the stack reads as three
+    // depths: tinted canvas → white column → grey well with raised cards in it.
+    // The column was `bg-surface/50` — within a percent of the new canvas
+    // colour, so on a tinted page the columns simply disappeared and the board
+    // became four floating stacks of cards.
+    <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-background p-2 shadow-card">
+      <div className="mb-2 flex items-center gap-2 px-2 pt-1">
         <StatusDot status={status} />
-        <h2 className="text-sm font-medium text-foreground">{statusLabel(status)}</h2>
-        <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
+        <h2 className="text-[13px] font-semibold text-foreground">{statusLabel(status)}</h2>
+        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {count}
+        </span>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-24 flex-1 flex-col gap-2 rounded-xl border border-border/60 bg-surface/50 p-2 transition-colors",
-          isOver && "border-accent/50 bg-accent/5",
+          "flex min-h-24 flex-1 flex-col gap-2 rounded-xl bg-muted/50 p-2 transition-colors",
+          isOver && "bg-accent/10 ring-1 ring-inset ring-accent/40",
         )}
       >
         <SortableContext

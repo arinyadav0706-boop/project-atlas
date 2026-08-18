@@ -38,7 +38,7 @@ export function FeatureFlagsView({ initialFlags }: { initialFlags: FeatureFlagDt
         Toggle capabilities for this organization without a deploy. Flags gate
         behavior only — never permissions or data access.
       </p>
-      <ul className="divide-y divide-border rounded-lg border border-border">
+      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background shadow-card">
         {flags.map((flag) => (
           <li key={flag.key} className="flex items-center gap-4 px-4 py-3">
             <div className="min-w-0 flex-1">

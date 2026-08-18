@@ -99,7 +99,7 @@ export function UsersView({
         <InviteUserDialog onInvited={() => router.refresh()} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-background shadow-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">

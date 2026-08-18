@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Camera, Trash2 } from "lucide-react";
+import { Camera, Trash2, UserRound } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   ALLOWED_AVATAR_MIME_TYPES,
@@ -143,16 +144,18 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Profile</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage how you appear across EAGLES and your personal preferences.
-        </p>
-      </div>
+    // `max-w-2xl` is kept rather than moved to PageShell: this is a single
+    // column of form fields, and a form stretched to a dashboard's width is
+    // harder to fill in, not easier.
+    <div className="mx-auto max-w-2xl space-y-5">
+      <PageHeader
+        icon={<UserRound />}
+        title="Profile"
+        subtitle="Manage how you appear across EAGLES and your personal preferences."
+      />
 
       {/* Identity */}
-      <section className="rounded-xl border border-border bg-surface/20 p-5">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-card">
         <h2 className="text-sm font-semibold text-foreground">Identity</h2>
         <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-start">
           <div className="flex flex-col items-center gap-2">
@@ -227,7 +230,7 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
       </section>
 
       {/* Notifications */}
-      <section className="rounded-xl border border-border bg-surface/20 p-5">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-card">
         <h2 className="text-sm font-semibold text-foreground">Notifications</h2>
         <div className="mt-4 flex items-center justify-between gap-4">
           <div>
@@ -247,7 +250,7 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
       </section>
 
       {/* Access (read-only) */}
-      <section className="rounded-xl border border-border bg-surface/20 p-5">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-card">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Access</h2>
           <Badge variant={profile.orgRole === "ADMIN" ? "accent" : "outline"}>
@@ -263,7 +266,7 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
               You’re not a member of any projects yet.
             </p>
           ) : (
-            <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+            <ul className="divide-y divide-border rounded-xl border border-border">
               {profile.memberships.map((m) => (
                 <li key={m.projectId} className="flex items-center justify-between gap-3 px-3 py-2.5">
                   <Link

@@ -9,6 +9,8 @@ import { cn } from "@/shared/lib/utils";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Button } from "@/shared/components/ui/button";
+import { Card } from "@/shared/components/ui/card";
+import { EmptyState as EmptyStatePrimitive } from "@/shared/components/ui/empty-state";
 import { CreateIssueDialog } from "./create-issue-dialog";
 import {
   IssueTypeIcon,
@@ -163,21 +165,37 @@ export function IssuesView({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
+        {/* Same segmented control as Workload's By person / By week: white
+            card, hairline border, `shadow-card`, `rounded-xl` outer with
+            `rounded-[0.6rem]` thumbs. It was `bg-surface` + `shadow-sm`, a
+            fourth elevation nobody defined. */}
+        <div
+          className="flex items-center gap-0.5 rounded-xl border border-border bg-background p-0.5 shadow-card"
+          role="group"
+          aria-label="Filter by status"
+        >
           {FILTERS.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
+              aria-pressed={filter === f.value}
               className={cn(
-                "rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors",
+                "rounded-[0.6rem] px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 filter === f.value
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               {f.label}
               {liveCounts[f.value] ? (
-                <span className="ml-1.5 text-xs text-muted-foreground">
+                <span
+                  className={cn(
+                    "ml-1.5 text-xs tabular-nums",
+                    filter === f.value
+                      ? "text-accent-foreground/70"
+                      : "text-muted-foreground",
+                  )}
+                >
                   {liveCounts[f.value]}
                 </span>
               ) : null}
@@ -205,9 +223,13 @@ export function IssuesView({
         />
       ) : (
         <>
+          {/* A `Card`, so the issue table is the same surface as every panel
+              on Home and Workload — hairline border, `rounded-2xl`,
+              `shadow-card`. It was a bare bordered box with no elevation, which
+              on the tinted canvas read as an outline rather than a sheet. */}
           <ul
             className={cn(
-              "overflow-hidden rounded-xl border border-border transition-opacity",
+              "overflow-hidden rounded-2xl border border-border bg-background shadow-card transition-opacity",
               loading && "opacity-60",
             )}
           >
@@ -265,7 +287,7 @@ export function IssuesView({
           </ul>
 
           {items.length === 0 && !loading && (
-            <p className="rounded-xl border border-dashed border-border bg-surface px-6 py-12 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-border bg-background px-6 py-12 text-center text-sm text-muted-foreground shadow-card">
               No issues in {statusLabel(filter as IssueStatusDto)}.
             </p>
           )}
@@ -306,31 +328,26 @@ function EmptyState({
   onCreated: (issue: IssueDetailDto) => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="flex flex-col items-center rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center"
-    >
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-        <ListTodo className="h-6 w-6 text-accent" strokeWidth={1.8} />
-      </div>
-      <h2 className="text-[15px] font-semibold text-foreground">No issues yet</h2>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        {canWrite
-          ? "Create the first issue to start tracking work in this project."
-          : "There's nothing here yet. A project member can add the first issue."}
-      </p>
-      {canWrite && (
-        <div className="mt-6">
-          <CreateIssueDialog
-            projectId={projectId}
-            members={members}
-            canSetEstimate={canSetEstimate}
-            onCreated={onCreated}
-          />
-        </div>
-      )}
-    </motion.div>
+    <Card>
+      <EmptyStatePrimitive
+        icon={<ListTodo />}
+        title="No issues yet"
+        description={
+          canWrite
+            ? "Create the first issue to start tracking work in this project."
+            : "There's nothing here yet. A project member can add the first issue."
+        }
+        action={
+          canWrite && (
+            <CreateIssueDialog
+              projectId={projectId}
+              members={members}
+              canSetEstimate={canSetEstimate}
+              onCreated={onCreated}
+            />
+          )
+        }
+      />
+    </Card>
   );
 }

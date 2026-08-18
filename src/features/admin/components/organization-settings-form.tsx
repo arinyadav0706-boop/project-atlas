@@ -48,7 +48,17 @@ export function OrganizationSettingsForm({ settings }: { settings: OrgSettingsDt
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-md space-y-5">
+    // On a card, not bare on the canvas: with the page body tinted, a naked
+    // form read as inputs floating on grey with nothing holding them.
+    //
+    // The CARD is bounded, not the fields inside it. Constraining the fields
+    // instead left a full-width card two-thirds empty — the same dead space
+    // that made the first Home pass look unfinished. A short form gets a small
+    // card.
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="max-w-xl space-y-5 rounded-2xl border border-border bg-background p-5 shadow-card"
+    >
       <div>
         <Label htmlFor="org-name">Organization name</Label>
         <Input
