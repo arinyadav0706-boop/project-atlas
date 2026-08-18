@@ -1,6 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { IssueTypeIcon, PriorityIcon, StatusDot, statusLabel } from "@/features/issues/components/issue-meta";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  IssueTypeIcon,
+  PriorityIcon,
+  StatusDot,
+  statusLabel,
+} from "@/features/issues/components/issue-meta";
 import { cn } from "@/shared/lib/utils";
 import type { CrossProjectIssueDto } from "@/features/saved-views/types/saved-view.types";
 
@@ -16,55 +24,83 @@ function formatDue(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function CrossProjectRow({ item }: { item: CrossProjectIssueDto }) {
+export function CrossProjectRow({
+  item,
+  selected,
+  onToggle,
+}: {
+  item: CrossProjectIssueDto;
+  selected: boolean;
+  onToggle: (id: string, shiftKey: boolean) => void;
+}) {
   return (
-    <Link
-      href={`/projects/${item.projectId}/issues/${item.id}`}
-      className="flex items-center gap-3 bg-background px-4 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+    // The checkbox sits OUTSIDE the link. Nesting an interactive control inside
+    // an anchor means every click on it also navigates, and the row is the
+    // whole point of the link.
+    <div
+      className={cn(
+        "flex items-center gap-3 transition-colors",
+        selected ? "bg-accent/[0.06]" : "bg-background hover:bg-muted/60",
+      )}
     >
-      <IssueTypeIcon type={item.type} />
+      <span className="pl-4">
+        <Checkbox
+          checked={selected}
+          aria-label={`Select ${item.key}`}
+          onClick={(e) => onToggle(item.id, e.shiftKey)}
+        />
+      </span>
 
-      <span
-        className="w-14 shrink-0 truncate rounded bg-muted px-1.5 py-0.5 text-center font-mono text-[10px] font-medium text-muted-foreground"
-        title={item.projectName}
+      <Link
+        href={`/projects/${item.projectId}/issues/${item.id}`}
+        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pr-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
       >
-        {item.projectKey}
-      </span>
+        <IssueTypeIcon type={item.type} />
 
-      <span className="w-20 shrink-0 truncate font-mono text-xs text-muted-foreground">
-        {item.key}
-      </span>
-
-      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
-
-      {item.dueDate && (
         <span
-          className={cn(
-            "hidden w-14 shrink-0 text-right text-xs font-medium tabular-nums sm:block",
-            item.dueOverdue ? "text-destructive" : "text-muted-foreground",
-          )}
+          className="w-14 shrink-0 truncate rounded bg-muted px-1.5 py-0.5 text-center font-mono text-[10px] font-medium text-muted-foreground"
+          title={item.projectName}
         >
-          {formatDue(item.dueDate)}
+          {item.projectKey}
         </span>
-      )}
 
-      <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-        <StatusDot status={item.status} />
-        {statusLabel(item.status)}
-      </span>
+        <span className="w-20 shrink-0 truncate font-mono text-xs text-muted-foreground">
+          {item.key}
+        </span>
 
-      <PriorityIcon priority={item.priority} />
+        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+          {item.title}
+        </span>
 
-      {item.assignee ? (
-        <Avatar className="h-6 w-6 shrink-0">
-          <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt="" />
-          <AvatarFallback className="text-[10px]">
-            {item.assignee.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-      ) : (
-        <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" />
-      )}
-    </Link>
+        {item.dueDate && (
+          <span
+            className={cn(
+              "hidden w-14 shrink-0 text-right text-xs font-medium tabular-nums sm:block",
+              item.dueOverdue ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {formatDue(item.dueDate)}
+          </span>
+        )}
+
+        <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+          <StatusDot status={item.status} />
+          {statusLabel(item.status)}
+        </span>
+
+        <PriorityIcon priority={item.priority} />
+
+        {item.assignee ? (
+          <Avatar className="h-6 w-6 shrink-0">
+            <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt="" />
+            <AvatarFallback className="text-[10px]">
+              {item.assignee.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" />
+        )}
+      </Link>
+    </div>
   );
 }

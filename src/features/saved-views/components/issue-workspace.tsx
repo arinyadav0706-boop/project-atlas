@@ -12,6 +12,10 @@ import { PageShell } from "@/shared/components/ui/page-shell";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { issueFilterToQuery } from "@/features/issues/lib/issue-filter-query";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
+import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
+import type { BulkEditResultDto } from "@/features/bulk-edit/types/bulk-edit.types";
 import { CrossProjectRow } from "@/features/saved-views/components/cross-project-row";
 import {
   IssueFilterBar,
@@ -68,6 +72,11 @@ export function IssueWorkspace({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [applying, setApplying] = useState(false);
+  // Anchor for shift-click range selection — the behaviour every list of
+  // checkboxes is expected to have and nobody mentions until it is missing.
+  const lastClicked = useRef<string | null>(null);
 
   // Guards against a slow first request landing after a faster later one and
   // overwriting it — the classic filter-as-you-type race.
@@ -83,6 +92,9 @@ export function IssueWorkspace({
       if (id !== requestId.current) return;
       setResult(data);
       setItems(data.items);
+      // A new question means a new list; carrying the selection would leave
+      // ids checked that are no longer on screen.
+      setSelected(new Set());
     } catch (error) {
       if (id !== requestId.current) return;
       toast.error(error instanceof Error ? error.message : "Couldn't load issues.");
@@ -115,6 +127,73 @@ export function IssueWorkspace({
       setLoadingMore(false);
     }
   }, [filter, sort, result]);
+
+  const toggleRow = useCallback(
+    (id: string, shiftKey: boolean) => {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        const anchor = lastClicked.current;
+        if (shiftKey && anchor && anchor !== id) {
+          const from = items.findIndex((i) => i.id === anchor);
+          const to = items.findIndex((i) => i.id === id);
+          if (from !== -1 && to !== -1) {
+            const [lo, hi] = from < to ? [from, to] : [to, from];
+            // The anchor's resulting state drives the range, matching how
+            // file managers and every mail client behave.
+            const turnOn = !prev.has(id);
+            for (const item of items.slice(lo, hi + 1)) {
+              if (turnOn) next.add(item.id);
+              else next.delete(item.id);
+            }
+            return next;
+          }
+        }
+        if (!next.delete(id)) next.add(id);
+        return next;
+      });
+      lastClicked.current = id;
+    },
+    [items],
+  );
+
+  const allOnPageSelected = items.length > 0 && items.every((i) => selected.has(i.id));
+
+  async function applyBulk(changes: BulkEditChanges) {
+    setApplying(true);
+    try {
+      const res = await apiRequest<BulkEditResultDto>("/api/issues/bulk", {
+        method: "POST",
+        body: { issueIds: [...selected], changes },
+      });
+
+      const parts = [`${res.updated} updated`];
+      if (res.skipped > 0) parts.push(`${res.skipped} unchanged`);
+      if (res.failed > 0) parts.push(`${res.failed} couldn't be changed`);
+
+      if (res.failed > 0) {
+        // The failures are the point. Naming the first few (and why) is what
+        // stops someone repeating the same impossible edit.
+        const reasons = res.results
+          .filter((r) => r.outcome === "failed")
+          .slice(0, 3)
+          .map((r) => `${r.key ?? "?"}: ${r.message ?? r.reason}`)
+          .join("\n");
+        toast.warning(parts.join(" · "), { description: reasons, duration: 10000 });
+      } else {
+        toast.success(parts.join(" · "));
+      }
+      if (res.notificationsSuppressed) {
+        toast.info("Some assignment notifications were skipped to avoid flooding inboxes.");
+      }
+
+      setSelected(new Set());
+      await run(filter, sort);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't apply the changes.");
+    } finally {
+      setApplying(false);
+    }
+  }
 
   function selectView(view: SavedViewDto) {
     setActiveView(view);
@@ -218,14 +297,44 @@ export function IssueWorkspace({
           ) : (
             <>
               <Card className="overflow-hidden">
+                {/* Selects this PAGE, and says so. Deliberately not "select all
+                    3,600 matching" — see ADR-0041 §3. */}
+                <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
+                  <Checkbox
+                    checked={allOnPageSelected}
+                    aria-label="Select all issues on this page"
+                    onClick={() =>
+                      setSelected(allOnPageSelected ? new Set() : new Set(items.map((i) => i.id)))
+                    }
+                  />
+                  <span className="text-[12px] text-muted-foreground">
+                    {selected.size > 0
+                      ? `${selected.size} selected`
+                      : `Select all ${items.length} on this page`}
+                  </span>
+                </div>
                 <ul className="divide-y divide-border">
                   {items.map((item) => (
                     <li key={item.id}>
-                      <CrossProjectRow item={item} />
+                      <CrossProjectRow
+                        item={item}
+                        selected={selected.has(item.id)}
+                        onToggle={toggleRow}
+                      />
                     </li>
                   ))}
                 </ul>
               </Card>
+
+              {selected.size > 0 && (
+                <BulkActionBar
+                  count={selected.size}
+                  currentUserId={currentUserId}
+                  applying={applying}
+                  onApply={applyBulk}
+                  onClear={() => setSelected(new Set())}
+                />
+              )}
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">

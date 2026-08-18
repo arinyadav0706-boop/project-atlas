@@ -1444,6 +1444,45 @@ paths:
         "403": { description: Not the owner }
         "404": { description: Not found }
 
+  # ── Bulk edit (ADR-0041, 23_bulk_edit.md) ──────────────────────────────────
+  /issues/bulk:
+    post:
+      tags: [bulk-edit]
+      summary: Apply one change set across a selection of issues
+      description: >
+        Best effort. Each issue is evaluated independently and reported as
+        updated / skipped / failed (ADR-0041 §1). A 200 means the REQUEST was
+        well-formed — it does not mean every issue changed. Permission, the
+        workflow, and project membership are re-checked per issue, server-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [issueIds, changes]
+              properties:
+                issueIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string }
+                changes:
+                  type: object
+                  description: At least one property must be present (BR-2).
+                  properties:
+                    status: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE] }
+                    priority: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] }
+                    assigneeId: { type: string, nullable: true, description: "null clears (BR-10)." }
+                    sprintId: { type: string, nullable: true, description: "null removes from sprint." }
+      responses:
+        "200":
+          description: Applied. Check the per-issue outcomes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkEditResultDto" }
+        "422": { description: No ids, more than 100, or no fields to change }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1509,6 +1548,29 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    BulkEditResultDto:
+      type: object
+      required: [updated, skipped, failed, results, notificationsSuppressed]
+      properties:
+        updated: { type: integer }
+        skipped: { type: integer, description: Already held every requested value (BR-7). }
+        failed: { type: integer }
+        notificationsSuppressed:
+          type: boolean
+          description: Assignment notifications hit the per-operation cap (BR-13).
+        results:
+          type: array
+          items:
+            type: object
+            required: [issueId, key, outcome]
+            properties:
+              issueId: { type: string }
+              key: { type: string, nullable: true }
+              outcome: { type: string, enum: [updated, skipped, failed] }
+              reason:
+                type: string
+                enum: [not_found, forbidden, archived, invalid_transition, invalid_assignee, invalid_sprint, conflict]
+              message: { type: string }
     SavedViewDto:
       type: object
       required: [id, name, filter, sort, visibility, owner, canEdit, filterCorrupt]
