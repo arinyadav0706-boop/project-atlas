@@ -19,9 +19,11 @@ integrations — **additively** (ADR-0016). No speculative tables ship now; the 
 ## MVP scope
 
 Post a comment on an issue · list comments (chronological, paginated) · edit your own ·
-delete your own (a `LEAD` may delete any). Body is Markdown-lite, rendered **escaped**
-(no raw HTML — XSS boundary). **v2.0 (ADR-0038) adds @mentions, participant
-notifications, and one-level reply threads with their own overflow page.** Deferred
+delete your own (a `LEAD` may delete any). Body is a **bounded Markdown subset**,
+rendered to React elements — never to an HTML string, so no raw HTML can survive
+(XSS boundary). **v2.0 (ADR-0038) adds @mentions, participant notifications, and
+one-level reply threads with their own overflow page.** **v2.1 (CMT-4) renders the
+Markdown that `bodyFormat` had been promising since the table was created.** Deferred
 (see Future Scope): reactions, comment attachments, rich-text editor, revision history,
 visibility, real-time, AI summaries.
 

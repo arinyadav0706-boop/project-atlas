@@ -113,9 +113,13 @@ export function CommentRow({
             </div>
           </div>
         ) : (
+          // `whitespace-pre-wrap` moved inside: the body is a stack of blocks
+          // now, and preserving whitespace on the container would render the
+          // newlines BETWEEN blocks as blank lines on top of their margins.
+          // Paragraphs and quotes keep it individually.
           <CommentBody
             body={comment.body}
-            className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground"
+            className="mt-1 break-words text-sm text-foreground"
           />
         )}
 
