@@ -49,5 +49,5 @@ export const BacklogRepository = {
 function backlogWhere(projectId: string, filter: IssueFilter) {
   // Spread first, then pin `sprintId: null` — so even a caller that passes one
   // cannot widen the backlog into the sprinted set.
-  return { ...issueFilterWhere(projectId, filter), sprintId: null };
+  return { ...issueFilterWhere({ projectIds: [projectId] }, filter), sprintId: null };
 }

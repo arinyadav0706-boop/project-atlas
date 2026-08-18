@@ -1,4 +1,8 @@
-import type { IssuePriorityDto, IssueTypeDto } from "@/features/issues/types/issue.types";
+import type {
+  IssuePriorityDto,
+  IssueStatusDto,
+  IssueTypeDto,
+} from "@/features/issues/types/issue.types";
 
 // The composable issue filter, shared by every project-level list view
 // (ADR-0008, generalised). Any subset may be empty; present fields combine
@@ -11,6 +15,36 @@ import type { IssuePriorityDto, IssueTypeDto } from "@/features/issues/types/iss
 // (`issue-filter.repository.ts`), so two surfaces cannot drift into disagreeing
 // about what "assignee = X" means.
 export interface IssueFilter {
+  /**
+   * Narrows a cross-project query to these projects (ADR-0040 §1).
+   *
+   * It is NOT the query's scope. The service resolves what the viewer may see
+   * from membership and intersects; a project named here that the viewer
+   * cannot access is dropped. Project-scoped surfaces (Board, Backlog) ignore
+   * this field — their project comes from the route.
+   */
+  projectIds?: string[];
+  /**
+   * Board expresses status as columns and Backlog ignores it, which is why the
+   * shared filter did not need it until a flat cross-project list existed.
+   */
+  status?: IssueStatusDto;
+  /**
+   * Everything except DONE.
+   *
+   * "Open" is the single most-asked question in a tracker and cannot be spelled
+   * with `status`, which holds one value. It also makes the Workload banner's
+   * link mean what the banner says: that sentence counts OPEN unestimated
+   * issues, and without this the link showed finished ones too.
+   *
+   * Ignored when `status` is set — the specific answer wins over the coarse one.
+   */
+  openOnly?: boolean;
+  /**
+   * Tri-state. `false` is "nobody has estimated this" — the query behind
+   * Workload's estimate-coverage banner (UI-6).
+   */
+  hasEstimate?: boolean;
   sprintId?: string;
   epicId?: string;
   assigneeId?: string;

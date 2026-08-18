@@ -140,6 +140,7 @@ model Organization {
 
   users        User[]
   projects     Project[]
+  savedViews   SavedView[]
   labels       Label[]
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
@@ -151,15 +152,15 @@ model Organization {
 // The people axis (ADR-0031, docs/02_Modules/20_teams.md): a reporting team with
 // an optional manager and optional parent (nesting). Orthogonal to ProjectMember.
 model Team {
-  id             String       @id @default(cuid())
+  id             String           @id @default(cuid())
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization     @relation(fields: [organizationId], references: [id])
   name           String
   managerId      String?
-  manager        User?        @relation("TeamManager", fields: [managerId], references: [id])
+  manager        User?            @relation("TeamManager", fields: [managerId], references: [id])
   parentTeamId   String?
-  parentTeam     Team?        @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
-  childTeams     Team[]       @relation("TeamHierarchy")
+  parentTeam     Team?            @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  childTeams     Team[]           @relation("TeamHierarchy")
   memberships    TeamMembership[]
 
   createdAt DateTime  @default(now())
@@ -213,17 +214,18 @@ model User {
 
   authAccounts       AuthAccount[]
   projectMemberships ProjectMember[]
-  assignedIssues     Issue[]         @relation("IssueAssignee")
-  reportedIssues     Issue[]         @relation("IssueReporter")
-  ledComponents      Component[]     @relation("ComponentLead")
+  assignedIssues     Issue[]          @relation("IssueAssignee")
+  reportedIssues     Issue[]          @relation("IssueReporter")
+  ledComponents      Component[]      @relation("ComponentLead")
   comments           Comment[]
   commentMentions    CommentMention[]
   attachments        Attachment[]
   notifications      Notification[]
   recentItems        RecentItem[]
   favorites          Favorite[]
-  workLogs           WorkLog[]       @relation("WorkLogUser")
-  managedTeams       Team[]          @relation("TeamManager")
+  workLogs           WorkLog[]        @relation("WorkLogUser")
+  savedViews         SavedView[]      @relation("SavedViewOwner")
+  managedTeams       Team[]           @relation("TeamManager")
   teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
 
   @@index([organizationId])
@@ -340,25 +342,25 @@ model Sprint {
 }
 
 model Issue {
-  id          String        @id @default(cuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id])
-  key         String
-  type        IssueType
-  title       String
-  description String?
-  status      IssueStatus   @default(TODO)
-  priority    IssuePriority @default(MEDIUM)
-  assigneeId  String?
-  assignee    User?         @relation("IssueAssignee", fields: [assigneeId], references: [id])
-  reporterId  String
-  reporter    User          @relation("IssueReporter", fields: [reporterId], references: [id])
-  sprintId    String?
-  sprint      Sprint?       @relation(fields: [sprintId], references: [id])
-  epicId      String?
-  epic        Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
-  children    Issue[]       @relation("EpicChildren")
-  storyPoints Int?
+  id              String        @id @default(cuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id])
+  key             String
+  type            IssueType
+  title           String
+  description     String?
+  status          IssueStatus   @default(TODO)
+  priority        IssuePriority @default(MEDIUM)
+  assigneeId      String?
+  assignee        User?         @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  reporterId      String
+  reporter        User          @relation("IssueReporter", fields: [reporterId], references: [id])
+  sprintId        String?
+  sprint          Sprint?       @relation(fields: [sprintId], references: [id])
+  epicId          String?
+  epic            Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
+  children        Issue[]       @relation("EpicChildren")
+  storyPoints     Int?
   // String fractional rank (LexoRank-style, base-62) for board/backlog order.
   // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
   // (ADR-0009). Ordering space is per (projectId, status) column.
@@ -366,13 +368,13 @@ model Issue {
   // 20260720000000_rank_collation — the base-62 keys only sort correctly under
   // byte order. Prisma can't express collation in-schema, so it lives in that
   // migration and Prisma leaves it untouched. See 06_Portability_Boundary.md.
-  rank        String
+  rank            String
   // Optimistic concurrency control (ADR-0011). Every mutation increments this;
   // a conditional write (WHERE version = expected) detects a lost update — two
   // people changing the same card — and rejects the stale one instead of
   // silently overwriting. O(1) per write, no locks; scales to any user count.
-  version     Int           @default(0)
-  dueDate     DateTime?
+  version         Int           @default(0)
+  dueDate         DateTime?
   // Original effort estimate in MINUTES (ADR-0030, time-tracking feature). Owned
   // by the time-tracking service, not the issue-edit path; not OCC-bound.
   estimateMinutes Int?
@@ -682,4 +684,51 @@ model FeatureFlag {
 
   @@unique([organizationId, key])
   @@map("feature_flags")
+}
+
+// ── Saved views (ADR-0040, docs/02_Modules/22_saved_views.md) ────────────────
+
+enum SavedViewVisibility {
+  PRIVATE
+  SHARED
+}
+
+enum SavedViewSort {
+  UPDATED_DESC
+  UPDATED_ASC
+  CREATED_DESC
+  CREATED_ASC
+  DUE_DATE_ASC
+  DUE_DATE_DESC
+  PRIORITY_DESC
+  PRIORITY_ASC
+  KEY_ASC
+}
+
+model SavedView {
+  id             String              @id @default(cuid())
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  ownerId        String
+  owner          User                @relation("SavedViewOwner", fields: [ownerId], references: [id])
+  name           String
+  /// A validated IssueFilter (ADR-0040 §3). JSON so that adding a filter field
+  /// needs no migration; parsed with the same Zod schema as the query string on
+  /// both write and read, so the shape is still enforced — just not by Postgres.
+  filter         Json
+  sort           SavedViewSort       @default(UPDATED_DESC)
+  visibility     SavedViewVisibility @default(PRIVATE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  // BR-10 in the database rather than a check-then-insert, which races.
+  @@unique([ownerId, name])
+  // The list query: everything in my org that is shared, plus my own.
+  @@index([organizationId, visibility, deletedAt])
+  @@index([ownerId, deletedAt])
+  @@map("saved_views")
 }

@@ -1,4 +1,5 @@
-import { Activity, Clock, FolderOpen, Info, Users } from "lucide-react";
+import Link from "next/link";
+import { Activity, ArrowRight, Clock, FolderOpen, Info, Users } from "lucide-react";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { hours } from "@/features/workload/components/status-meta";
 import type { WorkloadTotalsDto } from "@/features/workload/types/workload.types";
@@ -42,10 +43,15 @@ export function WorkloadSummary({ totals }: { totals: WorkloadTotalsDto }) {
  * this line is a floor, not a measurement, and the banner is where the page
  * says so.
  *
- * The mockup ends this banner with a "View unestimated issues" link. There is
- * nowhere honest to send it — issues are listed per project, and no list
- * supports a "has no estimate" filter — so it ships without one rather than
- * with a link that goes somewhere unrelated. Backlog UI-6.
+ * The mockup's "View unestimated issues" link now exists (UI-6, closed by
+ * ADR-0040). It shipped without one for two passes because there was nowhere
+ * honest to send it: issues were listed per project and no list could express
+ * "has no estimate". /issues is cross-project and `hasEstimate=false` is a real
+ * filter, so the link goes somewhere true rather than somewhere adjacent.
+ *
+ * `openOnly=true` rides along because this sentence counts OPEN issues. Without
+ * it the link showed finished work too, and the destination quietly disagreed
+ * with the number that sent you there.
  */
 export function EstimateCoverageBanner({ totals }: { totals: WorkloadTotalsDto }) {
   if (totals.unestimated === 0) return null;
@@ -53,12 +59,19 @@ export function EstimateCoverageBanner({ totals }: { totals: WorkloadTotalsDto }
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-accent/20 bg-accent/[0.06] px-4 py-3">
       <Info className="mt-px h-4 w-4 shrink-0 text-accent" aria-hidden />
-      <p className="text-[13px] leading-relaxed text-foreground">
+      <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground">
         <span className="font-medium">
           {totals.unestimated} of these {totals.openIssues} open issues have no estimate
         </span>
         , so the figures below understate the real load.
       </p>
+      <Link
+        href="/issues?hasEstimate=false&openOnly=true"
+        className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        View unestimated
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
     </div>
   );
 }

@@ -9,13 +9,42 @@ import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 // one change here plus one control in the shared filter bar, and the two
 // surfaces cannot disagree about what a filter means.
 
+/**
+ * The projects this query may read.
+ *
+ * Resolved by the SERVICE from the viewer's membership and then intersected
+ * with any `filter.projectIds` (ADR-0040 §1). It is passed in rather than read
+ * off the filter on purpose: a saved view is shared between people, and the
+ * rows it returns must depend on who is looking, not on what was saved.
+ * `filter.projectIds` is deliberately ignored here.
+ */
+export interface IssueQueryScope {
+  projectIds: string[];
+}
+
 export function issueFilterWhere(
-  projectId: string,
+  scope: IssueQueryScope,
   filter: IssueFilter,
 ): Prisma.IssueWhereInput {
   return {
-    projectId,
+    // A single-project surface passes one id; `in` with one element plans the
+    // same as equality, so Board and Backlog lose nothing by sharing this.
+    projectId: { in: scope.projectIds },
     deletedAt: null,
+    // `status` beats `openOnly`: asking for "In Review" is a narrower question
+    // than "not done", and applying both would be redundant at best.
+    ...(filter.status
+      ? { status: filter.status }
+      : filter.openOnly
+        ? { status: { not: "DONE" as const } }
+        : {}),
+    // Tri-state: absent means "don't care", which is why this tests against
+    // undefined rather than truthiness.
+    ...(filter.hasEstimate === undefined
+      ? {}
+      : filter.hasEstimate
+        ? { estimateMinutes: { not: null } }
+        : { estimateMinutes: null }),
     ...(filter.assigneeId ? { assigneeId: filter.assigneeId } : {}),
     ...(filter.type ? { type: filter.type } : {}),
     ...(filter.priority ? { priority: filter.priority } : {}),
@@ -39,6 +68,10 @@ export function issueFilterWhere(
 /** True when the filter would narrow anything — drives the "Clear" affordance. */
 export function isIssueFilterActive(filter: IssueFilter): boolean {
   return (
+    (filter.projectIds?.length ?? 0) > 0 ||
+    filter.status !== undefined ||
+    filter.openOnly === true ||
+    filter.hasEstimate !== undefined ||
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
     filter.priority !== undefined ||

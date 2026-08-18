@@ -1332,6 +1332,118 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CycleTimeReport" }
 
+  # ── Saved views + cross-project issues (ADR-0040, 22_saved_views.md) ────────
+  /issues:
+    get:
+      tags: [saved-views]
+      summary: Cross-project issue list (22_saved_views.md BR-1)
+      description: >
+        Project scope is NOT a parameter. It is resolved server-side from the
+        caller's project membership (org admins get their whole org);
+        `projectIds` can only NARROW that set, never widen it (ADR-0040 §1).
+      parameters:
+        - { in: query, name: projectIds, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { in: query, name: status, schema: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE] } }
+        - { in: query, name: openOnly, schema: { type: boolean }, description: "Everything except DONE. Ignored when `status` is set." }
+        - { in: query, name: hasEstimate, schema: { type: boolean }, description: "false = no estimate recorded (the Workload banner's link)." }
+        - { in: query, name: assigneeId, schema: { type: string } }
+        - { in: query, name: type, schema: { type: string, enum: [EPIC, STORY, TASK, BUG] } }
+        - { in: query, name: priority, schema: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] } }
+        - { in: query, name: sprintId, schema: { type: string } }
+        - { in: query, name: epicId, schema: { type: string } }
+        - { in: query, name: labelIds, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { in: query, name: componentIds, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { in: query, name: search, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: sort, schema: { type: string, enum: [UPDATED_DESC, UPDATED_ASC, CREATED_DESC, CREATED_ASC, DUE_DATE_ASC, DUE_DATE_DESC, PRIORITY_DESC, PRIORITY_ASC, KEY_ASC] } }
+        - { in: query, name: cursor, schema: { type: string } }
+        - { in: query, name: take, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor, projectsInScope]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/IssueListItemDto" } }
+                  nextCursor: { type: string, nullable: true }
+                  projectsInScope:
+                    type: integer
+                    description: >
+                      Projects actually read after the membership intersection.
+                      Lets the UI tell "nothing matches" from "you are in none
+                      of this view's projects" (BR-3).
+
+  /saved-views:
+    get:
+      tags: [saved-views]
+      summary: The caller's views plus every SHARED view in their org (BR-4)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SavedViewDto" } }
+    post:
+      tags: [saved-views]
+      summary: Create a saved view
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, filter]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                filter: { type: object, description: "An IssueFilter; validated with the same schema as the query string (BR-7)." }
+                sort: { type: string, default: UPDATED_DESC }
+                visibility: { type: string, enum: [PRIVATE, SHARED], default: PRIVATE }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedViewDto" }
+        "409": { description: The caller already has a view with that name (BR-10) }
+
+  /saved-views/{viewId}:
+    patch:
+      tags: [saved-views]
+      summary: Rename / re-filter / re-share. Owner or org admin only (BR-5)
+      parameters:
+        - { in: path, name: viewId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                filter: { type: object }
+                sort: { type: string }
+                visibility: { type: string, enum: [PRIVATE, SHARED] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedViewDto" }
+        "403": { description: Shared views are readable by all, writable only by their owner }
+        "404": { description: Not found, or someone else's PRIVATE view }
+        "409": { description: Duplicate name (BR-10) }
+    delete:
+      tags: [saved-views]
+      summary: Soft delete a saved view (BR-11)
+      parameters:
+        - { in: path, name: viewId, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1397,6 +1509,29 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    SavedViewDto:
+      type: object
+      required: [id, name, filter, sort, visibility, owner, canEdit, filterCorrupt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        filter: { type: object, description: "IssueFilter, re-validated on read." }
+        sort: { type: string }
+        visibility: { type: string, enum: [PRIVATE, SHARED] }
+        owner:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        canEdit:
+          type: boolean
+          description: Caller owns it, or is an org admin (BR-5).
+        filterCorrupt:
+          type: boolean
+          description: >
+            The stored filter failed validation and was replaced with an empty
+            one. The view still opens and says so, rather than 500ing (BR-8).
     Error:
       type: object
       properties:

@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, FolderKanban, ShieldCheck, Network, GaugeCircle, ChevronRight } from "lucide-react";
+import {
+  House,
+  FolderKanban,
+  ListFilter,
+  ShieldCheck,
+  Network,
+  GaugeCircle,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LogoMark } from "@/shared/components/brand/logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
@@ -13,6 +21,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avat
 const navItems = [
   { href: "/home", label: "Home", icon: House },
   { href: "/projects", label: "Projects", icon: FolderKanban },
+  // Cross-project issues + saved views (ADR-0040). Everyone gets it: the
+  // service scopes results to the caller's own memberships, so there is
+  // nothing to gate — an unaffiliated user simply sees an empty list.
+  { href: "/issues", label: "Issues", icon: ListFilter },
 ];
 
 export function Sidebar({

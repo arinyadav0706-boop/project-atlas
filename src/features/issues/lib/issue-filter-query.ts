@@ -8,6 +8,12 @@ import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 // Array fields are emitted as repeated params, which is what `getAll` reads.
 export function issueFilterToQuery(filter: IssueFilter): URLSearchParams {
   const q = new URLSearchParams();
+  // Written as the literal strings the parser recognises; `false` is a real
+  // constraint here ("unestimated"), so this cannot be a truthiness check.
+  if (filter.hasEstimate !== undefined) q.set("hasEstimate", String(filter.hasEstimate));
+  if (filter.status) q.set("status", filter.status);
+  else if (filter.openOnly) q.set("openOnly", "true");
+  for (const id of filter.projectIds ?? []) q.append("projectIds", id);
   if (filter.sprintId) q.set("sprintId", filter.sprintId);
   if (filter.epicId) q.set("epicId", filter.epicId);
   if (filter.assigneeId) q.set("assigneeId", filter.assigneeId);

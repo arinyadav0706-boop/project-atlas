@@ -21,7 +21,7 @@ export const BoardRepository = {
   // stable order (ranks are unique per column but this stays safe regardless).
   columnItems(projectId: string, status: IssueStatus, filter: BoardFilter) {
     return prisma.issue.findMany({
-      where: { ...issueFilterWhere(projectId, filter), status },
+      where: { ...issueFilterWhere({ projectIds: [projectId] }, filter), status },
       select: issueCardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
       take: BOARD_COLUMN_LIMIT,
@@ -33,7 +33,7 @@ export const BoardRepository = {
   countByStatus(projectId: string, filter: BoardFilter) {
     return prisma.issue.groupBy({
       by: ["status"],
-      where: issueFilterWhere(projectId, filter),
+      where: issueFilterWhere({ projectIds: [projectId] }, filter),
       _count: { _all: true },
     });
   },
