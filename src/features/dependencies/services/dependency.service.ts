@@ -6,6 +6,7 @@ import {
   ValidationError,
 } from "@/shared/lib/errors";
 import { canWriteContent, elevate } from "@/features/authorization/permission";
+import { logSwallowed } from "@/shared/lib/swallowed";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { SavedViewRepository } from "@/features/saved-views/repositories/saved-view.repository";
@@ -215,7 +216,7 @@ export const DependencyService = {
         });
       }
     } catch (error) {
-      console.error("Unblock notification failed", error);
+      logSwallowed("dependencies.notifyUnblocked", error);
     }
   },
 

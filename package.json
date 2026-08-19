@@ -13,6 +13,7 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "db:check-drift": "prisma migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma --shadow-database-url \"$SHADOW_DATABASE_URL\" --exit-code",
     "prisma:seed": "tsx prisma/seed.ts",
     "seed:verus": "tsx prisma/verus/seed.ts",
     "seed:verus:teardown": "tsx prisma/verus/teardown.ts",

@@ -14,6 +14,39 @@ documented standards and actual coverage.
 | **API contract** | Route handlers, mocked services | Auth guard, Zod validation, status codes, error→HTTP mapping | `src/app/api/**/route.test.ts` |
 | **Integration** | **Real Postgres** | Actual SQL: pagination, soft-delete, key-gen under concurrency, tenant isolation | `src/**/*.integration.test.ts` |
 | **E2E** | Real browser + app | Full user flows across UI+API+DB | `e2e/**` (Playwright) |
+| **Schema drift** | Migrations replayed on a shadow DB | `schema.prisma` and `prisma/migrations` describe the SAME database | `npm run db:check-drift` |
+
+## The drift check, and why it exists
+
+`npm run db:check-drift` replays `prisma/migrations` onto a shadow database and
+compares the result against `schema.prisma`. Any difference exits 2 and fails
+CI.
+
+It exists because of a real defect (backlog DEP-7). A notification enum value
+was added to `schema.prisma` and the migration was never generated, so Postgres
+had no such value and every insert threw. Three things then hid it:
+
+1. The notification fan-out is **best-effort by design** (ADR-0019) and
+   swallowed the error, because a failed notification must not fail a user's
+   action.
+2. The unit test **mocked the service and asserted it had been called** — which
+   passes whether or not the write behind the call works.
+3. Nothing in CI touched a database at all.
+
+The feature shipped dead and looked fine. The drift check is the cheap guard
+that catches the whole class: no test can tell you that the model a developer
+reads and the tables production runs are different objects, but replaying the
+migrations can.
+
+Two other guards close the rest of the gap: an integration test asserts the
+Prisma enum and the Postgres enum are **exactly equal in both directions** (a
+value in code but not the DB is that bug; a value in the DB but not in code is a
+dead branch), and every deliberately-swallowed error now goes through
+`logSwallowed()` so a silent outage is greppable as `[swallowed] <operation>`.
+
+**The general rule this leaves behind: a best-effort path that swallows errors
+needs its effect asserted from outside itself, because by construction nothing
+inside it will ever complain.**
 
 ## Running the tests
 
@@ -21,6 +54,10 @@ documented standards and actual coverage.
 npm test               # unit + RBAC + API contract (no infra needed)
 npm run typecheck      # tsc --noEmit
 npm run lint
+
+# Schema/migration drift — needs an empty shadow database:
+export SHADOW_DATABASE_URL="postgresql://postgres@localhost:5433/eagles_shadow?schema=public"
+npm run db:check-drift
 
 # Integration — needs a throwaway Postgres:
 docker run --rm -d --name eagles-test-db -e POSTGRES_PASSWORD=postgres \

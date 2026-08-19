@@ -28,8 +28,73 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # Test suite is introduced alongside the first feature module in
-      # Phase 4 (docs/08_Testing/README.md) — this step is a no-op today
-      # rather than a placeholder that silently passes forever.
-      - name: Test
-        run: npm test --if-present
+      - name: Unit tests
+        run: npm test
+
+  # Everything that needs a real Postgres. Split into its own job so the fast
+  # feedback above is not held up by booting a database — and so this one's
+  # failures are unambiguous when it does fail.
+  #
+  # This job exists because of a real defect (backlog DEP-7): a notification
+  # enum value was added to schema.prisma but never migrated, so every insert
+  # threw. The fan-out is best-effort by design and swallowed it, unit tests
+  # mocked the service and asserted only that it was CALLED, and nothing in CI
+  # touched a database. The bug shipped invisible. Both steps below exist to
+  # make that class of failure loud.
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: eagles
+          POSTGRES_PASSWORD: eagles
+          POSTGRES_DB: eagles
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgresql://eagles:eagles@localhost:5432/eagles?schema=public"
+      DIRECT_URL: "postgresql://eagles:eagles@localhost:5432/eagles?schema=public"
+      SHADOW_DATABASE_URL: "postgresql://eagles:eagles@localhost:5432/eagles_shadow?schema=public"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "ci-only-secret"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Create shadow database
+        run: PGPASSWORD=eagles createdb -h localhost -U eagles eagles_shadow
+
+      # THE guard. `migrate diff` replays prisma/migrations onto the shadow
+      # database and compares the result with schema.prisma. They must be
+      # identical: a schema edit with no migration behind it — a new column, a
+      # new enum value, a dropped index — exits 2 and fails the build.
+      #
+      # Cheap, and it catches the whole class rather than the one instance:
+      # nothing else in the pipeline can tell that the model a developer reads
+      # and the tables production runs are different objects.
+      - name: Check for schema/migration drift
+        run: npm run db:check-drift
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      # Asserts EFFECTS, not calls. A unit test that mocks a service and checks
+      # it was invoked passes whether or not the write behind it works.
+      - name: Integration tests
+        run: npm run test:integration

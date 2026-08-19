@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Actor } from "@/shared/types/actor";
 import { NotFoundError } from "@/shared/lib/errors";
+import { logSwallowed } from "@/shared/lib/swallowed";
 import { AdminCapability, requireCapability } from "@/features/admin/authz/capabilities";
 import { AuditAction } from "@/features/admin/audit/audit-actions";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
@@ -28,10 +29,7 @@ async function safeListOverrides(organizationId: string) {
   try {
     return await FeatureFlagRepository.listOverrides(organizationId);
   } catch (error) {
-    console.error(
-      "[feature-flags] override lookup failed; falling back to registry defaults",
-      error,
-    );
+    logSwallowed("featureFlags.listOverrides(using registry defaults)", error);
     return [];
   }
 }

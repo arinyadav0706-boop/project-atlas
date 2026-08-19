@@ -1,4 +1,5 @@
 import { NotificationRepository } from "@/features/notifications/repositories/notification.repository";
+import { logSwallowed } from "@/shared/lib/swallowed";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import type { Actor } from "@/shared/types/actor";
 import type {
@@ -70,7 +71,9 @@ async function notify(
     );
   } catch (error) {
     // Best-effort (ADR-0019): a notification failure must not break the action.
-    console.error("Notification fan-out failed", error);
+    // Named and prefixed so a silent outage is greppable — this exact path ate
+    // a broken enum insert for a whole commit (backlog DEP-7).
+    logSwallowed(`notifications.fanOut(${input.type})`, error);
   }
 }
 

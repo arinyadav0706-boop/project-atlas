@@ -1,5 +1,6 @@
 import { RateLimitError } from "@/shared/lib/errors";
 import { RateLimitRepository } from "@/shared/lib/rate-limit.repository";
+import { logSwallowed } from "@/shared/lib/swallowed";
 
 // DB-backed fixed-window rate limiter (ADR-0028). Portable (plain Postgres via
 // Prisma), shared across serverless instances, atomic under concurrency.
@@ -66,7 +67,10 @@ export async function checkRateLimit(
       retryAfterSec,
     };
   } catch (error) {
-    console.error("Rate limiter store error — failing open", error);
+    // Failing OPEN is the deliberate choice — a broken limiter must not lock
+    // everyone out — which is exactly why it needs to be loud. A rate limiter
+    // silently passing everything is indistinguishable from one that works.
+    logSwallowed("rateLimit.check(failing open)", error);
     return { allowed: true, remaining: rule.limit, retryAfterSec: 0 };
   }
 }
