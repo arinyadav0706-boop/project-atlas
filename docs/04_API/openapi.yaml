@@ -30,6 +30,7 @@ tags:
   - name: search
   - name: reports
   - name: dashboard
+  - name: dashboards
 
 paths:
   /users/me:
@@ -1643,6 +1644,138 @@ paths:
         "403": { description: Needs project MEMBER or above }
         "422": { description: A value that does not fit its field's type, or a field not enabled here }
 
+  # ── Dashboards (ADR-0044, 25_dashboards.md) ────────────────────────────────
+  /dashboards:
+    get:
+      tags: [dashboards]
+      summary: The caller's dashboards plus every SHARED one in their org (BR-2)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/DashboardSummaryDto" } }
+    post:
+      tags: [dashboards]
+      summary: Create a dashboard
+      description: >
+        No capability gate — dashboards are everyone's (ADR-0044 §1). The
+        security boundary is the per-viewer project scope applied to widget
+        data, not who may own a dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                visibility: { type: string, enum: [PRIVATE, SHARED], default: PRIVATE }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardDto" }
+        "409": { description: The caller already has a dashboard with that name (BR-9) }
+
+  /dashboards/{dashboardId}:
+    parameters:
+      - { in: path, name: dashboardId, required: true, schema: { type: string } }
+    get:
+      tags: [dashboards]
+      summary: One dashboard with its widget CONFIG (no data — see /data)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardDto" }
+        "404": { description: Not found, or someone else's PRIVATE dashboard }
+    patch:
+      tags: [dashboards]
+      summary: Rename / re-share. Owner or org admin only (BR-2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                visibility: { type: string, enum: [PRIVATE, SHARED] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardDto" }
+        "403": { description: Shared dashboards are readable by all, writable only by their owner }
+        "404": { description: Not found, or someone else's PRIVATE dashboard }
+        "409": { description: Duplicate name (BR-9) }
+    delete:
+      tags: [dashboards]
+      summary: Soft delete a dashboard (BR-11)
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Not the owner }
+        "404": { description: Not found }
+
+  /dashboards/{dashboardId}/widgets:
+    put:
+      tags: [dashboards]
+      summary: Replace the whole widget set, and its order
+      description: >
+        The array's order IS the display order, so there is no separate reorder
+        call that could fall out of step with it. A widget carrying an `id` this
+        dashboard owns is updated in place; anything else is created, and
+        widgets absent from the payload are deleted.
+      parameters:
+        - { in: path, name: dashboardId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [widgets]
+              properties:
+                widgets:
+                  type: array
+                  maxItems: 12
+                  items: { $ref: "#/components/schemas/DashboardWidgetInput" }
+      responses:
+        "200":
+          description: The re-read dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardDto" }
+        "403": { description: Not the owner }
+        "409": { description: More than 12 widgets (BR-7) }
+        "422": { description: A BREAKDOWN with no dimension, or a dimension on a non-BREAKDOWN }
+
+  /dashboards/{dashboardId}/data:
+    get:
+      tags: [dashboards]
+      summary: Every widget's data, in ONE response (ADR-0044 §5)
+      description: >
+        Batched deliberately. The viewer's project scope is the expensive read
+        and is resolved once for the whole dashboard; twelve widgets fetching
+        independently would repeat it twelve times. Results are scoped to the
+        VIEWER, so two people opening the same shared dashboard can legitimately
+        see different numbers (BR-3).
+      parameters:
+        - { in: path, name: dashboardId, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: One entry per widget, in the dashboard's order
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/WidgetDataDto" } }
+        "404": { description: Not found, or someone else's PRIVATE dashboard }
+
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1777,6 +1910,113 @@ components:
                 type: string
                 enum: [not_found, forbidden, archived, invalid_transition, invalid_assignee, invalid_sprint, conflict]
               message: { type: string }
+    DashboardSummaryDto:
+      type: object
+      required: [id, name, visibility, owner, canEdit, widgetCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        visibility: { type: string, enum: [PRIVATE, SHARED] }
+        owner:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        canEdit:
+          type: boolean
+          description: Caller owns it, or is an org admin (BR-2).
+        widgetCount: { type: integer }
+
+    DashboardDto:
+      type: object
+      required: [id, name, visibility, owner, canEdit, widgets]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        visibility: { type: string, enum: [PRIVATE, SHARED] }
+        owner:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        canEdit: { type: boolean }
+        widgets: { type: array, items: { $ref: "#/components/schemas/DashboardWidgetDto" } }
+
+    DashboardWidgetInput:
+      type: object
+      required: [title, type]
+      properties:
+        id:
+          type: string
+          description: >
+            Present when editing an existing widget. An id this dashboard does
+            not own is treated as a create, never as an update.
+        title: { type: string, minLength: 1, maxLength: 60 }
+        type: { type: string, enum: [STAT, BREAKDOWN, LIST] }
+        width: { type: string, enum: [SMALL, MEDIUM, LARGE], default: SMALL }
+        filter:
+          type: object
+          description: >
+            An IssueFilter, same schema as the /issues query string. Ignored —
+            and not stored — when `savedViewId` is set (BR-4).
+        savedViewId: { type: string, nullable: true }
+        breakdownBy:
+          type: string
+          nullable: true
+          enum: [STATUS, PRIORITY, TYPE, ASSIGNEE]
+          description: Required for BREAKDOWN, refused otherwise.
+
+    DashboardWidgetDto:
+      allOf:
+        - $ref: "#/components/schemas/DashboardWidgetInput"
+        - type: object
+          required: [id, position, filterCorrupt]
+          properties:
+            position: { type: integer }
+            savedViewName:
+              type: string
+              nullable: true
+              description: Resolved for display, so a widget can name its source.
+            filterCorrupt:
+              type: boolean
+              description: >
+                The stored filter failed validation and was replaced with an
+                empty one; the widget renders with a warning rather than
+                breaking the dashboard (BR-12).
+
+    WidgetDataDto:
+      type: object
+      required: [widgetId, kind]
+      description: >
+        A discriminated union on `kind`. `unavailable` is what a widget
+        referencing a saved view the viewer cannot see returns (BR-5) — never a
+        fallback to unfiltered, which would be a WIDER set than intended.
+      properties:
+        widgetId: { type: string }
+        kind: { type: string, enum: [stat, breakdown, list, unavailable] }
+        projectsInScope:
+          type: integer
+          description: Projects actually read after the membership intersection.
+        count: { type: integer, description: "kind=stat" }
+        slices:
+          type: array
+          description: "kind=breakdown. At most 12, plus an \"Other\" remainder (BR-10)."
+          items:
+            type: object
+            required: [key, label, count]
+            properties:
+              key: { type: string }
+              label: { type: string }
+              count: { type: integer }
+        items:
+          type: array
+          description: "kind=list. At most 10 rows (BR-10)."
+          items: { $ref: "#/components/schemas/IssueListItemDto" }
+        total: { type: integer, description: "kind=breakdown|list — everything matching, not just what is shown." }
+        reason: { type: string, description: "kind=unavailable — why, in words a reader can act on." }
+
     SavedViewDto:
       type: object
       required: [id, name, filter, sort, visibility, owner, canEdit, filterCorrupt]

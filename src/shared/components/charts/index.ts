@@ -40,6 +40,12 @@ export {
   type CapacityReference,
 } from "./options/capacity-bars-option";
 export {
+  categoryBarsOption,
+  categoryBarsSummary,
+  categoryBarsHeight,
+  type CategoryBar,
+} from "./options/category-bars-option";
+export {
   burndownLineOption,
   burndownSummary,
   burndownDayLabel,

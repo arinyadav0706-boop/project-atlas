@@ -142,6 +142,7 @@ model Organization {
   projects     Project[]
   savedViews   SavedView[]
   customFields CustomFieldDefinition[]
+  dashboards   Dashboard[]
   labels       Label[]
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
@@ -226,6 +227,7 @@ model User {
   favorites          Favorite[]
   workLogs           WorkLog[]        @relation("WorkLogUser")
   savedViews         SavedView[]      @relation("SavedViewOwner")
+  dashboards         Dashboard[]      @relation("DashboardOwner")
   managedTeams       Team[]           @relation("TeamManager")
   teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
 
@@ -728,6 +730,8 @@ model SavedView {
   updatedBy String?
   deletedAt DateTime?
 
+  widgets DashboardWidget[]
+
   // BR-10 in the database rather than a check-then-insert, which races.
   @@unique([ownerId, name])
   // The list query: everything in my org that is shared, plus my own.
@@ -844,4 +848,81 @@ model CustomFieldValue {
   @@unique([issueId, fieldId])
   @@index([fieldId])
   @@map("custom_field_values")
+}
+
+// ── Dashboards (ADR-0044, docs/02_Modules/25_dashboards.md) ─────────────────
+
+enum DashboardVisibility {
+  PRIVATE
+  SHARED
+}
+
+enum DashboardWidgetType {
+  STAT
+  BREAKDOWN
+  LIST
+}
+
+enum DashboardWidgetWidth {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum DashboardBreakdownBy {
+  STATUS
+  PRIORITY
+  TYPE
+  ASSIGNEE
+}
+
+/// Anyone's, not the admin's (ADR-0044 §1): no capability gates this, and
+/// there is deliberately no org-wide default dashboard.
+model Dashboard {
+  id             String              @id @default(cuid())
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  ownerId        String
+  owner          User                @relation("DashboardOwner", fields: [ownerId], references: [id])
+  name           String
+  visibility     DashboardVisibility @default(PRIVATE)
+
+  widgets DashboardWidget[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([ownerId, name])
+  @@index([organizationId, visibility, deletedAt])
+  @@map("dashboards")
+}
+
+/// One lens on the issue query. It is a QUERY, not a stored result — nothing
+/// here caches numbers, so a widget can never drift from the data.
+model DashboardWidget {
+  id          String               @id @default(cuid())
+  dashboardId String
+  dashboard   Dashboard            @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  title       String
+  type        DashboardWidgetType
+  width       DashboardWidgetWidth @default(SMALL)
+  position    Int
+
+  /// Inline IssueFilter, re-validated on read. Ignored when `savedViewId` is
+  /// set — a widget carries one or the other, never both (BR-4).
+  filter      Json
+  /// Read LIVE when present, so editing the view updates every widget using it.
+  savedViewId String?
+  savedView   SavedView?            @relation(fields: [savedViewId], references: [id])
+  /// Required for BREAKDOWN, refused otherwise.
+  breakdownBy DashboardBreakdownBy?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dashboardId])
+  @@map("dashboard_widgets")
 }

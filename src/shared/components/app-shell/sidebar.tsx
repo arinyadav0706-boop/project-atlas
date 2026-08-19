@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   House,
   FolderKanban,
+  LayoutDashboard,
   ListFilter,
   ShieldCheck,
   Network,
@@ -25,6 +26,9 @@ const navItems = [
   // service scopes results to the caller's own memberships, so there is
   // nothing to gate — an unaffiliated user simply sees an empty list.
   { href: "/issues", label: "Issues", icon: ListFilter },
+  // Dashboards are everyone's, not an admin surface (ADR-0044 §1): the same
+  // per-viewer project scope applies, so there is nothing to gate.
+  { href: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
 ];
 
 export function Sidebar({
