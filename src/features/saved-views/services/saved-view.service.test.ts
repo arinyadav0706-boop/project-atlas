@@ -53,12 +53,16 @@ beforeEach(() => {
 describe("project scope", () => {
   it("queries only the projects the member belongs to", async () => {
     await SavedViewService.queryIssues(member, {});
-    expect(repo.listIssues).toHaveBeenCalledWith(
-      ["p1", "p2"],
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-    );
+    // Positional arg 0 is the resolved scope; the rest (filter, sort, paging,
+    // custom-field predicates) are asserted elsewhere.
+    expect(repo.listIssues.mock.calls[0]![0]).toEqual(["p1", "p2"]);
+  });
+
+  // ADR-0043 §2 — the client sends field ids, never types. With no predicates
+  // the resolver short-circuits and the definitions are never read.
+  it("passes an empty predicate list when the filter has no custom fields", async () => {
+    await SavedViewService.queryIssues(member, {});
+    expect(repo.listIssues.mock.calls[0]![4]).toEqual([]);
   });
 
   it("gives an org admin every project in their org", async () => {

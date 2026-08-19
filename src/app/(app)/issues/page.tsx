@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getActor } from "@/features/authentication/services/actor.service";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { SavedViewService } from "@/features/saved-views/services/saved-view.service";
+import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 import { parseIssueFilter } from "@/features/issues/validation/issue-filter.schemas";
 import { IssueWorkspace } from "@/features/saved-views/components/issue-workspace";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
@@ -22,9 +23,10 @@ export default async function IssuesPage({
   if (!actor) redirect("/sign-in");
 
   const params = await searchParams;
-  const [views, projects] = await Promise.all([
+  const [views, projects, filterableFields] = await Promise.all([
     SavedViewService.list(actor),
     ProjectService.list(actor),
+    CustomFieldService.filterable(actor),
   ]);
 
   return (
@@ -32,6 +34,7 @@ export default async function IssuesPage({
       projects={projects.map((p) => ({ id: p.id, key: p.key, name: p.name }))}
       currentUserId={actor.userId}
       initialViews={views}
+      filterableFields={filterableFields}
       initialFilter={parseFilterFromParams(params)}
     />
   );

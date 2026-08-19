@@ -16,6 +16,8 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
 import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { BulkEditResultDto } from "@/features/bulk-edit/types/bulk-edit.types";
+import { CustomFieldFilters } from "@/features/custom-fields/components/custom-field-filters";
+import type { CustomFieldDefinitionDto } from "@/features/custom-fields/types/custom-field.types";
 import { CrossProjectRow } from "@/features/saved-views/components/cross-project-row";
 import {
   IssueFilterBar,
@@ -54,11 +56,14 @@ export function IssueWorkspace({
   projects,
   currentUserId,
   initialViews,
+  filterableFields,
   initialFilter,
 }: {
   projects: ProjectOption[];
   currentUserId: string;
   initialViews: SavedViewDto[];
+  /** Fields at least one project enables — the ones worth offering (ADR-0043). */
+  filterableFields: CustomFieldDefinitionDto[];
   /** Parsed from the URL server-side, so a shared link opens filtered. */
   initialFilter: IssueFilter;
 }) {
@@ -256,6 +261,20 @@ export function IssueWorkspace({
             projects={projects}
             currentUserId={currentUserId}
             onChange={(next) => setFilter(next)}
+          />
+
+          {/* Custom-field predicates get their own row: each is a compound
+              control (field · operator · value) and mixing them into the fixed
+              filter bar would make both harder to read. */}
+          <CustomFieldFilters
+            fields={filterableFields}
+            predicates={filter.customFields ?? []}
+            onChange={(customFields) =>
+              setFilter({
+                ...filter,
+                customFields: customFields.length ? customFields : undefined,
+              })
+            }
           />
 
           {activeView?.filterCorrupt && (

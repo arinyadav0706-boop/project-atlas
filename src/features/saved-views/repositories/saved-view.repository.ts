@@ -3,6 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 import type { SavedViewSortDto } from "@/features/saved-views/types/saved-view.types";
+import type { ResolvedPredicate } from "@/features/custom-fields/lib/field-predicate";
 
 // Saved views + the cross-project issue query (ADR-0040). Prisma lives only in
 // `*.repository.ts` (Feature Architecture §4).
@@ -108,9 +109,10 @@ export const SavedViewRepository = {
     filter: IssueFilter,
     sort: SavedViewSortDto,
     page: { cursor?: string; take: number },
+    customFields: ResolvedPredicate[] = [],
   ) {
     return prisma.issue.findMany({
-      where: issueFilterWhere({ projectIds }, filter),
+      where: issueFilterWhere({ projectIds }, filter, customFields),
       select: crossProjectSelect,
       orderBy: orderFor(sort),
       take: page.take + 1,

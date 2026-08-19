@@ -14,6 +14,11 @@ import { CustomFieldRepository } from "@/features/custom-fields/repositories/cus
 import { coerceValue, readValue } from "@/features/custom-fields/lib/coerce-value";
 import type { StorableValue } from "@/features/custom-fields/lib/coerce-value";
 import { hasOptions } from "@/features/custom-fields/types/custom-field.types";
+import {
+  isOperatorAllowed,
+  type CustomFieldPredicate,
+  type ResolvedPredicate,
+} from "@/features/custom-fields/lib/field-predicate";
 import { MAX_FIELDS_PER_PROJECT } from "@/features/custom-fields/validation/custom-field.schemas";
 import type {
   CreateCustomFieldInput,
@@ -320,6 +325,48 @@ export const CustomFieldService = {
           (Array.isArray(raw) && raw.length === 0);
       })
       .map((r) => r.field.name);
+  },
+
+  /**
+   * Attach each predicate's declared TYPE from the definitions (ADR-0043 §2).
+   *
+   * This is the security boundary of custom-field filtering: the client sends a
+   * field id and an operator, never a type, so it cannot aim a NUMBER field at
+   * the text column or probe values across types.
+   *
+   * Anything unresolvable is DROPPED, not an error:
+   *   - a field id from another org, or one that no longer exists
+   *   - an operator the field's type does not support
+   * A saved view naming a field somebody has since deleted must still open
+   * (the same posture as a corrupt stored filter, ADR-0040 BR-8).
+   */
+  async resolvePredicates(
+    actor: Actor,
+    predicates: CustomFieldPredicate[] | undefined,
+  ): Promise<ResolvedPredicate[]> {
+    if (!predicates?.length) return [];
+    const definitions = await CustomFieldRepository.listDefinitions(actor.organizationId);
+    const typeById = new Map(definitions.map((d) => [d.id, d.type as CustomFieldTypeDto]));
+
+    return predicates.flatMap((p) => {
+      const type = typeById.get(p.fieldId);
+      if (!type) return [];
+      if (!isOperatorAllowed(type, p.op)) return [];
+      return [{ ...p, type }];
+    });
+  },
+
+  /**
+   * Fields a reader can usefully filter by: everything in the org's library
+   * that at least one project has enabled.
+   *
+   * Not gated on MANAGE_CUSTOM_FIELDS — that capability governs DEFINING a
+   * field, not filtering by one. A member who can see an issue's custom field
+   * must be able to filter on it, or the field is decoration.
+   */
+  async filterable(actor: Actor): Promise<CustomFieldDefinitionDto[]> {
+    const definitions = await CustomFieldRepository.listDefinitions(actor.organizationId);
+    return definitions.filter((d) => d._count.projects > 0).map(toDefinitionDto);
   },
 
   /** Project context + the caller's effective role, tenant-checked (F-1). */

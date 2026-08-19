@@ -7,6 +7,7 @@ import {
   SavedViewRepository,
 } from "@/features/saved-views/repositories/saved-view.repository";
 import { parseStoredFilter } from "@/features/saved-views/validation/saved-view.schemas";
+import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 import type {
   CreateSavedViewInput,
   UpdateSavedViewInput,
@@ -125,10 +126,13 @@ export const SavedViewService = {
       return { items: [], nextCursor: null, projectsInScope: 0 };
     }
 
+    // Types come from the definitions, never from the request (ADR-0043 §2).
+    const predicates = await CustomFieldService.resolvePredicates(actor, filter.customFields);
+
     const rows = await SavedViewRepository.listIssues(projectIds, filter, sort, {
       cursor: page.cursor,
       take,
-    });
+    }, predicates);
 
     // The repository fetched take+1 purely to answer "is there more".
     const hasMore = rows.length > take;

@@ -150,6 +150,43 @@ on update; options 0–100, label 1–60.
 shape is checked against the definition's type in the service (the schema cannot
 know the type from the payload alone).
 
+## 9. Filtering (v1.1, ADR-0043)
+
+`IssueFilter` gained one open-ended key, `customFields: CustomFieldPredicate[]`,
+where a predicate is `{ fieldId, op, value? }`. It is shared by the same builder
+Board, Backlog, the cross-project list and saved views already use — one filter
+language, not two.
+
+| # | Rule |
+|---|---|
+| BR-15 | A predicate carries a field id, never a type. The service resolves the type from the definitions; a client-supplied type could aim a NUMBER field at the text column. |
+| BR-16 | A predicate naming an unknown or deleted field is **dropped**, not an error — a saved view outliving one of its fields must still open. |
+| BR-17 | Operators are validated against the field's type. `contains` on a CHECKBOX is refused, not ignored. |
+| BR-18 | Predicates combine with AND, each as its own `some` clause. Merging them asks for one value row belonging to two fields, which is never true. |
+| BR-19 | `is_empty` is `none` — correct only because clearing deletes the row (BR-10). |
+| BR-20 | `eq` on a DATE means that **day** (a half-open range), not that instant; a stored timestamp is almost never midnight. |
+| BR-21 | At most 10 predicates per query — each is an EAV join. |
+| BR-22 | Filterable fields are those at least one project enables. Not gated on `MANAGE_CUSTOM_FIELDS`: that governs *defining* a field, not filtering by one. |
+
+**Operators by type**
+
+| Type | Operators |
+|---|---|
+| TEXT, URL | `eq`, `contains`, `is_empty`, `is_not_empty` |
+| NUMBER, DATE | `eq`, `gt`, `lt`, `is_empty`, `is_not_empty` |
+| CHECKBOX | `eq` (true/false), `is_empty`, `is_not_empty` |
+| SELECT, MULTI_SELECT, USER | `any_of`, `is_empty`, `is_not_empty` |
+
+**Wire format:** `?cf=<fieldId>:<op>[:<urlEncodedValue>]`, repeated. The value is
+percent-encoded because a URL field legitimately contains colons, and the parser
+splits on the first two only. A malformed `cf` is dropped, so a stale link opens
+the list unfiltered rather than 422ing.
+
+**Sorting by a custom field is not supported.** Prisma can order a to-many
+relation only by `_count` — verified against the generated client, not assumed.
+Supporting it means a raw-SQL path that duplicates the whole filter in SQL and
+must agree with the Prisma one forever. Deferred as **CF-5** (ADR-0043 §5).
+
 ## 8. Future Scope
 
 **CF-2: filter/sort/report on custom fields** — the significant one. Also:

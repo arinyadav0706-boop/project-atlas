@@ -5,6 +5,16 @@ import {
   issueType,
 } from "@/features/issues/validation/issue.schemas";
 import { MAX_ISSUE_SEARCH_LENGTH } from "@/features/issues/types/issue-filter.types";
+import { decodePredicate } from "@/features/custom-fields/lib/field-predicate";
+
+/** Bounded: each predicate is an EAV join, so this caps the joins per query. */
+export const MAX_CUSTOM_FIELD_PREDICATES = 10;
+
+const customFieldPredicate = z.object({
+  fieldId: z.string().trim().min(1),
+  op: z.enum(["eq", "contains", "gt", "lt", "any_of", "is_empty", "is_not_empty"]),
+  value: z.union([z.string(), z.array(z.string())]).optional(),
+});
 
 // One parser for the composable issue filter (ADR-0008), shared by every list
 // route. Empty/omitted fields drop out so the filter only ever carries active
@@ -29,6 +39,7 @@ export const issueFilterSchema = z.object({
   // `.trim().min(1)` is what makes `?search=` (blank) drop out rather than
   // filter every title against the empty string.
   search: z.string().trim().min(1).max(MAX_ISSUE_SEARCH_LENGTH).optional(),
+  customFields: z.array(customFieldPredicate).max(MAX_CUSTOM_FIELD_PREDICATES).optional(),
 });
 
 export type IssueFilterInput = z.infer<typeof issueFilterSchema>;
@@ -56,5 +67,15 @@ export function parseIssueFilter(q: URLSearchParams): IssueFilterInput {
     labelIds: labelIds.length ? labelIds : undefined,
     componentIds: componentIds.length ? componentIds : undefined,
     search: q.get("search") ?? undefined,
+    // `?cf=fieldId:op:value`, repeated. A malformed one is dropped rather than
+    // rejecting the whole request — a stale link should open unfiltered, not
+    // 422 (ADR-0043 §2).
+    customFields: (() => {
+      const parsed = q
+        .getAll("cf")
+        .map(decodePredicate)
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+      return parsed.length ? parsed : undefined;
+    })(),
   });
 }

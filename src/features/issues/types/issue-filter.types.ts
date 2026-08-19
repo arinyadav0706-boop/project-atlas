@@ -3,6 +3,7 @@ import type {
   IssueStatusDto,
   IssueTypeDto,
 } from "@/features/issues/types/issue.types";
+import type { CustomFieldPredicate } from "@/features/custom-fields/lib/field-predicate";
 
 // The composable issue filter, shared by every project-level list view
 // (ADR-0008, generalised). Any subset may be empty; present fields combine
@@ -54,6 +55,17 @@ export interface IssueFilter {
   componentIds?: string[];
   /** Case-insensitive substring of the title. */
   search?: string;
+  /**
+   * Custom-field predicates (ADR-0043). The open-ended part of an otherwise
+   * closed shape.
+   *
+   * A predicate carries a field id but NOT its type: the service resolves that
+   * from the definitions, because a client-supplied type could aim a NUMBER
+   * field at the text column. Predicates naming an unknown or deleted field are
+   * dropped rather than erroring, so a saved view outliving one of its fields
+   * still opens.
+   */
+  customFields?: CustomFieldPredicate[];
 }
 
 // Longest reasonable free-text query. Bounded so a filter can never become an

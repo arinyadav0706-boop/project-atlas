@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
+import type { ResolvedPredicate } from "@/features/custom-fields/lib/field-predicate";
+import { customFieldWhere } from "@/features/custom-fields/repositories/field-predicate.repository";
 
 // The single translation from `IssueFilter` to a Prisma `where` (ADR-0008).
 //
@@ -25,8 +27,18 @@ export interface IssueQueryScope {
 export function issueFilterWhere(
   scope: IssueQueryScope,
   filter: IssueFilter,
+  /**
+   * Custom-field predicates WITH their types already resolved by the service
+   * (ADR-0043 §2). Like `scope`, this is passed in rather than read off the
+   * filter: `filter.customFields` is untrusted and carries no type.
+   */
+  resolvedCustomFields: ResolvedPredicate[] = [],
 ): Prisma.IssueWhereInput {
+  const customFieldClauses = customFieldWhere(resolvedCustomFields);
   return {
+    // Each predicate is its OWN clause. Merging them would ask for one value
+    // row satisfying every condition, which across two fields is never true.
+    ...(customFieldClauses.length ? { AND: customFieldClauses } : {}),
     // A single-project surface passes one id; `in` with one element plans the
     // same as equality, so Board and Backlog lose nothing by sharing this.
     projectId: { in: scope.projectIds },
@@ -72,6 +84,7 @@ export function isIssueFilterActive(filter: IssueFilter): boolean {
     filter.status !== undefined ||
     filter.openOnly === true ||
     filter.hasEstimate !== undefined ||
+    (filter.customFields?.length ?? 0) > 0 ||
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
     filter.priority !== undefined ||

@@ -1,4 +1,5 @@
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
+import { encodePredicate } from "@/features/custom-fields/lib/field-predicate";
 
 // Serialises an `IssueFilter` back into the query string the routes parse
 // (`parseIssueFilter`). Kept beside the filter so the writer and the reader of
@@ -22,6 +23,7 @@ export function issueFilterToQuery(filter: IssueFilter): URLSearchParams {
   if (filter.search) q.set("search", filter.search);
   for (const id of filter.labelIds ?? []) q.append("labelIds", id);
   for (const id of filter.componentIds ?? []) q.append("componentIds", id);
+  for (const p of filter.customFields ?? []) q.append("cf", encodePredicate(p));
   return q;
 }
 
