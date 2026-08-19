@@ -29,6 +29,7 @@ import {
   statusLabel,
 } from "./issue-meta";
 import { EditIssueDialog } from "./edit-issue-dialog";
+import { IssueDescription } from "./issue-description";
 import { SubtaskPanel } from "./subtask-panel";
 import { ConvertIssueDialog } from "./convert-issue-dialog";
 import type {
@@ -115,17 +116,11 @@ export function IssueDetailView({
             {issue.title}
           </h1>
 
+          {/* Edited in place, not only through the rail's Edit dialog — an
+              empty description that reads "No description." with no control
+              beside it looks like a dead end rather than an invitation. */}
           <div className="mt-5">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Description
-            </h2>
-            {issue.description ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                {issue.description}
-              </p>
-            ) : (
-              <p className="text-sm italic text-muted-foreground">No description.</p>
-            )}
+            <IssueDescription issue={issue} />
           </div>
         </div>
 
@@ -138,6 +133,8 @@ export function IssueDetailView({
           <SubtaskPanel
             projectId={projectId}
             parentId={issue.id}
+            parentKey={issue.key}
+            members={members}
             subtasks={issue.subtasks}
             progress={issue.subtaskProgress}
             canEdit={issue.canEdit}

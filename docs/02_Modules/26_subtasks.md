@@ -87,9 +87,16 @@ The detail response (`GET /api/issues/{id}`) gains `parent`, `subtasks` and
   per subtask (type icon, key, title, assignee, status), and a one-line inline
   add. Inline, because "break this down" happens while reading the parent, and a
   modal for a one-field form is friction that stops people doing it.
+- **Add subtask, two ways.** The inline field for speed, and **More options**
+  beside it for the full form — description, assignee, priority, estimate —
+  carrying over whatever was already typed. A title is often not the whole
+  thought: "Write the migration" needs the paragraph saying *which* migration.
+  Quick-add alone left the only route to that a second trip through the Edit
+  dialog, which is not a route anybody finds.
 - **Subtask detail** — a parent breadcrumb above the title, so a subtask is
-  never a page you land on with no idea what it belongs to. Story points and
-  Epic are absent from the form, not disabled (BR-3, BR-6).
+  never a page you land on with no idea what it belongs to. The description is
+  edited **in place** like any other issue's (see `04_issues.md §5`). Story
+  points and Epic are absent from the form, not disabled (BR-3, BR-6).
 - **Board / cross-project list** — a subtask card carries its parent's key as a
   chip; without it a board of subtasks is a list of orphan sentences.
 - **Backlog** — subtasks do not appear (BR-5).

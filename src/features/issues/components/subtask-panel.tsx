@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, GitBranch, Plus } from "lucide-react";
+import { Check, ChevronDown, GitBranch, Plus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
@@ -19,6 +19,7 @@ import { cn } from "@/shared/lib/utils";
 import { allowedTransitions } from "@/features/issues/services/issue-workflow";
 import { StatusDot, statusLabel } from "@/features/issues/components/issue-meta";
 import { MAX_SUBTASKS_PER_PARENT } from "@/features/issues/validation/issue.schemas";
+import { CreateSubtaskDialog } from "@/features/issues/components/create-subtask-dialog";
 import type {
   IssueStatusDto,
   SubtaskDto,
@@ -35,12 +36,16 @@ import type {
 export function SubtaskPanel({
   projectId,
   parentId,
+  parentKey,
+  members,
   subtasks,
   progress,
   canEdit,
 }: {
   projectId: string;
   parentId: string;
+  parentKey: string;
+  members: { userId: string; name: string }[];
   subtasks: SubtaskDto[];
   progress: SubtaskProgressDto;
   canEdit: boolean;
@@ -48,6 +53,7 @@ export function SubtaskPanel({
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [fullFormOpen, setFullFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const atCap = subtasks.length >= MAX_SUBTASKS_PER_PARENT;
@@ -216,6 +222,18 @@ export function SubtaskPanel({
               <Plus className="h-3.5 w-3.5" />
               Add
             </Button>
+            {/* The full form, for when a title is not the whole thought —
+                a description, an owner, an estimate. Whatever is already typed
+                above carries into it, so switching costs nothing. */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setFullFormOpen(true)}
+              title="Add a subtask with a description, assignee and estimate"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              More options
+            </Button>
           </div>
         )
       ) : (
@@ -223,6 +241,16 @@ export function SubtaskPanel({
           <p className="text-sm italic text-muted-foreground">No subtasks.</p>
         )
       )}
+
+      <CreateSubtaskDialog
+        parentId={parentId}
+        parentKey={parentKey}
+        members={members}
+        open={fullFormOpen}
+        onOpenChange={setFullFormOpen}
+        initialTitle={title}
+        onCreated={() => setTitle("")}
+      />
     </div>
   );
 }

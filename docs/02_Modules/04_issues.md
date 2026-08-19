@@ -79,6 +79,15 @@ Board, Backlog, and the project header. Status changes in the panel use
 the same transition rules as drag-and-drop on the Board (single source of
 truth: `POST /issues/{id}/transition`).
 
+**The description is edited in place**, not only through the Edit dialog: an
+empty one renders as an "Add a description" control, a filled one is
+click-to-edit, ⌘↵ saves and Esc cancels. Version-checked like every other edit
+(ADR-0011), so a description written over a stale read is refused rather than
+overwriting someone else's. It was previously a static paragraph reading "No
+description." whose only editor lived in a modal in the rail — it worked, but
+nothing on the page said so, which made an editable field look like a dead end
+(backlog UI-11).
+
 ## Acceptance Criteria
 
 - Given a project with `issueKeyCounter = 5`, when a new issue is created,
