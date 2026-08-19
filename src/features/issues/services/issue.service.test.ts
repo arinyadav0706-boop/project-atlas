@@ -35,6 +35,16 @@ vi.mock("@/features/admin/services/audit-log.service", () => ({
 vi.mock("@/features/home/services/recent-item.service", () => ({
   RecentItemService: { record: vi.fn() },
 }));
+// Issue creation now consults custom fields for required-field enforcement
+// (ADR-0042 §4). Plain async stubs rather than `vi.fn().mockResolvedValue()`:
+// these suites call `vi.resetAllMocks()` in beforeEach, which strips a mock's
+// implementation and would leave `missingRequired` returning undefined.
+vi.mock("@/features/custom-fields/services/custom-field.service", () => ({
+  CustomFieldService: {
+    missingRequired: async () => [],
+    setForIssue: async () => [],
+  },
+}));
 vi.mock("@/features/notifications/services/notification.service", () => ({
   NotificationService: { issueAssigned: vi.fn(), issueStatusChanged: vi.fn(), issueCommented: vi.fn() },
 }));

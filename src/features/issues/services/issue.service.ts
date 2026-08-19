@@ -38,6 +38,7 @@ import type {
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
 import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
+import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
 // workflow are enforced here, server-side, per the actor's effective project
@@ -201,6 +202,19 @@ export const IssueService = {
     await validateAssignee(projectId, input.assigneeId);
     await validateEpic(projectId, input.epicId, { type: input.type });
 
+    // Required custom fields are enforced HERE and nowhere else (ADR-0042 §4):
+    // blocking edits instead would make every pre-existing issue unsavable the
+    // moment somebody adds a required field to an established project.
+    const missing = await CustomFieldService.missingRequired(
+      projectId,
+      input.customFields ?? {},
+    );
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} required on new issues in this project.`,
+      );
+    }
+
     const row = await IssueRepository.createWithKey({
       projectId,
       type: input.type,
@@ -215,6 +229,17 @@ export const IssueService = {
       estimateMinutes: input.estimateMinutes ?? null,
       creatorId: actor.userId,
     });
+    // After the issue exists, because a value row needs an issueId. A bad
+    // value throws and leaves the issue created — acceptable, and far better
+    // than the alternative of validating twice or wrapping the key generator
+    // in someone else's transaction.
+    if (input.customFields && Object.keys(input.customFields).length > 0) {
+      await CustomFieldService.setForIssue(
+        actor,
+        { id: row.id, projectId },
+        { values: input.customFields },
+      );
+    }
     await RecentItemService.record(actor, "ISSUE", row.id, "EDITED");
     // Notify the assignee if the issue was created already assigned (ADR-0019).
     await NotificationService.issueAssigned(actor, {

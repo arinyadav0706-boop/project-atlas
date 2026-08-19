@@ -15,6 +15,10 @@ export const AdminCapability = {
   // Teams & Hierarchy (module 20, ADR-0031) — create teams, assign managers,
   // manage membership.
   MANAGE_TEAMS: "MANAGE_TEAMS",
+  // Custom fields (module 24, ADR-0042) — the org-level field library. Note
+  // this governs the DEFINITIONS only; enabling a field on a project is a
+  // project-LEAD action, and setting a value is an ordinary issue edit.
+  MANAGE_CUSTOM_FIELDS: "MANAGE_CUSTOM_FIELDS",
 } as const;
 
 export type AdminCapability = (typeof AdminCapability)[keyof typeof AdminCapability];

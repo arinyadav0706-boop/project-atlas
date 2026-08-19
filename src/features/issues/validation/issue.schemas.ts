@@ -19,6 +19,11 @@ export const createIssueSchema = z.object({
   // Optional effort estimate in minutes (time tracking, ADR-0030). Server-side
   // this is LEAD-only — a non-lead who sends it is rejected (BR-5).
   estimateMinutes: z.number().int().min(0).max(100000).nullable().optional(),
+  // Custom field values, keyed by field id (ADR-0042). The value shapes cannot
+  // be checked here — they depend on each field's declared type — so this only
+  // carries them through to CustomFieldService, which validates against the
+  // definitions. Required fields are enforced at creation only (BR-11).
+  customFields: z.record(z.string().trim().min(1), z.unknown()).optional(),
 });
 
 // Optimistic concurrency (ADR-0011): the card version the client is editing

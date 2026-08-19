@@ -14,6 +14,8 @@ import { IssueClassification } from "@/features/issues/components/issue-classifi
 import { CommentsSection } from "@/features/comments/components/comments-section";
 import { AttachmentsSection } from "@/features/attachments/components/attachments-section";
 import { TimeTrackingPanel } from "@/features/time-tracking/components/time-tracking-panel";
+import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
+import { IssueCustomFields } from "@/features/custom-fields/components/issue-custom-fields";
 import { loadPageData } from "@/shared/lib/load-page-data";
 
 export default async function IssueDetailPage(props: {
@@ -33,6 +35,7 @@ export default async function IssueDetailPage(props: {
     issueLabels,
     issueComponents,
     timeTracking,
+    customFields,
   ] = await loadPageData(() =>
     Promise.all([
       IssueService.get(actor, params.issueId),
@@ -44,6 +47,7 @@ export default async function IssueDetailPage(props: {
       LabelService.listForIssue(actor, params.issueId),
       ComponentService.listForIssue(actor, params.issueId),
       WorkLogService.list(actor, params.issueId, {}),
+      CustomFieldService.forIssue(params.projectId, params.issueId),
     ]),
   );
 
@@ -61,6 +65,20 @@ export default async function IssueDetailPage(props: {
         issue={issue}
         members={members.map((m) => ({ userId: m.userId, name: m.name }))}
       />
+      {/* Custom fields sit between the built-in metadata and classification:
+          they are per-project extensions of the issue's own attributes, not
+          org-wide taxonomy like labels (24_custom_fields.md §5). Renders
+          nothing when the project enables none. */}
+      {customFields.length > 0 && (
+        <div className="mt-8 rounded-2xl border border-border bg-background p-5 shadow-card">
+          <h2 className="mb-4 text-sm font-semibold text-foreground">Details</h2>
+          <IssueCustomFields
+            issueId={params.issueId}
+            initial={customFields}
+            canEdit={issue.canEdit}
+          />
+        </div>
+      )}
       <div className="mt-8">
         <IssueClassification
           issueId={params.issueId}

@@ -1,4 +1,12 @@
-import { Building2, Flag, ScrollText, Users, Network, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  Flag,
+  ScrollText,
+  SlidersHorizontal,
+  Users,
+  Network,
+  type LucideIcon,
+} from "lucide-react";
 import { AdminCapability } from "@/features/admin/authz/capabilities";
 
 // The admin console's tabs are registry entries, not hardcoded markup
@@ -39,6 +47,14 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
     capability: AdminCapability.MANAGE_TEAMS,
     icon: Network,
     order: 18,
+  },
+  {
+    id: "custom-fields",
+    label: "Custom Fields",
+    href: "/admin/custom-fields",
+    capability: AdminCapability.MANAGE_CUSTOM_FIELDS,
+    icon: SlidersHorizontal,
+    order: 19,
   },
   {
     id: "feature-flags",

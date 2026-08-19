@@ -1483,6 +1483,166 @@ paths:
               schema: { $ref: "#/components/schemas/BulkEditResultDto" }
         "422": { description: No ids, more than 100, or no fields to change }
 
+  # ── Custom fields (ADR-0042, 24_custom_fields.md) ──────────────────────────
+  /admin/custom-fields:
+    get:
+      tags: [custom-fields]
+      summary: The organisation's field library (BR-4)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CustomFieldDefinitionDto" } }
+        "403": { description: Requires MANAGE_CUSTOM_FIELDS }
+    post:
+      tags: [custom-fields]
+      summary: Create a field definition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+                type:
+                  type: string
+                  enum: [TEXT, NUMBER, DATE, CHECKBOX, SELECT, MULTI_SELECT, USER, URL]
+                  description: Immutable after creation (BR-2).
+                description: { type: string, nullable: true, maxLength: 300 }
+                required: { type: boolean, default: false }
+                options:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [label]
+                    properties:
+                      label: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomFieldDefinitionDto" }
+        "409": { description: A field with that name already exists (case-insensitive, BR-1) }
+        "422": { description: A select with no options, or options on a non-select }
+
+  /admin/custom-fields/{fieldId}:
+    patch:
+      tags: [custom-fields]
+      summary: Rename, describe, toggle required, or edit options
+      description: >
+        `type` is not accepted — it is immutable (BR-2) and the schema rejects
+        it rather than ignoring it. Options carrying an `id` are updated in
+        place, which is what makes a rename preserve every value pointing at
+        them; options omitted are retired, not erased.
+      parameters:
+        - { in: path, name: fieldId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+                description: { type: string, nullable: true }
+                required: { type: boolean }
+                options:
+                  type: array
+                  items:
+                    type: object
+                    required: [label]
+                    properties:
+                      id: { type: string }
+                      label: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomFieldDefinitionDto" }
+        "422": { description: Includes a `type` change, which is refused }
+    delete:
+      tags: [custom-fields]
+      summary: Soft delete. Existing values are retained (BR-12).
+      parameters:
+        - { in: path, name: fieldId, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+
+  /projects/{projectId}/custom-fields:
+    get:
+      tags: [custom-fields]
+      summary: Fields enabled on this project, plus what else is available
+      parameters:
+        - { in: path, name: projectId, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectCustomFieldsDto" }
+    put:
+      tags: [custom-fields]
+      summary: Replace the enabled set and its order (project LEAD only, BR-6)
+      description: The array's order IS the display order — there is no separate reorder call.
+      parameters:
+        - { in: path, name: projectId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fieldIds]
+              properties:
+                fieldIds: { type: array, maxItems: 30, items: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectCustomFieldsDto" }
+        "403": { description: Only a project lead may change this }
+        "422": { description: Over the 30-field cap, or an unknown field id }
+
+  /issues/{issueId}/custom-fields:
+    put:
+      tags: [custom-fields]
+      summary: Set or clear custom field values on one issue
+      description: >
+        The whole batch is validated against each field's declared type before
+        anything is written — these are fields of one object, and a half-saved
+        form is worse than a rejected one. `null` or `""` clears a value, which
+        deletes the row (BR-10).
+      parameters:
+        - { in: path, name: issueId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  additionalProperties: true
+                  description: fieldId → value. Shape depends on the field's type.
+      responses:
+        "200":
+          description: The re-read field set for this issue
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/IssueCustomFieldDto" } }
+        "403": { description: Needs project MEMBER or above }
+        "422": { description: A value that does not fit its field's type, or a field not enabled here }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1548,6 +1708,52 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    CustomFieldDefinitionDto:
+      type: object
+      required: [id, name, type, description, required, options, projectCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [TEXT, NUMBER, DATE, CHECKBOX, SELECT, MULTI_SELECT, USER, URL] }
+        description: { type: string, nullable: true }
+        required: { type: boolean, description: Enforced on issue CREATE only (BR-11). }
+        projectCount: { type: integer, description: How many projects have enabled it. }
+        options:
+          type: array
+          items:
+            type: object
+            required: [id, label, position]
+            properties:
+              id: { type: string }
+              label: { type: string }
+              position: { type: integer }
+    ProjectCustomFieldsDto:
+      type: object
+      required: [enabled, available, canManage]
+      properties:
+        enabled: { type: array, items: { $ref: "#/components/schemas/CustomFieldDefinitionDto" } }
+        available: { type: array, items: { $ref: "#/components/schemas/CustomFieldDefinitionDto" } }
+        canManage: { type: boolean }
+    IssueCustomFieldDto:
+      type: object
+      required: [fieldId, name, type, description, required, options, value, user]
+      properties:
+        fieldId: { type: string }
+        name: { type: string }
+        type: { type: string }
+        description: { type: string, nullable: true }
+        required: { type: boolean }
+        options: { type: array, items: { type: object } }
+        value:
+          nullable: true
+          description: >
+            Normalised per type — string (TEXT/URL/SELECT option id/USER id),
+            number (NUMBER), ISO string (DATE), boolean (CHECKBOX), or an array
+            of option ids (MULTI_SELECT).
+        user:
+          type: object
+          nullable: true
+          description: Resolved for USER fields so a row renders without a second lookup.
     BulkEditResultDto:
       type: object
       required: [updated, skipped, failed, results, notificationsSuppressed]

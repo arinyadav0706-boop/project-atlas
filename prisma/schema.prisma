@@ -141,6 +141,7 @@ model Organization {
   users        User[]
   projects     Project[]
   savedViews   SavedView[]
+  customFields CustomFieldDefinition[]
   labels       Label[]
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
@@ -287,10 +288,11 @@ model Project {
   updatedBy String?
   deletedAt DateTime?
 
-  members    ProjectMember[]
-  sprints    Sprint[]
-  issues     Issue[]
-  components Component[]
+  members      ProjectMember[]
+  sprints      Sprint[]
+  issues       Issue[]
+  components   Component[]
+  customFields ProjectCustomField[]
 
   @@unique([organizationId, key])
   @@map("projects")
@@ -385,11 +387,12 @@ model Issue {
   updatedBy String?
   deletedAt DateTime?
 
-  comments    Comment[]
-  attachments Attachment[]
-  labels      IssueLabel[]
-  components  IssueComponent[]
-  workLogs    WorkLog[]
+  comments          Comment[]
+  attachments       Attachment[]
+  labels            IssueLabel[]
+  components        IssueComponent[]
+  workLogs          WorkLog[]
+  customFieldValues CustomFieldValue[]
 
   @@unique([projectId, key])
   // Covers the board/list query (filter by projectId[,status] + sort by rank)
@@ -731,4 +734,114 @@ model SavedView {
   @@index([organizationId, visibility, deletedAt])
   @@index([ownerId, deletedAt])
   @@map("saved_views")
+}
+
+// ── Custom fields (ADR-0042, docs/02_Modules/24_custom_fields.md) ────────────
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  CHECKBOX
+  SELECT
+  MULTI_SELECT
+  USER
+  URL
+}
+
+/// An org-level field definition. Projects opt in via ProjectCustomField —
+/// one definition per concept, so "Customer" means the same thing everywhere
+/// and stays reportable across projects (ADR-0042 §2).
+model CustomFieldDefinition {
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  name           String
+  /// Immutable after creation: changing it would reinterpret every stored
+  /// value. The API rejects a type change outright (BR-2).
+  type           CustomFieldType
+  description    String?
+  required       Boolean         @default(false)
+
+  options  CustomFieldOption[]
+  projects ProjectCustomField[]
+  values   CustomFieldValue[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([organizationId, deletedAt])
+  @@map("custom_field_definitions")
+}
+
+/// A SELECT / MULTI_SELECT choice. A row with an id, not a bare string, so
+/// renaming a label preserves every value pointing at it (ADR-0042 §5).
+model CustomFieldOption {
+  id       String                @id @default(cuid())
+  fieldId  String
+  field    CustomFieldDefinition @relation(fields: [fieldId], references: [id])
+  label    String
+  /// Explicit, so reordering does not depend on insertion order.
+  position Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([fieldId, deletedAt])
+  @@map("custom_field_options")
+}
+
+/// Which fields a project shows, and in what order (BR-5).
+model ProjectCustomField {
+  id        String                @id @default(cuid())
+  projectId String
+  project   Project               @relation(fields: [projectId], references: [id])
+  fieldId   String
+  field     CustomFieldDefinition @relation(fields: [fieldId], references: [id])
+  position  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, fieldId])
+  @@index([projectId])
+  @@map("project_custom_fields")
+}
+
+/// One row per (issue, field), with exactly one typed column populated.
+///
+/// Typed columns rather than a JSON blob: values are user data that has to
+/// outlive the field, be indexable, and keep referential integrity for select
+/// options (ADR-0042 §1). `Decimal` rather than `Float` because a custom number
+/// is as likely to be money as a count, and float rounding on money is a bug
+/// that only surfaces in a report months later.
+model CustomFieldValue {
+  id      String                @id @default(cuid())
+  issueId String
+  issue   Issue                 @relation(fields: [issueId], references: [id])
+  fieldId String
+  field   CustomFieldDefinition @relation(fields: [fieldId], references: [id])
+
+  valueText   String?
+  valueNumber Decimal?  @db.Decimal(18, 4)
+  valueDate   DateTime?
+  valueBool   Boolean?
+  valueUserId String?
+  /// SELECT holds one, MULTI_SELECT holds many. Bounded by the option cap, so
+  /// an array beats a third table and a third write per value.
+  optionIds   String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  /// Makes a write an upsert rather than a check-then-insert, which races.
+  @@unique([issueId, fieldId])
+  @@index([fieldId])
+  @@map("custom_field_values")
 }

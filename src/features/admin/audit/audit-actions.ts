@@ -15,6 +15,12 @@ export const AuditAction = {
   TEAM_DELETED: "TEAM_DELETED",
   TEAM_MEMBER_ADDED: "TEAM_MEMBER_ADDED",
   TEAM_MEMBER_REMOVED: "TEAM_MEMBER_REMOVED",
+  // Custom fields (24_custom_fields.md). Definitions are audited; individual
+  // VALUE changes are not — those are issue history, not control-plane
+  // changes, and one audit row per keystroke-saved field would drown the log.
+  CUSTOM_FIELD_CREATED: "CUSTOM_FIELD_CREATED",
+  CUSTOM_FIELD_UPDATED: "CUSTOM_FIELD_UPDATED",
+  CUSTOM_FIELD_DELETED: "CUSTOM_FIELD_DELETED",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
