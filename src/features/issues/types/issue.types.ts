@@ -1,3 +1,5 @@
+import type { IssueLinkDto } from "@/features/dependencies/types/dependency.types";
+
 // DTOs returned to the client — never the raw Prisma model.
 
 export type IssueTypeDto = "EPIC" | "STORY" | "TASK" | "BUG" | "SUBTASK";
@@ -75,6 +77,14 @@ export interface IssueListItemDto {
    */
   parentKey?: string;
   parentId?: string | null;
+  /**
+   * How many unfinished issues are blocking this one (ADR-0046 §7).
+   *
+   * A count rather than a boolean because "waiting on 3 things" and "waiting on
+   * 1" are different situations to a person triaging a board. Zero on surfaces
+   * that don't ask for it.
+   */
+  blockedBy?: number;
 }
 
 // Parent-epic summary shown on a child's detail (ADR-0026).
@@ -164,6 +174,11 @@ export interface IssueDetailDto extends IssueListItemDto {
   subtaskProgress: SubtaskProgressDto;
   /** This type may parent a subtask — drives whether the panel is offered. */
   canHaveSubtasks: boolean;
+  // Dependencies (ADR-0046), on the detail GET so the panel needs no second
+  // round-trip. `openBlockerKeys` is what the "mark done anyway?" confirm
+  // names and what the blocked badge counts.
+  links: IssueLinkDto[];
+  openBlockerKeys: string[];
   dueDate: string | null;
   createdAt: string;
   // The viewer's permissions on this issue, resolved server-side so the UI

@@ -78,6 +78,16 @@ export function CrossProjectRow({
             </span>
           )}
           {item.title}
+          {/* After the title here, not before it: this list is scanned by
+              title, where the board is scanned by card. */}
+          {Boolean(item.blockedBy) && (
+            <span
+              className="ml-1.5 rounded bg-destructive/10 px-1 py-0.5 text-[10px] font-medium text-destructive"
+              title={`Waiting on ${item.blockedBy} unfinished ${item.blockedBy === 1 ? "issue" : "issues"}`}
+            >
+              Blocked
+            </span>
+          )}
         </span>
 
         {item.dueDate && (

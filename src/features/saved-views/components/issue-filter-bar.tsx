@@ -159,6 +159,20 @@ export function IssueFilterBar({
         ]}
       />
 
+      {/* "What is my team waiting on" — the question dependencies exist to
+          answer (ADR-0046 §7). Its own control rather than a chip, because it
+          is a filter people come to the page already meaning to apply. */}
+      <Picker
+        label="Blocked"
+        value={filter.blocked === undefined ? ALL : String(filter.blocked)}
+        onValueChange={(v) => set("blocked", v === ALL ? undefined : v === "true")}
+        options={[
+          { value: ALL, label: "Blocked or not" },
+          { value: "true", label: "Blocked" },
+          { value: "false", label: "Not blocked" },
+        ]}
+      />
+
       <Picker
         label="Estimate"
         value={filter.hasEstimate === undefined ? ALL : String(filter.hasEstimate)}

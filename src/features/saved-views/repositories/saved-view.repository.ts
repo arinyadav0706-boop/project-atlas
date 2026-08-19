@@ -44,6 +44,14 @@ const crossProjectSelect = {
   // sentence — the same reason the board card carries it.
   parentId: true,
   parent: { select: { key: true } },
+  // Open blockers, for the Blocked badge (ADR-0046 §7).
+  _count: {
+    select: {
+      linksIn: {
+        where: { type: "BLOCKS", source: { deletedAt: null, status: { not: "DONE" } } },
+      },
+    },
+  },
 } as const;
 
 /**

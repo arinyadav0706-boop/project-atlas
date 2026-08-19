@@ -36,6 +36,15 @@ vi.mock("@/features/home/services/recent-item.service", () => ({
 vi.mock("@/features/custom-fields/services/custom-field.service", () => ({
   CustomFieldService: { missingRequired: async () => [], setForIssue: async () => [] },
 }));
+// Dependencies (ADR-0046) are read on every issue detail. Plain async stubs:
+// these suites are about issues, not links, and `resetAllMocks` would strip a
+// `vi.fn()` implementation and leave `list` returning undefined mid-render.
+vi.mock("@/features/dependencies/services/dependency.service", () => ({
+  DependencyService: {
+    list: async () => ({ links: [], openBlockerKeys: [] }),
+    notifyUnblocked: async () => undefined,
+  },
+}));
 vi.mock("@/features/notifications/services/notification.service", () => ({
   NotificationService: { issueAssigned: vi.fn(), issueStatusChanged: vi.fn() },
 }));

@@ -1,3 +1,4 @@
+import { Ban } from "lucide-react";
 import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
 import { cn } from "@/shared/lib/utils";
 import { selectChips } from "@/features/issues/lib/select-chips";
@@ -17,7 +18,10 @@ export function IssueChips({
   max,
   showComponents = true,
 }: {
-  item: Pick<IssueListItemDto, "epicKey" | "parentKey" | "labels" | "components">;
+  item: Pick<
+    IssueListItemDto,
+    "epicKey" | "parentKey" | "blockedBy" | "labels" | "components"
+  >;
   className?: string;
   /**
    * Cap the chips, collapsing the rest into a "+N". Dense single-line rows pass
@@ -46,6 +50,7 @@ export function IssueChips({
   if (
     !item.epicKey &&
     !item.parentKey &&
+    !item.blockedBy &&
     shownLabels.length === 0 &&
     shownComponents.length === 0 &&
     !hidden.length
@@ -60,6 +65,18 @@ export function IssueChips({
           board is an orphan sentence ("Write the tests" — for what?), and a
           chip that sometimes collapses into "+2" would leave that card
           meaningless at random. */}
+      {/* Blocked, first and uncapped (ADR-0046 §7). The one chip that changes
+          whether you should pick this card up at all — burying it behind "+2"
+          would defeat the point of having it. */}
+      {Boolean(item.blockedBy) && (
+        <span
+          className="inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+          title={`Waiting on ${item.blockedBy} unfinished ${item.blockedBy === 1 ? "issue" : "issues"}`}
+        >
+          <Ban className="h-2.5 w-2.5" />
+          Blocked{item.blockedBy! > 1 ? ` ×${item.blockedBy}` : ""}
+        </span>
+      )}
       {item.parentKey && (
         <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           <IssueTypeIcon type="SUBTASK" className="h-2.5 w-2.5" />

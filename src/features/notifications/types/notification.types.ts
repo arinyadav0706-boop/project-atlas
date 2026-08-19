@@ -4,7 +4,9 @@ export type NotificationTypeDto =
   | "ASSIGNED"
   | "MENTIONED"
   | "STATUS_CHANGED"
-  | "COMMENT_ADDED";
+  | "COMMENT_ADDED"
+  /** A blocker finished and this issue can start (ADR-0046 §6). */
+  | "UNBLOCKED";
 
 export type NotificationEntityTypeDto = "ISSUE" | "COMMENT" | "SPRINT";
 

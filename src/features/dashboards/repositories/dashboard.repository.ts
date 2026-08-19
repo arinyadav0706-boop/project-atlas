@@ -219,6 +219,13 @@ export const DashboardRepository = {
         // can contain subtasks, and a row without its parent is unreadable.
         parentId: true,
         parent: { select: { key: true } },
+        _count: {
+          select: {
+            linksIn: {
+              where: { type: "BLOCKS", source: { deletedAt: null, status: { not: "DONE" } } },
+            },
+          },
+        },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       take,

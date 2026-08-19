@@ -6,6 +6,7 @@ import { SprintRepository } from "@/features/sprints/repositories/sprint.reposit
 import { canTransition } from "@/features/issues/services/issue-workflow";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { NotificationService } from "@/features/notifications/services/notification.service";
+import { DependencyService } from "@/features/dependencies/services/dependency.service";
 import { MAX_BULK_NOTIFICATIONS } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { BulkEditChanges, BulkEditInput } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type {
@@ -240,6 +241,15 @@ export const BulkEditService = {
           beforeData: { status: issue.status },
           afterData: { status: pending.status },
         });
+      }
+
+      // Closing a blocker in bulk unblocks people just as closing one singly
+      // does (ADR-0046 §6). Not capped by MAX_BULK_NOTIFICATIONS: that cap
+      // exists so a 100-issue reassignment does not land as 100 messages to
+      // one person, whereas an unblock goes to a DIFFERENT person per issue
+      // and is the thing they most need to hear.
+      if (pending.status === "DONE") {
+        await DependencyService.notifyUnblocked(actor, { id: issueId, key: row.key });
       }
 
       // Only a real reassignment to someone else, and only up to the cap: a

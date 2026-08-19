@@ -68,6 +68,22 @@ export function issueFilterWhere(
         : filter.subtask === "exclude"
           ? { type: { not: "SUBTASK" as const } }
           : {}),
+    // "Blocked" is a question asked of the link table, never a column on Issue
+    // that could fall out of step with it (ADR-0046 §3). `some`/`none` over an
+    // indexed FK — the sub-query only appears when the filter asks for it.
+    ...(filter.blocked === undefined
+      ? {}
+      : filter.blocked
+        ? {
+            linksIn: {
+              some: { type: "BLOCKS" as const, source: { deletedAt: null, status: { not: "DONE" as const } } },
+            },
+          }
+        : {
+            linksIn: {
+              none: { type: "BLOCKS" as const, source: { deletedAt: null, status: { not: "DONE" as const } } },
+            },
+          }),
     ...(filter.priority ? { priority: filter.priority } : {}),
     ...(filter.sprintId ? { sprintId: filter.sprintId } : {}),
     ...(filter.epicId ? { epicId: filter.epicId } : {}),
@@ -97,6 +113,7 @@ export function isIssueFilterActive(filter: IssueFilter): boolean {
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
     filter.subtask !== undefined ||
+    filter.blocked !== undefined ||
     filter.priority !== undefined ||
     filter.sprintId !== undefined ||
     filter.epicId !== undefined ||

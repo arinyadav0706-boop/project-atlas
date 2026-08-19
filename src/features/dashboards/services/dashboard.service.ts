@@ -341,6 +341,7 @@ function toIssueDto(
     assignee: { id: string; name: string; avatarUrl: string | null } | null;
     parentId?: string | null;
     parent?: { key: string } | null;
+    _count?: { linksIn: number };
   },
   now: Date,
 ): CrossProjectIssueDto {
@@ -363,6 +364,7 @@ function toIssueDto(
     assignee: row.assignee,
     parentId: row.parentId ?? null,
     parentKey: row.parent?.key,
+    blockedBy: row._count?.linksIn ?? 0,
   };
 }
 

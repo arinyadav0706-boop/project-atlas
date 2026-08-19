@@ -35,6 +35,17 @@ export const issueCardSelect = {
   // parent's key is an orphan sentence — "Write the tests", for what?
   parentId: true,
   parent: { select: { id: true, key: true } },
+  // Open blockers (ADR-0046). A filtered relation count, not a column on
+  // Issue: "blocked" is a question asked of the link table, and a cached flag
+  // would go stale the moment a blocker closed. One grouped sub-query per
+  // page, over an indexed FK.
+  _count: {
+    select: {
+      linksIn: {
+        where: { type: "BLOCKS", source: { deletedAt: null, status: { not: "DONE" } } },
+      },
+    },
+  },
   // Classification chips (ADR-0018). The `deletedAt` guards are load-bearing —
   // a soft-deleted label must stop appearing on cards, not linger because the
   // join row survived.

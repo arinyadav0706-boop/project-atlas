@@ -20,6 +20,9 @@ export function issueFilterToQuery(filter: IssueFilter): URLSearchParams {
   if (filter.assigneeId) q.set("assigneeId", filter.assigneeId);
   if (filter.type) q.set("type", filter.type);
   if (filter.subtask) q.set("subtask", filter.subtask);
+  // `false` is a real constraint here ("nothing is in its way"), so this cannot
+  // be a truthiness check.
+  if (filter.blocked !== undefined) q.set("blocked", String(filter.blocked));
   if (filter.priority) q.set("priority", filter.priority);
   if (filter.search) q.set("search", filter.search);
   for (const id of filter.labelIds ?? []) q.append("labelIds", id);

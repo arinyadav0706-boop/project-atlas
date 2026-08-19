@@ -156,6 +156,33 @@ export const NotificationService = {
     });
   },
 
+  /**
+   * A blocker finished, so this issue can start (ADR-0046 §6, BR-9).
+   *
+   * Its own type rather than a STATUS_CHANGED about the blocker: the recipient
+   * does not care that VWP-12 moved, they care that THEIR issue is now free.
+   * The entity is the unblocked issue, so the bell links where the reader wants
+   * to go — their work, not somebody else's.
+   */
+  issueUnblocked(
+    actor: Actor,
+    input: {
+      issueId: string;
+      issueKey: string;
+      issueTitle: string;
+      blockerKey: string;
+      recipientIds: (string | null | undefined)[];
+    },
+  ) {
+    return notify(actor, {
+      recipientIds: input.recipientIds,
+      type: "UNBLOCKED",
+      entityType: "ISSUE",
+      entityId: input.issueId,
+      message: `${input.blockerKey} is done — ${input.issueKey} is no longer blocked: ${truncate(input.issueTitle)}`,
+    });
+  },
+
   // --- Reads (the bell + notifications page) ---
 
   async list(

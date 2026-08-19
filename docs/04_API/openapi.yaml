@@ -565,6 +565,90 @@ paths:
         "409": { description: The parent already has 50 subtasks (BR-9) }
         "422": { description: The parent is an Epic, a subtask, or in another project (BR-2) }
 
+  # ── Dependencies (ADR-0046, 27_dependencies.md) ────────────────────────────
+  /issues/{issueId}/links:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [issues]
+      summary: Every link on this issue, from both ends
+      description: >
+        One stored row is read from both ends (ADR-0046 §2), so `relation` is
+        the sentence the link makes FROM THIS ISSUE — a BLOCKS row where this
+        issue is the target comes back as `IS_BLOCKED_BY`. A link into a project
+        the caller cannot see returns `{restricted: true}` with no title: the
+        link is real and hiding it would make the list silently incomplete, but
+        nothing about the issue leaks (BR-6).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [links, openBlockerKeys]
+                properties:
+                  links: { type: array, items: { $ref: "#/components/schemas/IssueLink" } }
+                  openBlockerKeys:
+                    type: array
+                    items: { type: string }
+                    description: Unfinished blockers, by key — what the "mark done anyway?" confirm names.
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [issues]
+      summary: Link this issue to another
+      description: >
+        `direction` decides which end of the stored row this issue occupies, so
+        "blocks" and "is blocked by" are one endpoint rather than two that would
+        eventually disagree about validation. Symmetric types (RELATES_TO) are
+        direction-normalised before the write (BR-3). Links may cross projects
+        inside one organisation; the caller needs write access to at least ONE
+        of the two projects (BR-11) — requiring both would make a cross-team
+        dependency impossible to record by the person being blocked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { $ref: "#/components/schemas/IssueLinkType" }
+                direction:
+                  type: string
+                  enum: [outward, inward]
+                  default: outward
+                targetId: { type: string, description: The other issue by id. Exactly one of targetId/targetKey. }
+                targetKey: { type: string, description: 'The other issue by key ("VWP-42").' }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IssueLink" }
+        "403": { description: No write access to either project }
+        "409":
+          description: >
+            Already linked that way, past the 50-link cap (BR-10), or the link
+            would close a blocking loop (BR-7) — the message names the ring.
+            Jira stores cycles happily; a loop is unschedulable by definition,
+            and every consumer of this table would otherwise need its own guard.
+        "422": { description: Self-link, or an issue outside the caller's organisation }
+
+  /issue-links/{linkId}:
+    delete:
+      tags: [issues]
+      summary: Remove a link
+      description: >
+        Addressed by the LINK's id, not a pair of issue ids: one row, one
+        identity, and the caller need not know which end it was stored from.
+      parameters:
+        - { in: path, name: linkId, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Removed }
+        "403": { description: No write access to either project }
+        "404": { description: Not found, or another tenant's link }
+
   /issues/{issueId}/transition:
     parameters:
       - $ref: "#/components/parameters/IssueIdParam"
@@ -1418,6 +1502,7 @@ paths:
         - { in: query, name: hasEstimate, schema: { type: boolean }, description: "false = no estimate recorded (the Workload banner's link)." }
         - { in: query, name: assigneeId, schema: { type: string } }
         - { in: query, name: type, schema: { type: string, enum: [EPIC, STORY, TASK, BUG, SUBTASK] } }
+        - { in: query, name: blocked, schema: { type: boolean }, description: "Has at least one OPEN blocker (ADR-0046 §7) — the query behind \"what is my team waiting on\". Not \"has any blocker\": an issue blocked by finished work is not blocked." }
         - { in: query, name: subtask, schema: { type: string, enum: [only, exclude] }, description: "Jira's `type != Sub-task`. Absent includes them. Ignored when `type` is set, which already answers the question." }
         - { in: query, name: priority, schema: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] } }
         - { in: query, name: sprintId, schema: { type: string } }
@@ -2401,6 +2486,12 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Subtask" }
         subtaskProgress: { $ref: "#/components/schemas/SubtaskProgress" }
+        # Dependencies (ADR-0046), on the detail GET so the panel needs no
+        # second round-trip.
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/IssueLink" }
+        openBlockerKeys: { type: array, items: { type: string } }
         canHaveSubtasks:
           type: boolean
           description: This type may parent a subtask (STORY, TASK or BUG).
@@ -2423,6 +2514,40 @@ components:
         id: { type: string }
         key: { type: string }
         title: { type: string }
+
+    IssueLinkType:
+      type: string
+      enum: [BLOCKS, RELATES_TO, DUPLICATES]
+
+    IssueLink:
+      type: object
+      required: [id, relation, issue, blocking]
+      properties:
+        id: { type: string, description: The link row's id — what DELETE takes. }
+        relation:
+          type: string
+          enum: [BLOCKS, IS_BLOCKED_BY, RELATES_TO, DUPLICATES, IS_DUPLICATED_BY]
+          description: The sentence this link makes FROM the issue being viewed.
+        blocking:
+          type: boolean
+          description: An unfinished blocker of the issue being viewed. A blocker that is Done is not blocking.
+        issue:
+          type: object
+          description: >
+            The far end. `restricted: true` with null id/key when the viewer
+            cannot see its project (BR-6) — the link still appears, the issue
+            is not described.
+          required: [restricted]
+          properties:
+            restricted: { type: boolean }
+            id: { type: string, nullable: true }
+            key: { type: string, nullable: true }
+            title: { type: string }
+            type: { $ref: "#/components/schemas/IssueType" }
+            status: { $ref: "#/components/schemas/IssueStatus" }
+            priority: { $ref: "#/components/schemas/IssuePriority" }
+            projectId: { type: string }
+            projectKey: { type: string }
 
     Subtask:
       type: object

@@ -92,6 +92,10 @@ enum NotificationType {
   MENTIONED
   STATUS_CHANGED
   COMMENT_ADDED
+  /// A blocker finished and you are no longer waiting (ADR-0046 §6). Its own
+  /// type, not a STATUS_CHANGED on someone else's issue: the recipient does
+  /// not care that VWP-12 moved, they care that THEIR issue can now start.
+  UNBLOCKED
 }
 
 enum NotificationEntityType {
@@ -148,6 +152,7 @@ model Organization {
   savedViews   SavedView[]
   customFields CustomFieldDefinition[]
   dashboards   Dashboard[]
+  issueLinks   IssueLink[]
   labels       Label[]
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
@@ -409,6 +414,12 @@ model Issue {
   components        IssueComponent[]
   workLogs          WorkLog[]
   customFieldValues CustomFieldValue[]
+  /// Dependencies (ADR-0046). Two back-relations for ONE table: a link is
+  /// stored once as source→target and read from both ends. The inverse is
+  /// derived, never a second row — that is how a link table drifts into
+  /// "A blocks B" while B is blocked by nothing.
+  linksOut          IssueLink[]        @relation("LinkSource")
+  linksIn           IssueLink[]        @relation("LinkTarget")
 
   @@unique([projectId, key])
   // Covers the board/list query (filter by projectId[,status] + sort by rank)
@@ -426,6 +437,53 @@ model Issue {
   // the cascade on delete and the sprint follow-the-parent move.
   @@index([parentId])
   @@map("issues")
+}
+
+/// The ORDERING relationship between issues (ADR-0046), as opposed to the two
+/// containment ones an Issue already carries (`epicId`, `parentId`).
+enum IssueLinkType {
+  /// Directional: source blocks target ⇒ target is blocked by source.
+  BLOCKS
+  /// Symmetric. Normalised so the smaller id is always the source, or "A
+  /// relates to B" and "B relates to A" become two rows the unique index
+  /// cannot see are one fact.
+  RELATES_TO
+  /// Directional: source duplicates target.
+  DUPLICATES
+}
+
+/// One typed link between two issues, stored ONCE and read from both ends
+/// (ADR-0046 §2). Links may cross projects inside one organisation — a tool
+/// that can only express within-project blocking cannot describe the
+/// dependencies that actually hurt.
+model IssueLink {
+  id String @id @default(cuid())
+
+  /// Denormalised so a tenant-scoped read never has to join two issues to two
+  /// projects to two organisations. Both endpoints are always in this org.
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  sourceId String
+  source   Issue  @relation("LinkSource", fields: [sourceId], references: [id])
+  targetId String
+  target   Issue  @relation("LinkTarget", fields: [targetId], references: [id])
+
+  type IssueLinkType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  /// One fact, one row (BR-4). Symmetric types are direction-normalised before
+  /// the write, so this index catches their duplicates too.
+  @@unique([sourceId, targetId, type])
+  /// "What blocks me" — the inverse read, which is the common one.
+  @@index([targetId, type])
+  @@index([sourceId, type])
+  @@index([organizationId])
+  @@map("issue_links")
 }
 
 model Label {

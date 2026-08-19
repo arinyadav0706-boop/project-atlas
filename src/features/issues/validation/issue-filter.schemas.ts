@@ -35,6 +35,8 @@ export const issueFilterSchema = z.object({
   type: issueType.optional(),
   // Subtask participation (ADR-0045 §6). Absent = include them.
   subtask: z.enum(["only", "exclude"]).optional(),
+  // Has an OPEN blocker (ADR-0046 §7). Tri-state, like hasEstimate.
+  blocked: z.boolean().optional(),
   priority: issuePriority.optional(),
   labelIds: z.array(z.string().trim().min(1)).optional(),
   componentIds: z.array(z.string().trim().min(1)).optional(),
@@ -55,7 +57,9 @@ export function parseIssueFilter(q: URLSearchParams): IssueFilterInput {
   // both mean "no constraint" — `hasEstimate=maybe` must not silently become
   // `false` and hide every estimated issue.
   const hasEstimate = q.get("hasEstimate");
+  const blocked = q.get("blocked");
   return issueFilterSchema.parse({
+    blocked: blocked === "true" ? true : blocked === "false" ? false : undefined,
     projectIds: projectIds.length ? projectIds : undefined,
     status: q.get("status") ?? undefined,
     openOnly: q.get("openOnly") === "true" ? true : undefined,

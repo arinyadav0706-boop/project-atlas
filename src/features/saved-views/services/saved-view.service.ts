@@ -86,6 +86,7 @@ function toIssueDto(
     assignee: { id: string; name: string; avatarUrl: string | null } | null;
     parentId?: string | null;
     parent?: { key: string } | null;
+    _count?: { linksIn: number };
   },
   now: Date,
 ): CrossProjectIssueDto {
@@ -111,6 +112,7 @@ function toIssueDto(
     // Subtask parent (ADR-0045 §6) — this list mixes the two levels.
     parentId: row.parentId ?? null,
     parentKey: row.parent?.key,
+    blockedBy: row._count?.linksIn ?? 0,
   };
 }
 

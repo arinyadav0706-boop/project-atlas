@@ -48,6 +48,8 @@ import {
   assertValidSubtaskParent,
 } from "@/features/issues/services/hierarchy";
 import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
+import { DependencyService } from "@/features/dependencies/services/dependency.service";
+import type { IssueLinksDto } from "@/features/dependencies/types/dependency.types";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
 // workflow are enforced here, server-side, per the actor's effective project
@@ -123,6 +125,7 @@ function toDetailDto(
   role: ProjectRoleDto | null,
   children: IssueChildDto[] = [],
   subtasks: SubtaskDto[] = [],
+  dependencies: IssueLinksDto = { links: [], openBlockerKeys: [] },
 ): IssueDetailDto {
   const canDelete =
     role === "LEAD" || row.reporterId === actor.userId || row.assigneeId === actor.userId;
@@ -150,6 +153,8 @@ function toDetailDto(
     subtasks,
     subtaskProgress: rollUp(row.estimateMinutes, subtasks),
     canHaveSubtasks: canParentSubtask(row.type),
+    links: dependencies.links,
+    openBlockerKeys: dependencies.openBlockerKeys,
     dueDate: row.dueDate ? row.dueDate.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     canEdit: canWrite(role),
@@ -229,13 +234,16 @@ export const IssueService = {
     // exactly what it did before subtasks existed: children only for an Epic
     // (ADR-0026), subtasks only for a type that can have them (ADR-0045). Both
     // parents are already on the row (no N+1).
-    const [children, subtasks] = await Promise.all([
+    const [children, subtasks, dependencies] = await Promise.all([
       row.type === "EPIC"
         ? IssueRepository.listChildren(row.id)
         : Promise.resolve([] as Awaited<ReturnType<typeof IssueRepository.listChildren>>),
       canParentSubtask(row.type)
         ? IssueRepository.listSubtasks(row.id)
         : Promise.resolve([] as Awaited<ReturnType<typeof IssueRepository.listSubtasks>>),
+      // Unconditional, unlike the two above: any issue can be linked to any
+      // other, so there is no type that could skip this.
+      DependencyService.list(actor, row.id),
     ]);
     // Best-effort engagement signal for Home's "Continue working" (ADR-0012).
     await RecentItemService.record(actor, "ISSUE", issueId, "VIEWED");
@@ -251,6 +259,7 @@ export const IssueService = {
         status: c.status,
       })),
       subtasks,
+      dependencies,
     );
   },
 
@@ -595,6 +604,12 @@ export const IssueService = {
       status: to,
       recipientIds: [existing.assigneeId, existing.reporterId],
     });
+    // …and anyone this issue was blocking (ADR-0046 §6). Best-effort inside
+    // the service it belongs to, so a notification failure can never fail the
+    // transition that triggered it.
+    if (to === "DONE") {
+      await DependencyService.notifyUnblocked(actor, { id: issueId, key: existing.key });
+    }
     return toDetailDto(row, actor, role);
   },
 
@@ -696,6 +711,15 @@ export const IssueService = {
         beforeData: { status: existing.status },
         afterData: { status: destStatus },
       });
+      // A drag into Done unblocks people exactly as the status menu does
+      // (ADR-0046 §6). Wiring only the menu would make the notification depend
+      // on which control someone happened to use.
+      if (destStatus === "DONE") {
+        await DependencyService.notifyUnblocked(actor, {
+          id: existing.id,
+          key: existing.key,
+        });
+      }
     }
     return toDetailDto(row, actor, role);
   },

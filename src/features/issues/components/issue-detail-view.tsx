@@ -32,6 +32,7 @@ import { EditIssueDialog } from "./edit-issue-dialog";
 import { IssueDescription } from "./issue-description";
 import { SubtaskPanel } from "./subtask-panel";
 import { ConvertIssueDialog } from "./convert-issue-dialog";
+import { LinkPanel } from "@/features/dependencies/components/link-panel";
 import type {
   IssueDetailDto,
   IssueStatusDto,
@@ -55,6 +56,17 @@ export function IssueDetailView({
 
   async function changeStatus(to: IssueStatusDto) {
     if (to === issue.status) return;
+    // BR-8: warn, never refuse. A blocker is a separate issue and "blocked" is
+    // an assertion that goes stale — the person clicking Done usually knows
+    // more than the link does. Refusing would just make them delete the link,
+    // which destroys the data we wanted. So: name the blockers, then obey.
+    if (to === "DONE" && issue.openBlockerKeys.length > 0) {
+      const blockers = issue.openBlockerKeys.join(", ");
+      const ok = window.confirm(
+        `${blockers} ${issue.openBlockerKeys.length === 1 ? "is" : "are"} still blocking ${issue.key}.\n\nMark it done anyway?`,
+      );
+      if (!ok) return;
+    }
     setTransitioning(true);
     try {
       await apiRequest<IssueDetailDto>(`/api/issues/${issue.id}/transition`, {
@@ -140,6 +152,8 @@ export function IssueDetailView({
             canEdit={issue.canEdit}
           />
         )}
+
+        <LinkPanel issueId={issue.id} links={issue.links} canEdit={issue.canEdit} />
       </div>
 
       {/* One sheet for the whole metadata rail, with hairline rules between

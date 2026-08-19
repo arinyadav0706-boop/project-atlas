@@ -63,6 +63,16 @@ export interface IssueFilter {
    * backlog listing subtasks is not a backlog (BR-5).
    */
   subtask?: "only" | "exclude";
+  /**
+   * Issues with at least one **open** blocker (ADR-0046 §7) — the query behind
+   * "what is my team waiting on".
+   *
+   * Deliberately open blockers, not any blocker: an issue blocked by work that
+   * is already finished is not blocked. `false` is the complement (nothing
+   * unfinished is in its way), which is why this is tri-state rather than a
+   * truthiness check.
+   */
+  blocked?: boolean;
   priority?: IssuePriorityDto;
   labelIds?: string[];
   componentIds?: string[];
