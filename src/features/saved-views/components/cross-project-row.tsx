@@ -69,6 +69,14 @@ export function CrossProjectRow({
         </span>
 
         <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+          {/* A subtask's parent, inline before the title (ADR-0045 §6). This
+              list mixes the two levels, and "Write the tests" on its own tells
+              a reader nothing about which work it belongs to. */}
+          {item.parentKey && (
+            <span className="mr-1.5 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {item.parentKey}
+            </span>
+          )}
           {item.title}
         </span>
 

@@ -345,6 +345,14 @@ export const SprintService = {
     if (input.beforeId === issueId || input.afterId === issueId) {
       throw new ValidationError("An issue cannot be positioned relative to itself.");
     }
+    // BR-4 (26_subtasks): a subtask has no sprint of its own. It arrives in one
+    // by following its parent and leaves the same way — moving it alone is the
+    // one thing that would split a tree across two sprints.
+    if (existing.type === "SUBTASK") {
+      throw new ValidationError(
+        "A subtask follows its parent — move the parent issue instead.",
+      );
+    }
 
     // BR-5: an issue cannot leave a COMPLETED sprint...
     if (existing.sprintId) {
@@ -410,6 +418,15 @@ export const SprintService = {
       throw new ConflictError(
         "This issue was changed by someone else — refresh and try the move again.",
       );
+    }
+
+    // BR-4 (26_subtasks): a subtask has no sprint of its own, it is wherever its
+    // parent is. Carrying them here — after the parent's own OCC-guarded write
+    // has succeeded — is what stops a tree ending up split across two sprints.
+    // Only when the sprint actually changed; a reorder inside one sprint is not
+    // a membership change and must not write to every subtask.
+    if (existing.sprintId !== input.sprintId) {
+      await IssueRepository.setSubtasksSprint(issueId, input.sprintId, actor.userId);
     }
 
     // Sprint membership history (ADR-0037 §2). Until now nothing recorded when

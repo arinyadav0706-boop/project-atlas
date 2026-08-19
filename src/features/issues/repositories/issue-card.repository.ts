@@ -30,6 +30,11 @@ export const issueCardSelect = {
   // Parent epic: the card badge, and the backlog's group-by-epic key (ADR-0026).
   epicId: true,
   epic: { select: { id: true, key: true } },
+  // Subtask parent (ADR-0045 §6). The board and the cross-project list show
+  // subtasks alongside standalone issues, and a subtask card without its
+  // parent's key is an orphan sentence — "Write the tests", for what?
+  parentId: true,
+  parent: { select: { id: true, key: true } },
   // Classification chips (ADR-0018). The `deletedAt` guards are load-bearing —
   // a soft-deleted label must stop appearing on cards, not linger because the
   // join row survived.

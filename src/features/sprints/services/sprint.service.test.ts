@@ -26,6 +26,10 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     findRankInSprint: vi.fn(),
     findRankInBacklog: vi.fn(),
     moveToSprintWithVersion: vi.fn(),
+    // BR-4 (26_subtasks): a sprint move carries the issue's subtasks with it.
+    // Spied, because "did the cascade fire, and only on a real sprint change?"
+    // is exactly what this suite should be able to assert.
+    setSubtasksSprint: vi.fn(),
   },
 }));
 vi.mock("@/features/projects/services/project.service", () => ({

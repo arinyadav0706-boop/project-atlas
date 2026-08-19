@@ -33,6 +33,8 @@ export const issueFilterSchema = z.object({
   epicId: z.string().trim().min(1).optional(),
   assigneeId: z.string().trim().min(1).optional(),
   type: issueType.optional(),
+  // Subtask participation (ADR-0045 §6). Absent = include them.
+  subtask: z.enum(["only", "exclude"]).optional(),
   priority: issuePriority.optional(),
   labelIds: z.array(z.string().trim().min(1)).optional(),
   componentIds: z.array(z.string().trim().min(1)).optional(),
@@ -63,6 +65,12 @@ export function parseIssueFilter(q: URLSearchParams): IssueFilterInput {
     epicId: q.get("epicId") ?? undefined,
     assigneeId: q.get("assigneeId") ?? undefined,
     type: q.get("type") ?? undefined,
+    // Like `hasEstimate`, only the literal values count — `subtask=yes` is a
+    // malformed param and must mean "no constraint", not silently pick one.
+    subtask: (() => {
+      const v = q.get("subtask");
+      return v === "only" || v === "exclude" ? v : undefined;
+    })(),
     priority: q.get("priority") ?? undefined,
     labelIds: labelIds.length ? labelIds : undefined,
     componentIds: componentIds.length ? componentIds : undefined,

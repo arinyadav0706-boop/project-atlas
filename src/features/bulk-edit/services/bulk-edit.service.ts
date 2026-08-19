@@ -13,7 +13,10 @@ import type {
   BulkFailureReason,
   BulkResultItemDto,
 } from "@/features/bulk-edit/types/bulk-edit.types";
-import type { IssueStatusDto } from "@/features/issues/types/issue.types";
+import {
+  SUBTASK_PARENT_TYPES,
+  type IssueStatusDto,
+} from "@/features/issues/types/issue.types";
 
 // Business rules: docs/02_Modules/23_bulk_edit.md (ADR-0041). Every rule is
 // re-evaluated PER ISSUE, server-side: the client's selection is a request, not
@@ -28,6 +31,7 @@ const MESSAGES: Record<BulkFailureReason, string> = {
   invalid_transition: "That status change skips a step in the workflow.",
   invalid_assignee: "The assignee isn't a member of this issue's project.",
   invalid_sprint: "That sprint doesn't belong to this issue's project.",
+  open_subtasks: "This issue still has open subtasks, so it can't be marked done.",
   conflict: "This issue changed while the update was being applied.",
 };
 
@@ -162,6 +166,19 @@ export const BulkEditService = {
       if (pending.status && !canTransition(issue.status, pending.status)) {
         results.push(fail(issueId, issue.key, "invalid_transition"));
         continue;
+      }
+
+      // BR-7 applies here too, or bulk edit becomes the way round it. Reported
+      // per issue like every other refusal (ADR-0041 §1), so a 40-issue "mark
+      // done" still applies to the 37 that are legal.
+      if (
+        pending.status === "DONE" &&
+        (SUBTASK_PARENT_TYPES as readonly string[]).includes(issue.type)
+      ) {
+        if ((await IssueRepository.countOpenSubtasks(issueId)) > 0) {
+          results.push(fail(issueId, issue.key, "open_subtasks"));
+          continue;
+        }
       }
 
       if (pending.assigneeId) {

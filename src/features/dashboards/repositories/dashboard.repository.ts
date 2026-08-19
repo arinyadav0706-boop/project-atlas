@@ -215,6 +215,10 @@ export const DashboardRepository = {
         projectId: true,
         project: { select: { key: true, name: true } },
         assignee: { select: { id: true, name: true, avatarUrl: true } },
+        // Same reason as the cross-project list (ADR-0045 §6): a list widget
+        // can contain subtasks, and a row without its parent is unreadable.
+        parentId: true,
+        parent: { select: { key: true } },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       take,

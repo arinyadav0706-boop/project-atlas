@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, GitBranch, Pencil, Trash2 } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
@@ -29,6 +29,8 @@ import {
   statusLabel,
 } from "./issue-meta";
 import { EditIssueDialog } from "./edit-issue-dialog";
+import { SubtaskPanel } from "./subtask-panel";
+import { ConvertIssueDialog } from "./convert-issue-dialog";
 import type {
   IssueDetailDto,
   IssueStatusDto,
@@ -45,6 +47,7 @@ export function IssueDetailView({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -91,6 +94,19 @@ export function IssueDetailView({
             the canvas tinted that left the most important text in the app
             sitting on grey with nothing behind it. */}
         <div className="rounded-2xl border border-border bg-background p-5 shadow-card">
+          {/* A subtask is never a page you land on with no idea what it belongs
+              to (26_subtasks §5) — the parent comes first, above the key. */}
+          {issue.parent && (
+            <Link
+              href={`/projects/${projectId}/issues/${issue.parent.id}`}
+              className="mb-2 inline-flex max-w-full items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:underline"
+            >
+              <IssueTypeIcon type={issue.parent.type} className="h-3.5 w-3.5" />
+              <span className="font-mono text-[11px]">{issue.parent.key}</span>
+              <span className="min-w-0 truncate">{issue.parent.title}</span>
+              <ChevronRight className="h-3 w-3 shrink-0" />
+            </Link>
+          )}
           <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
             <IssueTypeIcon type={issue.type} />
             <span className="font-mono text-xs">{issue.key}</span>
@@ -114,6 +130,19 @@ export function IssueDetailView({
         </div>
 
         <HierarchySection projectId={projectId} issue={issue} />
+
+        {/* Offered on every type that CAN parent one, even with none yet — the
+            panel is how you discover you can break work down. Hiding it until
+            a subtask exists would make the feature undiscoverable. */}
+        {issue.canHaveSubtasks && (
+          <SubtaskPanel
+            projectId={projectId}
+            parentId={issue.id}
+            subtasks={issue.subtasks}
+            progress={issue.subtaskProgress}
+            canEdit={issue.canEdit}
+          />
+        )}
       </div>
 
       {/* One sheet for the whole metadata rail, with hairline rules between
@@ -225,6 +254,20 @@ export function IssueDetailView({
                 Edit issue
               </Button>
             )}
+            {/* Offered on anything that can move between the two levels — a
+                subtask promoting out, or a Story/Task/Bug moving under a
+                parent. Never on an Epic, which is neither (BR-10). */}
+            {issue.canEdit && (issue.type === "SUBTASK" || issue.canHaveSubtasks) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={() => setConverting(true)}
+              >
+                <GitBranch className="h-4 w-4" />
+                {issue.type === "SUBTASK" ? "Convert to issue" : "Convert to subtask"}
+              </Button>
+            )}
             {issue.canDelete && (
               <Button
                 variant="ghost"
@@ -249,12 +292,29 @@ export function IssueDetailView({
         />
       )}
 
+      {issue.canEdit && (
+        <ConvertIssueDialog issue={issue} open={converting} onOpenChange={setConverting} />
+      )}
+
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
         <DialogContent className="max-w-sm">
           <DialogTitle>Delete {issue.key}?</DialogTitle>
           <DialogDescription>
             This removes the issue from the project. This can&apos;t be undone from
             here.
+            {/* BR-8: subtasks go with the parent. Saying so before the click,
+                not discovering it after — this is the one delete in the app
+                that takes other rows with it. */}
+            {issue.subtasks.length > 0 && (
+              <>
+                {" "}
+                <span className="font-medium text-foreground">
+                  Its {issue.subtasks.length}{" "}
+                  {issue.subtasks.length === 1 ? "subtask" : "subtasks"} will be
+                  deleted too.
+                </span>
+              </>
+            )}
           </DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
             <Button

@@ -3,6 +3,7 @@ import {
   Bookmark,
   SquareCheck,
   Bug,
+  GitBranch,
   ChevronsUp,
   ChevronUp,
   Minus,
@@ -26,6 +27,10 @@ const TYPE: Record<IssueTypeDto, { icon: LucideIcon; color: string; label: strin
   STORY: { icon: Bookmark, color: "text-emerald-500", label: "Story" },
   TASK: { icon: SquareCheck, color: "text-sky-500", label: "Task" },
   BUG: { icon: Bug, color: "text-rose-500", label: "Bug" },
+  // Deliberately the quietest of the five (ADR-0045 §6): subtasks share the
+  // board with standalone issues, and giving them a sixth saturated colour
+  // would make a broken-down story shout louder than an unbroken one.
+  SUBTASK: { icon: GitBranch, color: "text-slate-400", label: "Subtask" },
 };
 
 const PRIORITY: Record<IssuePriorityDto, { icon: LucideIcon; color: string; label: string }> = {

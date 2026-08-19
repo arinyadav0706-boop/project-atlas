@@ -1,6 +1,19 @@
 // DTOs returned to the client — never the raw Prisma model.
 
-export type IssueTypeDto = "EPIC" | "STORY" | "TASK" | "BUG";
+export type IssueTypeDto = "EPIC" | "STORY" | "TASK" | "BUG" | "SUBTASK";
+
+/**
+ * The types an issue can be created as directly.
+ *
+ * `SUBTASK` is absent on purpose (ADR-0045): a subtask cannot exist without a
+ * parent, so it is created from one, never from a blank form.
+ */
+export const STANDALONE_ISSUE_TYPES = ["EPIC", "STORY", "TASK", "BUG"] as const;
+
+/** Types that may parent a subtask (ADR-0045 §3). Never EPIC, never SUBTASK. */
+export const SUBTASK_PARENT_TYPES = ["STORY", "TASK", "BUG"] as const;
+
+export const isSubtask = (type: IssueTypeDto): boolean => type === "SUBTASK";
 export type IssueStatusDto = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 export type IssuePriorityDto =
   | "LOWEST"
@@ -53,6 +66,15 @@ export interface IssueListItemDto {
   // populated by the Board/Backlog/Sprint mappers; others leave it undefined.
   epicKey?: string;
   epicId?: string | null;
+  /**
+   * The parent's key, on a subtask only (ADR-0045 §6).
+   *
+   * Populated by the surfaces that show subtasks alongside standalone issues —
+   * the board and the cross-project list. Without it a board of subtasks is a
+   * list of orphan sentences ("Write the tests" — for what?).
+   */
+  parentKey?: string;
+  parentId?: string | null;
 }
 
 // Parent-epic summary shown on a child's detail (ADR-0026).
@@ -69,6 +91,47 @@ export interface IssueChildDto {
   title: string;
   type: IssueTypeDto;
   status: IssueStatusDto;
+}
+
+/** The parent breadcrumb on a subtask's detail (ADR-0045 §3). */
+export interface IssueParentDto {
+  id: string;
+  key: string;
+  title: string;
+  type: IssueTypeDto;
+  status: IssueStatusDto;
+}
+
+/** One subtask row under its parent. Richer than `IssueChildDto` — a subtask
+ *  is worked from the parent's page, so it needs its assignee and version. */
+export interface SubtaskDto {
+  id: string;
+  key: string;
+  title: string;
+  status: IssueStatusDto;
+  priority: IssuePriorityDto;
+  assignee: IssueAssigneeDto | null;
+  estimateMinutes: number | null;
+  version: number;
+}
+
+/**
+ * What a parent's subtasks add up to (BR-11).
+ *
+ * Counts and minutes only — never story points. Splitting a 5-point story into
+ * a 3 and a 2 would make velocity say 10, so a subtask cannot carry points at
+ * all (ADR-0045 §7).
+ */
+export interface SubtaskProgressDto {
+  total: number;
+  done: number;
+  /** Parent + subtasks, in minutes. Null when nothing in the tree is estimated. */
+  estimateMinutes: number | null;
+}
+
+export interface SubtaskListDto {
+  items: SubtaskDto[];
+  progress: SubtaskProgressDto;
 }
 
 // Per-status totals for the filter chips (ALL = sum). Always present so the
@@ -92,6 +155,15 @@ export interface IssueDetailDto extends IssueListItemDto {
   // empty for non-epics (and populated only on the detail GET).
   epic: EpicSummaryDto | null;
   children: IssueChildDto[];
+  // Subtasks (ADR-0045). `parent` is set only on a subtask; `subtasks` is
+  // populated only for a type that may parent one, and both come back on the
+  // detail GET so the page needs no second round-trip.
+  parentId: string | null;
+  parent: IssueParentDto | null;
+  subtasks: SubtaskDto[];
+  subtaskProgress: SubtaskProgressDto;
+  /** This type may parent a subtask — drives whether the panel is offered. */
+  canHaveSubtasks: boolean;
   dueDate: string | null;
   createdAt: string;
   // The viewer's permissions on this issue, resolved server-side so the UI

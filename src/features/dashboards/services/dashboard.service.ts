@@ -339,6 +339,8 @@ function toIssueDto(
     projectId: string;
     project: { key: string; name: string };
     assignee: { id: string; name: string; avatarUrl: string | null } | null;
+    parentId?: string | null;
+    parent?: { key: string } | null;
   },
   now: Date,
 ): CrossProjectIssueDto {
@@ -359,6 +361,8 @@ function toIssueDto(
     projectKey: row.project.key,
     projectName: row.project.name,
     assignee: row.assignee,
+    parentId: row.parentId ?? null,
+    parentKey: row.parent?.key,
   };
 }
 

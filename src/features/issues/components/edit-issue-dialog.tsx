@@ -10,6 +10,7 @@ import {
   type UpdateIssueInput,
 } from "@/features/issues/validation/issue.schemas";
 import { apiRequest } from "@/shared/lib/api-client";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -47,6 +48,7 @@ export function EditIssueDialog({
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const isSubtask = issue.type === "SUBTASK";
 
   // The form edits fields only; the optimistic-concurrency token
   // (expectedVersion, ADR-0011) is supplied from the loaded issue at submit.
@@ -107,28 +109,34 @@ export function EditIssueDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label htmlFor="edit-type">Type</Label>
-              <Select
-                value={form.watch("type")}
-                onValueChange={(v) => {
-                  form.setValue("type", v as UpdateIssueInput["type"]);
-                  if (v === "EPIC") form.setValue("epicId", null);
-                }}
-              >
-                <SelectTrigger id="edit-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {typeLabel(t)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className={cn("grid gap-3", isSubtask ? "grid-cols-2" : "grid-cols-3")}>
+            {/* A subtask's type is not a free choice — it is decided by having
+                a parent (BR-1). Offering the picker here would let a save
+                silently promote the subtask out of its parent; the "Convert to
+                issue" action does that deliberately, with a warning. */}
+            {!isSubtask && (
+              <div>
+                <Label htmlFor="edit-type">Type</Label>
+                <Select
+                  value={form.watch("type")}
+                  onValueChange={(v) => {
+                    form.setValue("type", v as UpdateIssueInput["type"]);
+                    if (v === "EPIC") form.setValue("epicId", null);
+                  }}
+                >
+                  <SelectTrigger id="edit-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {typeLabel(t)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label htmlFor="edit-priority">Priority</Label>
               <Select
@@ -172,7 +180,9 @@ export function EditIssueDialog({
             </div>
           </div>
 
-          {form.watch("type") !== "EPIC" && (
+          {/* BR-3: a subtask reaches its epic through its parent, so there is
+              no epic of its own to set here. */}
+          {form.watch("type") !== "EPIC" && !isSubtask && (
             <div>
               <Label>
                 Parent epic <span className="font-normal">(optional)</span>
@@ -186,7 +196,10 @@ export function EditIssueDialog({
             </div>
           )}
 
-          <div>
+          {/* BR-6: a subtask carries no points. Absent rather than disabled —
+              a greyed-out field invites someone to work out how to enable it,
+              when the answer is "estimate the parent". */}
+          <div className={cn(isSubtask && "hidden")}>
             <Label htmlFor="edit-points">
               Story points <span className="font-normal">(optional)</span>
             </Label>

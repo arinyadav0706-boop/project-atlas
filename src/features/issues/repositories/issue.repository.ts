@@ -75,6 +75,8 @@ export const IssueRepository = {
         reporter: assigneeSelect,
         // Parent epic summary in the same round-trip (no N+1) — ADR-0026.
         epic: { select: { id: true, key: true, title: true } },
+        // Parent breadcrumb for a subtask, same round-trip — ADR-0045.
+        parent: { select: { id: true, key: true, title: true, type: true, status: true } },
       },
     });
   },
@@ -171,6 +173,105 @@ export const IssueRepository = {
     });
   },
 
+  // ── Subtasks (ADR-0045) ───────────────────────────────────────────────────
+
+  /**
+   * A row that is allowed to parent a subtask: alive, in this project, and of a
+   * type that may be a parent (BR-2). Returns null for anything else — an Epic,
+   * another subtask, a different project's issue, a deleted one.
+   *
+   * The type set is the WHERE clause rather than a check on the result, so the
+   * one rule lives in the one query the guard calls.
+   */
+  findSubtaskParentCandidate(projectId: string, parentId: string) {
+    return prisma.issue.findFirst({
+      where: {
+        id: parentId,
+        projectId,
+        deletedAt: null,
+        type: { in: ["STORY", "TASK", "BUG"] },
+      },
+      select: { id: true, projectId: true, sprintId: true, status: true },
+    });
+  },
+
+  /** Live subtasks of a parent, optionally ignoring one (the row being moved). */
+  countSubtasks(parentId: string, exceptId?: string) {
+    return prisma.issue.count({
+      where: {
+        parentId,
+        deletedAt: null,
+        ...(exceptId ? { id: { not: exceptId } } : {}),
+      },
+    });
+  },
+
+  /**
+   * A parent's subtasks for its detail panel.
+   *
+   * Bounded by BR-9 (50 per parent), so this is deliberately unpaginated — a
+   * cursor over at most 50 rows would be ceremony. Ordered by rank so the panel
+   * reads in the same order as the board.
+   */
+  listSubtasks(parentId: string) {
+    return prisma.issue.findMany({
+      where: { parentId, deletedAt: null },
+      select: {
+        id: true,
+        key: true,
+        title: true,
+        status: true,
+        priority: true,
+        estimateMinutes: true,
+        version: true,
+        assignee: assigneeSelect,
+      },
+      orderBy: [{ rank: "asc" }, { id: "asc" }],
+    });
+  },
+
+  /**
+   * How many subtasks are still open (BR-7's guard).
+   *
+   * A count, not a fetch: the transition path needs a number to refuse with,
+   * and pulling the rows to length them would be the same query with more work.
+   */
+  countOpenSubtasks(parentId: string) {
+    return prisma.issue.count({
+      where: { parentId, deletedAt: null, status: { not: "DONE" } },
+    });
+  },
+
+  /**
+   * Soft-delete a parent's subtasks (BR-8).
+   *
+   * A cascade, unlike an Epic's children which detach (ADR-0026 §2) — "write
+   * the tests", detached from "add login", is noise nobody will triage. Bumps
+   * version like any mutation (ADR-0011).
+   */
+  softDeleteSubtasks(parentId: string, actorId: string) {
+    return prisma.issue.updateMany({
+      where: { parentId, deletedAt: null },
+      data: { deletedAt: new Date(), version: { increment: 1 }, updatedBy: actorId },
+    });
+  },
+
+  /**
+   * Carry a parent's sprint to its subtasks (BR-4).
+   *
+   * Not version-checked, and deliberately so: this is not an edit anyone made
+   * to the subtask, it is the consequence of an edit to its parent that has
+   * already passed its own OCC check. Failing the cascade because a subtask
+   * was touched a second ago would leave the tree split across two sprints,
+   * which is the state BR-4 exists to prevent.
+   */
+  setSubtasksSprint(parentId: string, sprintId: string | null, actorId: string) {
+    return prisma.issue.updateMany({
+      where: { parentId, deletedAt: null },
+      data: { sprintId, version: { increment: 1 }, updatedBy: actorId },
+    });
+  },
+
   async createWithKey(input: {
     projectId: string;
     type: IssueType;
@@ -180,6 +281,10 @@ export const IssueRepository = {
     assigneeId: string | null;
     reporterId: string;
     epicId: string | null;
+    /** Set only for a SUBTASK; the CHECK constraint keeps the two in step. */
+    parentId?: string | null;
+    /** Inherited from the parent for a subtask (BR-4), null otherwise. */
+    sprintId?: string | null;
     storyPoints: number | null;
     dueDate: Date | null;
     estimateMinutes: number | null;
@@ -211,6 +316,8 @@ export const IssueRepository = {
           assigneeId: input.assigneeId,
           reporterId: input.reporterId,
           epicId: input.epicId,
+          parentId: input.parentId ?? null,
+          sprintId: input.sprintId ?? null,
           storyPoints: input.storyPoints,
           dueDate: input.dueDate,
           estimateMinutes: input.estimateMinutes,
@@ -221,6 +328,7 @@ export const IssueRepository = {
           assignee: assigneeSelect,
           reporter: assigneeSelect,
           epic: { select: { id: true, key: true, title: true } },
+          parent: { select: { id: true, key: true, title: true, type: true, status: true } },
         },
       });
     });

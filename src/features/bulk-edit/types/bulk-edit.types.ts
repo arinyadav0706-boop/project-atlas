@@ -8,6 +8,8 @@ export type BulkFailureReason =
   | "invalid_transition"
   | "invalid_assignee"
   | "invalid_sprint"
+  /** A parent moved to Done while a subtask is still open (26_subtasks BR-7). */
+  | "open_subtasks"
   | "conflict";
 
 export type BulkOutcome = "updated" | "skipped" | "failed";

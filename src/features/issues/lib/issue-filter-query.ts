@@ -19,6 +19,7 @@ export function issueFilterToQuery(filter: IssueFilter): URLSearchParams {
   if (filter.epicId) q.set("epicId", filter.epicId);
   if (filter.assigneeId) q.set("assigneeId", filter.assigneeId);
   if (filter.type) q.set("type", filter.type);
+  if (filter.subtask) q.set("subtask", filter.subtask);
   if (filter.priority) q.set("priority", filter.priority);
   if (filter.search) q.set("search", filter.search);
   for (const id of filter.labelIds ?? []) q.append("labelIds", id);

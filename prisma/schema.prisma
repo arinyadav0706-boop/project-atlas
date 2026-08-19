@@ -59,6 +59,11 @@ enum IssueType {
   STORY
   TASK
   BUG
+  /// Second hierarchy level (ADR-0045). Always paired with a non-null
+  /// `parentId` — the two are kept in step by a CHECK constraint, not just by
+  /// the service, because a SUBTASK with no parent is a row no query knows how
+  /// to interpret.
+  SUBTASK
 }
 
 enum IssueStatus {
@@ -364,6 +369,15 @@ model Issue {
   epicId          String?
   epic            Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
   children        Issue[]       @relation("EpicChildren")
+  /// Parent of a SUBTASK, and only of a SUBTASK (ADR-0045 §2). Deliberately a
+  /// SECOND pointer alongside `epicId` rather than a reuse of it: `epicId` is
+  /// the Story→Epic link with its own rule set, and collapsing both into one
+  /// column whose meaning depends on the row's type is the worst of both. No
+  /// row ever carries both. Jira unified the two in 2023; that is tracked as
+  /// backlog ST-7, not smuggled in here.
+  parentId        String?
+  parent          Issue?        @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks        Issue[]       @relation("Subtasks")
   storyPoints     Int?
   // String fractional rank (LexoRank-style, base-62) for board/backlog order.
   // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
@@ -408,6 +422,9 @@ model Issue {
   // Dashboard "my open issues": filter by assignee, narrow by status. The
   // assignee prefix still serves assignee-only lookups.
   @@index([assigneeId, status])
+  // A parent's subtasks (ADR-0045): read on every parent detail page, and by
+  // the cascade on delete and the sprint follow-the-parent move.
+  @@index([parentId])
   @@map("issues")
 }
 

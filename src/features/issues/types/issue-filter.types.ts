@@ -50,6 +50,19 @@ export interface IssueFilter {
   epicId?: string;
   assigneeId?: string;
   type?: IssueTypeDto;
+  /**
+   * Whether subtasks take part in this query (ADR-0045 §6) — Jira's
+   * `type != Sub-task`, as a first-class control rather than a type filter
+   * someone has to remember.
+   *
+   * Absent means "include them", which is what a cross-project list, a saved
+   * view and a dashboard widget should all do: a subtask is a real open issue
+   * and hiding it from a count would make the count wrong.
+   *
+   * The Backlog pins `exclude` and does not let a caller override it — a
+   * backlog listing subtasks is not a backlog (BR-5).
+   */
+  subtask?: "only" | "exclude";
   priority?: IssuePriorityDto;
   labelIds?: string[];
   componentIds?: string[];

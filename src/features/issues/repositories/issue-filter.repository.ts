@@ -58,7 +58,16 @@ export function issueFilterWhere(
         ? { estimateMinutes: { not: null } }
         : { estimateMinutes: null }),
     ...(filter.assigneeId ? { assigneeId: filter.assigneeId } : {}),
-    ...(filter.type ? { type: filter.type } : {}),
+    // An explicit `type` wins: asking for BUG already answers the subtask
+    // question, and applying both would let `type=BUG&subtask=only` return
+    // nothing for a reason no reader could see (a subtask's type IS SUBTASK).
+    ...(filter.type
+      ? { type: filter.type }
+      : filter.subtask === "only"
+        ? { type: "SUBTASK" as const }
+        : filter.subtask === "exclude"
+          ? { type: { not: "SUBTASK" as const } }
+          : {}),
     ...(filter.priority ? { priority: filter.priority } : {}),
     ...(filter.sprintId ? { sprintId: filter.sprintId } : {}),
     ...(filter.epicId ? { epicId: filter.epicId } : {}),
@@ -87,6 +96,7 @@ export function isIssueFilterActive(filter: IssueFilter): boolean {
     (filter.customFields?.length ?? 0) > 0 ||
     filter.assigneeId !== undefined ||
     filter.type !== undefined ||
+    filter.subtask !== undefined ||
     filter.priority !== undefined ||
     filter.sprintId !== undefined ||
     filter.epicId !== undefined ||

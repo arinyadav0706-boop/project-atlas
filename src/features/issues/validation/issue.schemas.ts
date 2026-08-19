@@ -3,12 +3,21 @@ import { z } from "zod";
 // One schema per action, shared client/server (Coding Standards §3).
 // Constraints from docs/02_Modules/04_issues.md §Validation.
 
-export const issueType = z.enum(["EPIC", "STORY", "TASK", "BUG"]);
+export const issueType = z.enum(["EPIC", "STORY", "TASK", "BUG", "SUBTASK"]);
+
+/**
+ * The types a blank create form may choose (ADR-0045 §1).
+ *
+ * `SUBTASK` is excluded: it cannot exist without a parent, so it is created
+ * through `POST /api/issues/{id}/subtasks` and never from nothing. Refusing it
+ * here means a client cannot conjure the orphan the CHECK constraint forbids.
+ */
+export const standaloneIssueType = z.enum(["EPIC", "STORY", "TASK", "BUG"]);
 export const issueStatus = z.enum(["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]);
 export const issuePriority = z.enum(["LOWEST", "LOW", "MEDIUM", "HIGH", "HIGHEST"]);
 
 export const createIssueSchema = z.object({
-  type: issueType,
+  type: standaloneIssueType,
   title: z.string().trim().min(1, "Title is required").max(200),
   description: z.string().trim().max(20000).optional(),
   priority: issuePriority.default("MEDIUM"),
@@ -33,14 +42,46 @@ const expectedVersion = z.number().int().min(0);
 export const updateIssueSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().max(20000).nullable().optional(),
+  // `SUBTASK` is a legal target here, unlike on create — this is the
+  // subtask→issue and issue→subtask conversion path (BR-10), and the service
+  // pairs it with `parentId` so the two can never disagree.
   type: issueType.optional(),
   priority: issuePriority.optional(),
   assigneeId: z.string().nullable().optional(),
   epicId: z.string().nullable().optional(),
+  /**
+   * Convert (ADR-0045 §10). A parent id makes this issue a subtask of it;
+   * `null` promotes a subtask back to a standalone `TASK`. Absent leaves the
+   * hierarchy alone — which is why it is optional AND nullable, and why the
+   * service tests `!== undefined` rather than truthiness.
+   */
+  parentId: z.string().trim().min(1).nullable().optional(),
   storyPoints: z.number().int().min(0).max(100).nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
   expectedVersion,
 });
+
+/**
+ * Create a subtask under a parent (BR-12).
+ *
+ * The create schema minus the three fields a subtask cannot have: `type` (it is
+ * always `SUBTASK`), `epicId` (it reaches its epic through the parent, BR-3)
+ * and `storyPoints` (refused outright, BR-6). Absent rather than accepted and
+ * ignored — a client that sends points should learn, not be silently overruled.
+ */
+export const createSubtaskSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  description: z.string().trim().max(20000).optional(),
+  priority: issuePriority.default("MEDIUM"),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: z.string().datetime().nullable().optional(),
+  estimateMinutes: z.number().int().min(0).max(100000).nullable().optional(),
+  customFields: z.record(z.string().trim().min(1), z.unknown()).optional(),
+});
+
+/** BR-9 — beyond this a "breakdown" is a project, and the parent page stops
+ *  being readable. */
+export const MAX_SUBTASKS_PER_PARENT = 50;
 
 export const transitionIssueSchema = z.object({
   status: issueStatus,
@@ -65,6 +106,7 @@ export const reorderIssueSchema = z.object({
 });
 
 export type CreateIssueInput = z.infer<typeof createIssueSchema>;
+export type CreateSubtaskInput = z.infer<typeof createSubtaskSchema>;
 export type UpdateIssueInput = z.infer<typeof updateIssueSchema>;
 export type TransitionIssueInput = z.infer<typeof transitionIssueSchema>;
 // Input-side type: `scope` carries a default, so callers (and the Board, which

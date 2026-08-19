@@ -501,8 +501,69 @@ paths:
     delete:
       tags: [issues]
       summary: Soft-delete an issue
+      description: >
+        Two hierarchy rules, deliberately different (ADR-0045 §9). Deleting an
+        EPIC DETACHES its children (`epicId` → null) — they are real work items
+        that outlive the grouping. Deleting a parent CASCADES to its subtasks —
+        "write the tests", detached from "add login", is noise nobody will
+        triage. Both are soft deletes; nothing is hard-deleted.
       responses:
         "204": { description: Deleted }
+
+  # ── Subtasks (ADR-0045, 26_subtasks.md) ────────────────────────────────────
+  /issues/{issueId}/subtasks:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    get:
+      tags: [issues]
+      summary: A parent's subtasks plus the roll-up
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, progress]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Subtask" } }
+                  progress: { $ref: "#/components/schemas/SubtaskProgress" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [issues]
+      summary: Create a subtask under this parent (BR-12)
+      description: >
+        A sub-resource rather than a `parentId` on the plain create: a subtask
+        cannot exist without a parent, so the parent lives in the path where it
+        cannot be omitted, and the create schema keeps refusing `SUBTASK`
+        outright. `type`, `epicId` and `storyPoints` are absent from the body —
+        the first is always SUBTASK, the second comes from the parent (BR-3),
+        the third is refused (BR-6). The new subtask inherits the parent's
+        sprint (BR-4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string, maxLength: 20000 }
+                priority: { $ref: "#/components/schemas/IssuePriority" }
+                assigneeId: { type: string, nullable: true }
+                dueDate: { type: string, format: date-time, nullable: true }
+                estimateMinutes: { type: integer, nullable: true }
+                customFields: { type: object, additionalProperties: true }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Issue" }
+        "403": { description: Needs project MEMBER or above }
+        "409": { description: The parent already has 50 subtasks (BR-9) }
+        "422": { description: The parent is an Epic, a subtask, or in another project (BR-2) }
 
   /issues/{issueId}/transition:
     parameters:
@@ -524,6 +585,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Issue" }
+        "409":
+          description: >
+            A parent moving into DONE while a subtask is still open
+            (26_subtasks BR-7). Jira warns; EAGLES refuses, because cycle time
+            and velocity are replayed from status transitions and a story
+            marked done over open children records a completion that did not
+            happen. The board's drag into the Done column answers to the same
+            rule.
         "422":
           description: Invalid transition for the current status
 
@@ -1348,7 +1417,8 @@ paths:
         - { in: query, name: openOnly, schema: { type: boolean }, description: "Everything except DONE. Ignored when `status` is set." }
         - { in: query, name: hasEstimate, schema: { type: boolean }, description: "false = no estimate recorded (the Workload banner's link)." }
         - { in: query, name: assigneeId, schema: { type: string } }
-        - { in: query, name: type, schema: { type: string, enum: [EPIC, STORY, TASK, BUG] } }
+        - { in: query, name: type, schema: { type: string, enum: [EPIC, STORY, TASK, BUG, SUBTASK] } }
+        - { in: query, name: subtask, schema: { type: string, enum: [only, exclude] }, description: "Jira's `type != Sub-task`. Absent includes them. Ignored when `type` is set, which already answers the question." }
         - { in: query, name: priority, schema: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] } }
         - { in: query, name: sprintId, schema: { type: string } }
         - { in: query, name: epicId, schema: { type: string } }
@@ -2061,7 +2131,9 @@ components:
       enum: [LEAD, MEMBER, VIEWER]
     IssueType:
       type: string
-      enum: [EPIC, STORY, TASK, BUG]
+      # SUBTASK is a real issue type (ADR-0045), always paired with a
+      # non-null parentId — a database CHECK constraint keeps the two in step.
+      enum: [EPIC, STORY, TASK, BUG, SUBTASK]
     IssueStatus:
       type: string
       enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
@@ -2321,7 +2393,24 @@ components:
         children:
           type: array
           items: { $ref: "#/components/schemas/IssueChild" }
-        storyPoints: { type: integer, nullable: true }
+        # Subtasks (ADR-0045). `parent` is set only on a SUBTASK; `subtasks`
+        # and the roll-up only on a type that may parent one.
+        parentId: { type: string, nullable: true }
+        parent: { $ref: "#/components/schemas/IssueChild", nullable: true }
+        subtasks:
+          type: array
+          items: { $ref: "#/components/schemas/Subtask" }
+        subtaskProgress: { $ref: "#/components/schemas/SubtaskProgress" }
+        canHaveSubtasks:
+          type: boolean
+          description: This type may parent a subtask (STORY, TASK or BUG).
+        storyPoints:
+          type: integer
+          nullable: true
+          description: >
+            Always null on a SUBTASK, and refused with a 422 if sent — a
+            5-point story split into a 3 and a 2 would make velocity read 10
+            (ADR-0045 §7). Estimation happens at the level a team commits to.
         rank: { type: string }
         dueDate: { type: string, format: date-time, nullable: true }
         labelIds: { type: array, items: { type: string } }
@@ -2334,6 +2423,36 @@ components:
         id: { type: string }
         key: { type: string }
         title: { type: string }
+
+    Subtask:
+      type: object
+      required: [id, key, title, status, priority, version]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+        status: { $ref: "#/components/schemas/IssueStatus" }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assignee: { type: object, nullable: true }
+        estimateMinutes: { type: integer, nullable: true }
+        version: { type: integer }
+
+    SubtaskProgress:
+      type: object
+      required: [total, done, estimateMinutes]
+      description: >
+        Counts and minutes only. Story points never roll up — a subtask cannot
+        carry them (ADR-0045 §7).
+      properties:
+        total: { type: integer }
+        done: { type: integer }
+        estimateMinutes:
+          type: integer
+          nullable: true
+          description: >
+            Parent + subtasks. Null, not 0, when nothing in the tree is
+            estimated — "no work left" and "nobody has estimated this" are
+            different claims.
 
     IssueChild:
       type: object
@@ -2355,7 +2474,19 @@ components:
         assigneeId: { type: string, nullable: true }
         sprintId: { type: string, nullable: true }
         epicId: { type: string, nullable: true }
-        storyPoints: { type: integer }
+        parentId:
+          type: string
+          nullable: true
+          description: >
+            Convert (ADR-0045 §10). A parent id makes this a SUBTASK of it and
+            clears the epic and story points it can no longer carry, adopting
+            the parent's sprint; `null` promotes a subtask back to a standalone
+            TASK. Absent leaves the hierarchy alone. The type is derived from
+            this, never taken raw, so the pair can never be written in the
+            state the CHECK constraint rejects.
+        storyPoints:
+          type: integer
+          description: 422 on a SUBTASK (ADR-0045 §7).
         dueDate: { type: string, format: date-time }
         labelIds: { type: array, items: { type: string } }
 

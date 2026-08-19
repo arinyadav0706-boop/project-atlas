@@ -17,7 +17,7 @@ export function IssueChips({
   max,
   showComponents = true,
 }: {
-  item: Pick<IssueListItemDto, "epicKey" | "labels" | "components">;
+  item: Pick<IssueListItemDto, "epicKey" | "parentKey" | "labels" | "components">;
   className?: string;
   /**
    * Cap the chips, collapsing the rest into a "+N". Dense single-line rows pass
@@ -43,12 +43,29 @@ export function IssueChips({
     hidden,
   } = selectChips(item, { max, showComponents });
 
-  if (!item.epicKey && shownLabels.length === 0 && shownComponents.length === 0 && !hidden.length) {
+  if (
+    !item.epicKey &&
+    !item.parentKey &&
+    shownLabels.length === 0 &&
+    shownComponents.length === 0 &&
+    !hidden.length
+  ) {
     return null;
   }
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      {/* A subtask's parent, first and uncapped (26_subtasks BR-5). Uncapped
+          because it is not classification — without it a subtask card on the
+          board is an orphan sentence ("Write the tests" — for what?), and a
+          chip that sometimes collapses into "+2" would leave that card
+          meaningless at random. */}
+      {item.parentKey && (
+        <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <IssueTypeIcon type="SUBTASK" className="h-2.5 w-2.5" />
+          {item.parentKey}
+        </span>
+      )}
       {item.epicKey && (
         <span className="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
           <IssueTypeIcon type="EPIC" className="h-2.5 w-2.5" />

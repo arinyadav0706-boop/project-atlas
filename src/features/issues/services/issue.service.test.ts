@@ -12,6 +12,15 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     listEpics: vi.fn(),
     listChildren: vi.fn(),
     detachChildren: vi.fn(),
+    // Subtasks (ADR-0045). Spied rather than stubbed so the cascade and the
+    // BR-7 guard can be asserted; sensible defaults are restored in beforeEach,
+    // which runs after `resetAllMocks` strips them.
+    findSubtaskParentCandidate: vi.fn(),
+    countSubtasks: vi.fn(),
+    listSubtasks: vi.fn(),
+    countOpenSubtasks: vi.fn(),
+    softDeleteSubtasks: vi.fn(),
+    setSubtasksSprint: vi.fn(),
     createWithKey: vi.fn(),
     updateWithVersion: vi.fn(),
     setStatusWithVersion: vi.fn(),
@@ -101,6 +110,13 @@ function issueRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
+  // `get` and `delete` now consult the subtask tree for every issue that could
+  // have one. Defaults of "none" keep every pre-subtask test describing exactly
+  // what it did before; the subtask suite overrides them per case.
+  repo.listSubtasks.mockResolvedValue([] as never);
+  repo.countSubtasks.mockResolvedValue(0 as never);
+  repo.countOpenSubtasks.mockResolvedValue(0 as never);
+  repo.softDeleteSubtasks.mockResolvedValue({ count: 0 } as never);
 });
 
 describe("list (pagination + counts)", () => {

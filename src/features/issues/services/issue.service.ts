@@ -21,23 +21,32 @@ import {
   ValidationError,
 } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
-import type {
-  EpicSummaryDto,
-  IssueChildDto,
-  IssueDetailDto,
-  IssueListPageDto,
-  IssueStatusCounts,
-  IssueStatusDto,
-  IssueTypeDto,
+import {
+  SUBTASK_PARENT_TYPES,
+  type EpicSummaryDto,
+  type IssueChildDto,
+  type IssueDetailDto,
+  type IssueListPageDto,
+  type IssueParentDto,
+  type IssueStatusCounts,
+  type IssueStatusDto,
+  type IssueTypeDto,
+  type SubtaskDto,
+  type SubtaskListDto,
+  type SubtaskProgressDto,
 } from "@/features/issues/types/issue.types";
 import type {
   CreateIssueInput,
+  CreateSubtaskInput,
   ReorderIssueInput,
   UpdateIssueInput,
 } from "@/features/issues/validation/issue.schemas";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent, canManageProject } from "@/features/authorization/permission";
-import { assertValidEpicParent } from "@/features/issues/services/hierarchy";
+import {
+  assertValidEpicParent,
+  assertValidSubtaskParent,
+} from "@/features/issues/services/hierarchy";
 import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
@@ -45,6 +54,21 @@ import { CustomFieldService } from "@/features/custom-fields/services/custom-fie
 // role (permission engine, ADR-0024).
 
 type IssueRow = NonNullable<Awaited<ReturnType<typeof IssueRepository.findDetail>>>;
+
+/**
+ * What `create` accepts internally.
+ *
+ * Wider than the route's `CreateIssueInput` in exactly two ways, both of which
+ * a client must never supply: `type` may be `SUBTASK`, and the parent/sprint
+ * may be set. Those come from `createSubtask`, which has already validated the
+ * parent — the public schema still refuses them, so there is no path from a
+ * request body to an orphan subtask.
+ */
+type InternalCreateIssueInput = Omit<CreateIssueInput, "type"> & {
+  type: IssueTypeDto;
+  parentId?: string | null;
+  sprintId?: string | null;
+};
 
 const canWrite = canWriteContent;
 
@@ -65,16 +89,54 @@ async function resolve(
 }
 
 
+/** Types that may parent a subtask (BR-2). Never an Epic, never a subtask. */
+const canParentSubtask = (type: IssueTypeDto): boolean =>
+  (SUBTASK_PARENT_TYPES as readonly string[]).includes(type);
+
+/**
+ * Roll up a parent + its subtasks (BR-11).
+ *
+ * Counts and minutes only. Story points are absent by design, not by omission:
+ * a subtask cannot carry them (BR-6), because a 5-point story split into a 3
+ * and a 2 would make velocity read 10.
+ */
+function rollUp(
+  parentEstimate: number | null,
+  subtasks: { status: IssueStatusDto; estimateMinutes: number | null }[],
+): SubtaskProgressDto {
+  const estimates = [parentEstimate, ...subtasks.map((s) => s.estimateMinutes)].filter(
+    (m): m is number => m !== null,
+  );
+  return {
+    total: subtasks.length,
+    done: subtasks.filter((s) => s.status === "DONE").length,
+    // Null rather than 0 when nothing is estimated — "0 minutes of work left"
+    // and "nobody has estimated this" are different claims, and showing the
+    // first when you mean the second is how a plan quietly lies.
+    estimateMinutes: estimates.length ? estimates.reduce((a, b) => a + b, 0) : null,
+  };
+}
+
 function toDetailDto(
   row: IssueRow,
   actor: Actor,
   role: ProjectRoleDto | null,
   children: IssueChildDto[] = [],
+  subtasks: SubtaskDto[] = [],
 ): IssueDetailDto {
   const canDelete =
     role === "LEAD" || row.reporterId === actor.userId || row.assigneeId === actor.userId;
   const epic: EpicSummaryDto | null = row.epic
     ? { id: row.epic.id, key: row.epic.key, title: row.epic.title }
+    : null;
+  const parent: IssueParentDto | null = row.parent
+    ? {
+        id: row.parent.id,
+        key: row.parent.key,
+        title: row.parent.title,
+        type: row.parent.type,
+        status: row.parent.status,
+      }
     : null;
   return {
     ...toIssueCardDto(row),
@@ -83,6 +145,11 @@ function toDetailDto(
     epicId: row.epicId,
     epic,
     children,
+    parentId: row.parentId,
+    parent,
+    subtasks,
+    subtaskProgress: rollUp(row.estimateMinutes, subtasks),
+    canHaveSubtasks: canParentSubtask(row.type),
     dueDate: row.dueDate ? row.dueDate.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     canEdit: canWrite(role),
@@ -158,21 +225,72 @@ export const IssueService = {
     if (!row) throw new NotFoundError("Issue not found.");
     // resolve() enforces the tenant scope (F-1) and yields the caller's role.
     const { role } = await resolve(row.projectId, actor);
-    // Child issues are only meaningful for an Epic — one extra query, and only
-    // for epics (ADR-0026); the parent epic is already on the row (no N+1).
-    const children: IssueChildDto[] =
+    // Each extra read is conditional on the row's type, so a plain Task costs
+    // exactly what it did before subtasks existed: children only for an Epic
+    // (ADR-0026), subtasks only for a type that can have them (ADR-0045). Both
+    // parents are already on the row (no N+1).
+    const [children, subtasks] = await Promise.all([
       row.type === "EPIC"
-        ? (await IssueRepository.listChildren(row.id)).map((c) => ({
-            id: c.id,
-            key: c.key,
-            title: c.title,
-            type: c.type,
-            status: c.status,
-          }))
-        : [];
+        ? IssueRepository.listChildren(row.id)
+        : Promise.resolve([] as Awaited<ReturnType<typeof IssueRepository.listChildren>>),
+      canParentSubtask(row.type)
+        ? IssueRepository.listSubtasks(row.id)
+        : Promise.resolve([] as Awaited<ReturnType<typeof IssueRepository.listSubtasks>>),
+    ]);
     // Best-effort engagement signal for Home's "Continue working" (ADR-0012).
     await RecentItemService.record(actor, "ISSUE", issueId, "VIEWED");
-    return toDetailDto(row, actor, role, children);
+    return toDetailDto(
+      row,
+      actor,
+      role,
+      children.map((c) => ({
+        id: c.id,
+        key: c.key,
+        title: c.title,
+        type: c.type,
+        status: c.status,
+      })),
+      subtasks,
+    );
+  },
+
+  /** A parent's subtasks plus the roll-up, for the panel's own refreshes. */
+  async listSubtasks(actor: Actor, parentId: string): Promise<SubtaskListDto> {
+    const row = await IssueRepository.findDetail(parentId);
+    if (!row) throw new NotFoundError("Issue not found.");
+    await resolve(row.projectId, actor); // tenant scope (F-1)
+    const items = canParentSubtask(row.type)
+      ? await IssueRepository.listSubtasks(parentId)
+      : [];
+    return { items, progress: rollUp(row.estimateMinutes, items) };
+  },
+
+  /**
+   * Create a subtask under a parent (BR-12).
+   *
+   * Delegates to `create` rather than duplicating it: a subtask is an issue, so
+   * everything create already does — RBAC, the archived-project check, assignee
+   * validation, required custom fields, the key counter, the assignment
+   * notification — has to happen here too, and a second write path would be a
+   * second place for those to drift.
+   */
+  async createSubtask(
+    actor: Actor,
+    parentId: string,
+    input: CreateSubtaskInput,
+  ): Promise<IssueDetailDto> {
+    const parentRow = await IssueRepository.findDetail(parentId);
+    if (!parentRow) throw new NotFoundError("Parent issue not found.");
+    // Every hierarchy rule — parent type, same project, no nesting, the cap —
+    // in the one guard, and it hands back the parent's sprint (BR-4).
+    const parent = await assertValidSubtaskParent(parentRow.projectId, parentId);
+    return this.create(actor, parentRow.projectId, {
+      ...input,
+      type: "SUBTASK",
+      parentId: parent.id,
+      // BR-4: a subtask has no sprint of its own, it is wherever its parent is.
+      sprintId: parent.sprintId,
+    });
   },
 
   // A project's epics for the create/edit selector and the board Epic filter
@@ -185,7 +303,7 @@ export const IssueService = {
   async create(
     actor: Actor,
     projectId: string,
-    input: CreateIssueInput,
+    input: InternalCreateIssueInput,
   ): Promise<IssueDetailDto> {
     const { context, role } = await resolve(projectId, actor);
     if (!canWrite(role)) {
@@ -198,6 +316,13 @@ export const IssueService = {
     // sends one is rejected, mirroring the dedicated estimate endpoint.
     if (input.estimateMinutes != null && !canManageProject(role)) {
       throw new ForbiddenError("Only a project lead can set the estimate.");
+    }
+    // BR-6: refused, not silently dropped. A client that sends points on a
+    // subtask has a wrong model of the hierarchy and should be told.
+    if (input.type === "SUBTASK" && input.storyPoints != null) {
+      throw new ValidationError(
+        "A subtask can't carry story points — estimate the parent instead.",
+      );
     }
     await validateAssignee(projectId, input.assigneeId);
     await validateEpic(projectId, input.epicId, { type: input.type });
@@ -224,6 +349,8 @@ export const IssueService = {
       assigneeId: input.assigneeId ?? null,
       reporterId: actor.userId,
       epicId: input.epicId ?? null,
+      parentId: input.parentId ?? null,
+      sprintId: input.sprintId ?? null,
       storyPoints: input.storyPoints ?? null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       estimateMinutes: input.estimateMinutes ?? null,
@@ -268,8 +395,69 @@ export const IssueService = {
     if (input.assigneeId !== undefined) {
       await validateAssignee(existing.projectId, input.assigneeId);
     }
+    // ── Subtask conversions (BR-10, ADR-0045 §10) ─────────────────────────
+    //
+    // `parentId` and `type` are decided together, here, so the pair can never
+    // be written in a state the CHECK constraint would reject. An explicit
+    // `parentId` drives the type; a `type` change of its own can only ever
+    // promote a subtask out.
+    let parentIdWrite: string | null | undefined = undefined;
+    let convertedType: IssueTypeDto | undefined = undefined;
+    // BR-4: becoming a subtask means adopting the parent's sprint, in the same
+    // write. Leaving it behind would put a subtask in a different sprint from
+    // its parent, which is exactly the split BR-4 exists to prevent.
+    let sprintIdWrite: string | null | undefined = undefined;
+
+    if (input.parentId !== undefined) {
+      if (input.parentId === null) {
+        // Subtask → issue. Becomes a plain TASK unless the caller asked for a
+        // specific standalone type in the same request.
+        parentIdWrite = null;
+        convertedType =
+          input.type && input.type !== "SUBTASK" ? input.type : "TASK";
+      } else {
+        // Issue → subtask.
+        if (existing.type === "EPIC") {
+          throw new ValidationError(
+            "An Epic can't become a subtask. Convert it to a Story or Task first.",
+          );
+        }
+        const epicChildren = await IssueRepository.listChildren(existing.id);
+        if (epicChildren.length > 0) {
+          throw new ConflictError(
+            "This issue has child issues under it — reassign them before making it a subtask.",
+          );
+        }
+        const parent = await assertValidSubtaskParent(existing.projectId, input.parentId, {
+          id: existing.id,
+        });
+        parentIdWrite = input.parentId;
+        convertedType = "SUBTASK";
+        if (parent.sprintId !== existing.sprintId) sprintIdWrite = parent.sprintId;
+      }
+    } else if (input.type && input.type !== "SUBTASK" && existing.type === "SUBTASK") {
+      // Changing a subtask's type without naming a parent detaches it — the
+      // alternative is writing a non-SUBTASK row that still has a parentId,
+      // which the CHECK constraint would reject as a 500 rather than a clear
+      // error.
+      parentIdWrite = null;
+    } else if (input.type === "SUBTASK" && existing.type !== "SUBTASK") {
+      throw new ValidationError(
+        "Choose a parent to convert this into a subtask.",
+      );
+    }
+
     // Hierarchy integrity on type/parent changes (BR-4, ADR-0026).
-    const effectiveType = input.type ?? (existing.type as IssueTypeDto);
+    const effectiveType = convertedType ?? input.type ?? (existing.type as IssueTypeDto);
+
+    // BR-6 on the edit path. Only an EXPLICIT points value is refused; points
+    // the issue already had are cleared by the conversion below rather than
+    // turned into an error the user cannot act on from the convert dialog.
+    if (effectiveType === "SUBTASK" && input.storyPoints != null) {
+      throw new ValidationError(
+        "A subtask can't carry story points — estimate the parent instead.",
+      );
+    }
     // Converting an Epic that still has children to another type would leave
     // those children under a non-epic parent — block it (fix children first).
     if (existing.type === "EPIC" && input.type && input.type !== "EPIC") {
@@ -292,10 +480,21 @@ export const IssueService = {
       epicIdWrite = input.epicId;
     } else if (effectiveType === "EPIC" && existing.epicId) {
       epicIdWrite = null;
+    } else if (effectiveType === "SUBTASK" && existing.epicId) {
+      // BR-3: a subtask reaches its epic through its parent, so becoming one
+      // releases any epic it held directly.
+      epicIdWrite = null;
     }
 
-    // Optimistic concurrency (ADR-0011): scalar FKs (assigneeId/epicId) are set
-    // directly rather than via relation connect/disconnect, because the
+    // Becoming a subtask clears the points it can no longer carry (BR-6). The
+    // UI warns before this happens — it is not a silent loss.
+    const storyPointsWrite =
+      effectiveType === "SUBTASK" && existing.storyPoints !== null
+        ? null
+        : input.storyPoints;
+
+    // Optimistic concurrency (ADR-0011): scalar FKs (assigneeId/epicId/parentId)
+    // are set directly rather than via relation connect/disconnect, because the
     // version-checked write uses updateMany (which sets only scalar columns).
     const row = await IssueRepository.updateWithVersion(
       issueId,
@@ -303,11 +502,16 @@ export const IssueService = {
       {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.type !== undefined ? { type: input.type } : {}),
+        // `effectiveType`, not `input.type`: a conversion decides the type from
+        // the parent, and writing the raw input here would let the pair drift
+        // into the state the CHECK constraint rejects.
+        ...(effectiveType !== existing.type ? { type: effectiveType } : {}),
+        ...(parentIdWrite !== undefined ? { parentId: parentIdWrite } : {}),
+        ...(sprintIdWrite !== undefined ? { sprintId: sprintIdWrite } : {}),
         ...(input.priority !== undefined ? { priority: input.priority } : {}),
         ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
         ...(epicIdWrite !== undefined ? { epicId: epicIdWrite } : {}),
-        ...(input.storyPoints !== undefined ? { storyPoints: input.storyPoints } : {}),
+        ...(storyPointsWrite !== undefined ? { storyPoints: storyPointsWrite } : {}),
         ...(input.dueDate !== undefined
           ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
           : {}),
@@ -360,6 +564,7 @@ export const IssueService = {
     if (existing.status === to) {
       return toDetailDto(existing, actor, role);
     }
+    await this.assertSubtasksAllowDone(existing.id, existing.type as IssueTypeDto, to);
 
     // Optimistic concurrency (ADR-0011): reject if the issue changed since read.
     const row = await IssueRepository.setStatusWithVersion(
@@ -438,6 +643,16 @@ export const IssueService = {
         `Cannot move from ${existing.status} to ${destStatus} — it must pass through the workflow in order.`,
       );
     }
+    // A drag into the Done column is a transition, so it answers to BR-7 too.
+    // Guarding only the status endpoint would leave the board as the way round
+    // the rule, which is worse than not having the rule.
+    if (statusChanged) {
+      await this.assertSubtasksAllowDone(
+        existing.id,
+        existing.type as IssueTypeDto,
+        destStatus,
+      );
+    }
 
     // Neighbours must be non-deleted issues in the SAME project and the
     // DESTINATION column — validated here, never trusted from the client (BR-4).
@@ -501,6 +716,14 @@ export const IssueService = {
     if (existing.sprintId !== null) {
       throw new ConflictError("This issue is in a sprint, not the backlog — refresh and retry.");
     }
+    // A subtask is never in the backlog (BR-5), so it can never be reordered
+    // within one. The UI cannot offer this; the check is here because the API
+    // is reachable without it.
+    if (existing.type === "SUBTASK") {
+      throw new ValidationError(
+        "A subtask is ordered under its parent, not in the backlog.",
+      );
+    }
 
     // Neighbours must be non-deleted, unscheduled issues in the SAME project.
     const [before, after] = await Promise.all([
@@ -544,6 +767,32 @@ export const IssueService = {
     return toDetailDto(row, actor, role);
   },
 
+  /**
+   * BR-7 — a parent cannot move into DONE while a subtask is open.
+   *
+   * Jira warns and lets you through. EAGLES refuses, because cycle time and
+   * velocity are both replayed from status transitions (ADR-0031): a story
+   * marked Done over three open subtasks records a completion that did not
+   * happen, and every number downstream is then wrong in a way nobody can see.
+   *
+   * Scoped narrowly on purpose — it fires only on the move INTO Done, so adding
+   * a subtask to an already-done parent stays legal (that is new discovery, not
+   * a false completion).
+   */
+  async assertSubtasksAllowDone(
+    issueId: string,
+    type: IssueTypeDto,
+    to: IssueStatusDto,
+  ): Promise<void> {
+    if (to !== "DONE" || !canParentSubtask(type)) return;
+    const open = await IssueRepository.countOpenSubtasks(issueId);
+    if (open > 0) {
+      throw new ConflictError(
+        `${open} ${open === 1 ? "subtask is" : "subtasks are"} still open — finish or remove ${open === 1 ? "it" : "them"} before marking this done.`,
+      );
+    }
+  },
+
   // Rank between two neighbours, or a ConflictError if they're out of order
   // (a stale client view / lost race) — shared by both reorder scopes.
   rankOrConflict(before: string | null, after: string | null, actorId: string): string {
@@ -569,10 +818,18 @@ export const IssueService = {
     if (context.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
     }
-    // Deleting an Epic detaches its children (epicId → null) so none are left
-    // pointing at a removed parent — never a cascade, never an orphan (ADR-0026).
+    // Two different relationships, two different rules — each stated where it
+    // applies rather than one rule awkwardly covering both.
+    //
+    // An Epic's children DETACH (epicId → null, ADR-0026 §2): they are real work
+    // items that outlive the grouping. A parent's subtasks CASCADE (ADR-0045
+    // §9): "write the tests", detached from "add login", is noise nobody will
+    // ever triage. Both are soft — the app never hard-deletes.
     if (existing.type === "EPIC") {
       await IssueRepository.detachChildren(existing.id, actor.userId);
+    }
+    if (canParentSubtask(existing.type as IssueTypeDto)) {
+      await IssueRepository.softDeleteSubtasks(existing.id, actor.userId);
     }
     await IssueRepository.softDelete(issueId, actor.userId);
   },

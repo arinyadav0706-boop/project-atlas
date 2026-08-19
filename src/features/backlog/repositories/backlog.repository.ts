@@ -44,10 +44,25 @@ export const BacklogRepository = {
   },
 };
 
-// `sprintId: null` is the backlog's definition, not a filter the caller may
-// override — a "backlog" showing sprinted issues would not be a backlog.
+// `sprintId: null` and "no subtasks" are the backlog's DEFINITION, not filters
+// the caller may override. A backlog showing sprinted issues would not be a
+// backlog; nor would one listing subtasks (26_subtasks BR-5) — a subtask is not
+// independently plannable, and a backlog four times longer than the number of
+// real decisions in it is a worse backlog.
 function backlogWhere(projectId: string, filter: IssueFilter) {
-  // Spread first, then pin `sprintId: null` — so even a caller that passes one
-  // cannot widen the backlog into the sprinted set.
-  return { ...issueFilterWhere({ projectIds: [projectId] }, filter), sprintId: null };
+  const { type, ...rest } = filter;
+  // Rewritten through the SHARED filter rather than pinned as a raw clause: a
+  // hand-written `type: { not: SUBTASK }` spread on top would silently discard
+  // the caller's own `type` filter, so "backlog, bugs only" would quietly
+  // become "backlog, everything but subtasks".
+  //
+  // `type: SUBTASK` asks the backlog for exactly what it must never show, so it
+  // is dropped. Every other type already excludes subtasks by itself, because a
+  // subtask's type IS SUBTASK.
+  const scoped: IssueFilter = {
+    ...rest,
+    ...(type && type !== "SUBTASK" ? { type } : {}),
+    subtask: "exclude",
+  };
+  return { ...issueFilterWhere({ projectIds: [projectId] }, scoped), sprintId: null };
 }

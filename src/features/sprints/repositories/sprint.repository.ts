@@ -172,16 +172,24 @@ export const SprintRepository = {
   progressByStatus(sprintId: string) {
     return prisma.issue.groupBy({
       by: ["status"],
-      where: { sprintId, deletedAt: null },
+      // Subtasks excluded (26_subtasks BR-5). A sprint's committed scope is the
+      // items the team committed to; counting their subtasks as well would turn
+      // "12 issues this sprint" into "40" without a single extra commitment.
+      // The point sums are unaffected either way — a subtask cannot carry
+      // points (BR-6) — so this only fixes the counts.
+      where: { sprintId, deletedAt: null, type: { not: "SUBTASK" } },
       _count: { _all: true },
       _sum: { storyPoints: true },
     });
   },
 
   // The sprint's issues, ordered by the shared rank (ADR-0013), for the panel.
+  // Subtasks are not listed here (BR-5): they follow their parent into the
+  // sprint and are worked from the parent's page, so a planning list showing
+  // both would be planning the same work twice.
   listSprintIssues(projectId: string, sprintId: string) {
     return prisma.issue.findMany({
-      where: { projectId, sprintId, deletedAt: null },
+      where: { projectId, sprintId, deletedAt: null, type: { not: "SUBTASK" } },
       select: cardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
     });

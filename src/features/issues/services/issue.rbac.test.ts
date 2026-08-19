@@ -15,6 +15,16 @@ vi.mock("@/features/issues/repositories/issue.repository", () => ({
     countByStatus: vi.fn(),
     findDetail: vi.fn(),
     findEpic: vi.fn(),
+    // Subtasks (ADR-0045). Plain async stubs, not `vi.fn()`: this suite calls
+    // `vi.resetAllMocks()` in its nested beforeEach, which strips a mock's
+    // implementation — and `listSubtasks` returning undefined would crash the
+    // roll-up rather than fail a permission assertion. This matrix is about
+    // WHO may act, not about the hierarchy, so it wants stable no-ops.
+    listSubtasks: async () => [],
+    listChildren: async () => [],
+    countOpenSubtasks: async () => 0,
+    softDeleteSubtasks: async () => ({ count: 0 }),
+    detachChildren: async () => ({ count: 0 }),
     createWithKey: vi.fn(),
     updateWithVersion: vi.fn(),
     setStatusWithVersion: vi.fn(),

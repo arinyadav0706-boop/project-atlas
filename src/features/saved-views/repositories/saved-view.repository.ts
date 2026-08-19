@@ -39,6 +39,11 @@ const crossProjectSelect = {
   projectId: true,
   project: { select: { key: true, name: true } },
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  // A subtask's parent key (ADR-0045 §6). This list mixes subtasks with
+  // standalone issues, and without it a subtask row reads as an orphan
+  // sentence — the same reason the board card carries it.
+  parentId: true,
+  parent: { select: { key: true } },
 } as const;
 
 /**

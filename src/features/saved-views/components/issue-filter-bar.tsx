@@ -21,6 +21,9 @@ import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 // filter object never carries it.
 const ALL = "__all__";
 const OPEN = "__open__";
+/** Jira's `type != Sub-task`, as an option in the type list rather than a
+ *  second control (ADR-0045 §6). */
+const NO_SUBTASKS = "__no_subtasks__";
 
 export interface ProjectOption {
   id: string;
@@ -106,18 +109,37 @@ export function IssueFilterBar({
         ]}
       />
 
+      {/* Type and subtask participation are ONE control (ADR-0045 §6), because
+          they are one question — "what kind of thing am I looking at?" — and
+          two dropdowns would let someone ask for `type=BUG, subtask=only`,
+          which is empty for a reason no reader could see. */}
       <Picker
         label="Type"
-        value={filter.type ?? ALL}
-        onValueChange={(v) =>
-          set("type", v === ALL ? undefined : (v as NonNullable<IssueFilter["type"]>))
+        value={
+          filter.type ??
+          (filter.subtask === "only"
+            ? "SUBTASK"
+            : filter.subtask === "exclude"
+              ? NO_SUBTASKS
+              : ALL)
         }
+        onValueChange={(v) => {
+          const next = { ...filter };
+          delete next.type;
+          delete next.subtask;
+          if (v === NO_SUBTASKS) next.subtask = "exclude";
+          else if (v === "SUBTASK") next.subtask = "only";
+          else if (v !== ALL) next.type = v as NonNullable<IssueFilter["type"]>;
+          onChange(next);
+        }}
         options={[
           { value: ALL, label: "Any type" },
+          { value: NO_SUBTASKS, label: "Everything but subtasks" },
           { value: "EPIC", label: "Epic" },
           { value: "STORY", label: "Story" },
           { value: "TASK", label: "Task" },
           { value: "BUG", label: "Bug" },
+          { value: "SUBTASK", label: "Subtask" },
         ]}
       />
 

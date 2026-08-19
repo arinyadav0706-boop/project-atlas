@@ -30,6 +30,8 @@ export interface IssueCardRow {
   assignee: { id: string; name: string; avatarUrl: string | null } | null;
   epicId?: string | null;
   epic?: { id?: string; key: string } | null;
+  parentId?: string | null;
+  parent?: { id?: string; key: string } | null;
   labels?: { label: { id: string; name: string; color: string } }[];
   components?: { component: { id: string; name: string } }[];
 }
@@ -49,6 +51,8 @@ export function toIssueCardDto(row: IssueCardRow): IssueListItemDto {
     assignee: row.assignee,
     epicId: row.epicId ?? null,
     epicKey: row.epic?.key,
+    parentId: row.parentId ?? null,
+    parentKey: row.parent?.key,
     // Flattened out of their join rows so the DTO carries the entity, not the
     // relation — the client should never see `{ label: { … } }`.
     labels: row.labels?.map((l) => l.label) ?? [],
