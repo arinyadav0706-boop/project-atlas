@@ -1,9 +1,29 @@
-// The Timeline's date arithmetic, as a pure module (ADR-0047 §8).
+// The Timeline's PIXEL arithmetic, as a pure module (ADR-0047 §8).
 //
 // Every pixel the chart draws comes from here, and none of it touches React,
 // Prisma or the DOM — which is the point. Gantt bugs are almost always
 // off-by-one-day bugs, and an off-by-one you can only reproduce by dragging
 // something in a browser is one you will be chasing for a week.
+//
+// The *day* arithmetic moved to `shared/lib/day.ts` when the Calendar became a
+// second consumer (ADR-0048 §1): two views that disagree about which day an
+// issue falls on is a bug nobody reports and everybody notices. It is
+// re-exported here so existing imports keep working, and so a reader still sees
+// the whole vocabulary the chart is written in.
+
+import { addDays, daysBetween, startOfDay } from "@/shared/lib/day";
+import type { Span } from "@/shared/lib/day";
+
+export {
+  addDays,
+  daysBetween,
+  MS_PER_DAY,
+  spanOf,
+  startOfDay,
+  toDayString,
+  unionSpan,
+  type Span,
+} from "@/shared/lib/day";
 
 export type ZoomDto = "DAY" | "WEEK" | "MONTH";
 
@@ -13,8 +33,6 @@ export const PX_PER_DAY: Record<ZoomDto, number> = {
   WEEK: 14,
   MONTH: 4.5,
 };
-
-export const MS_PER_DAY = 86_400_000;
 
 /**
  * The narrowest a bar may be drawn, whatever the zoom says.
@@ -31,82 +49,6 @@ export const MS_PER_DAY = 86_400_000;
  * the exact dates are on the row and in the tooltip either way.
  */
 export const MIN_BAR_PX = 30;
-
-/**
- * Midnight UTC of the day an instant falls on.
- *
- * UTC, deliberately, everywhere in this module. A due date is a *day*, not an
- * instant — "the 14th" means the same thing in Mumbai and Lisbon — and the
- * moment local time enters the arithmetic, a bar drawn at 23:00 IST lands on
- * the wrong column for half the org. The one place local time is allowed is
- * the axis labels a human reads.
- */
-export function startOfDay(date: Date | string): Date {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-
-export function addDays(date: Date, days: number): Date {
-  return new Date(startOfDay(date).getTime() + days * MS_PER_DAY);
-}
-
-/** Whole days from `from` to `to`. Negative when `to` is earlier. */
-export function daysBetween(from: Date | string, to: Date | string): number {
-  return Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / MS_PER_DAY);
-}
-
-/** ISO `YYYY-MM-DD` — the wire format for a day, with no time to misread. */
-export function toDayString(date: Date): string {
-  return startOfDay(date).toISOString().slice(0, 10);
-}
-
-/**
- * A bar's span.
- *
- * `end` is INCLUSIVE — an issue due the 14th occupies the 14th. So a one-day
- * bar has start === end and a width of one day, not zero. Getting this wrong
- * is the classic Gantt bug: every bar renders one day short and nobody can say
- * why the last day is missing.
- */
-export interface Span {
-  start: Date;
-  end: Date;
-}
-
-/**
- * What a row's dates mean (BR-2, BR-3).
- *
- * Returns null for genuinely unscheduled work — never an invented position. An
- * issue with a due date and no start is one day long ON the due date, because
- * the deadline is the only thing anybody actually knows.
- */
-export function spanOf(input: {
-  startDate?: string | Date | null;
-  dueDate?: string | Date | null;
-}): Span | null {
-  const due = input.dueDate ? startOfDay(input.dueDate) : null;
-  const start = input.startDate ? startOfDay(input.startDate) : null;
-  if (!due) return null;
-  if (!start || start.getTime() > due.getTime()) {
-    // A start after its due date is corrupt rather than expressive; the API
-    // refuses it (BR-4), and if one is already stored the chart shows the one
-    // fact it can defend instead of drawing a negative-width bar.
-    return { start: due, end: due };
-  }
-  return { start, end: due };
-}
-
-/** The union of several spans — an Epic's roll-up (BR-6). */
-export function unionSpan(spans: Span[]): Span | null {
-  if (spans.length === 0) return null;
-  let start = spans[0]!.start;
-  let end = spans[0]!.end;
-  for (const s of spans.slice(1)) {
-    if (s.start < start) start = s.start;
-    if (s.end > end) end = s.end;
-  }
-  return { start, end };
-}
 
 export interface Axis {
   /** First day drawn (inclusive). */

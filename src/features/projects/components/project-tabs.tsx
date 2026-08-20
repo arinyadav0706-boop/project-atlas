@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarDays,
   CalendarRange,
   Columns3,
   KanbanSquare,
@@ -31,6 +32,10 @@ export function ProjectTabs({ projectId }: { projectId: string }) {
         // Beside Backlog, not next to Reports: planning is what it is for
         // (ADR-0047), and it reads the same dates the backlog schedules.
         { href: `${base}/timeline`, label: "Timeline", icon: CalendarRange },
+        // Next to Timeline: the same two dates, asked two different questions
+        // (ADR-0048). Timeline is "how does the plan lay out"; Calendar is
+        // "what lands this week", which is what most people open a tool for.
+        { href: `${base}/calendar`, label: "Calendar", icon: CalendarDays },
         { href: `${base}/reports`, label: "Reports", icon: LineChart },
         { href: `${base}/settings`, label: "Settings", icon: Settings },
       ]}

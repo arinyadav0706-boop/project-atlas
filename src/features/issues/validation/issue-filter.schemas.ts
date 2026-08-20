@@ -48,7 +48,18 @@ export const issueFilterSchema = z.object({
 
 export type IssueFilterInput = z.infer<typeof issueFilterSchema>;
 
-/** Reads a filter straight off a route's `searchParams`. */
+/**
+ * Reads a filter straight off a route's `searchParams`.
+ *
+ * The result carries only the keys that are actually constrained. Zod keeps a
+ * key whose value parsed to `undefined`, so an empty query used to come back as
+ * fifteen keys all set to undefined — semantically empty, but
+ * `Object.keys(filter).length` said fifteen. Both the Timeline and the Calendar
+ * decide their "open work by default" from exactly that check, so the default
+ * silently never fired and both views opened on the archive. Stripping here
+ * fixes it once, for every caller, rather than teaching each page to ask the
+ * question a different way.
+ */
 export function parseIssueFilter(q: URLSearchParams): IssueFilterInput {
   const labelIds = q.getAll("labelIds");
   const componentIds = q.getAll("componentIds");
@@ -58,36 +69,61 @@ export function parseIssueFilter(q: URLSearchParams): IssueFilterInput {
   // `false` and hide every estimated issue.
   const hasEstimate = q.get("hasEstimate");
   const blocked = q.get("blocked");
-  return issueFilterSchema.parse({
-    blocked: blocked === "true" ? true : blocked === "false" ? false : undefined,
-    projectIds: projectIds.length ? projectIds : undefined,
-    status: q.get("status") ?? undefined,
-    openOnly: q.get("openOnly") === "true" ? true : undefined,
-    hasEstimate:
-      hasEstimate === "true" ? true : hasEstimate === "false" ? false : undefined,
-    sprintId: q.get("sprintId") ?? undefined,
-    epicId: q.get("epicId") ?? undefined,
-    assigneeId: q.get("assigneeId") ?? undefined,
-    type: q.get("type") ?? undefined,
-    // Like `hasEstimate`, only the literal values count — `subtask=yes` is a
-    // malformed param and must mean "no constraint", not silently pick one.
-    subtask: (() => {
-      const v = q.get("subtask");
-      return v === "only" || v === "exclude" ? v : undefined;
-    })(),
-    priority: q.get("priority") ?? undefined,
-    labelIds: labelIds.length ? labelIds : undefined,
-    componentIds: componentIds.length ? componentIds : undefined,
-    search: q.get("search") ?? undefined,
-    // `?cf=fieldId:op:value`, repeated. A malformed one is dropped rather than
-    // rejecting the whole request — a stale link should open unfiltered, not
-    // 422 (ADR-0043 §2).
-    customFields: (() => {
-      const parsed = q
-        .getAll("cf")
-        .map(decodePredicate)
-        .filter((p): p is NonNullable<typeof p> => p !== null);
-      return parsed.length ? parsed : undefined;
-    })(),
-  });
+  /**
+   * An empty param is no constraint at all.
+   *
+   * `q.get()` returns `""` for `?search=`, and `"" ?? undefined` is `""` — which
+   * then fails `.min(1)` and 422s the whole request. So `/issues?search=`, a URL
+   * any cleared search box or hand-edited link produces, returned an error page
+   * rather than an unfiltered list. Same for `?status=` against the enum. A
+   * stale link should open unfiltered (ADR-0043 §2).
+   */
+  const set = (key: string): string | undefined => q.get(key)?.trim() || undefined;
+  return dropUndefined(
+    issueFilterSchema.parse({
+      blocked: blocked === "true" ? true : blocked === "false" ? false : undefined,
+      projectIds: projectIds.length ? projectIds : undefined,
+      status: set("status"),
+      openOnly: q.get("openOnly") === "true" ? true : undefined,
+      hasEstimate:
+        hasEstimate === "true" ? true : hasEstimate === "false" ? false : undefined,
+      sprintId: set("sprintId"),
+      epicId: set("epicId"),
+      assigneeId: set("assigneeId"),
+      type: set("type"),
+      // Like `hasEstimate`, only the literal values count — `subtask=yes` is a
+      // malformed param and must mean "no constraint", not silently pick one.
+      subtask: (() => {
+        const v = q.get("subtask");
+        return v === "only" || v === "exclude" ? v : undefined;
+      })(),
+      priority: set("priority"),
+      labelIds: labelIds.length ? labelIds : undefined,
+      componentIds: componentIds.length ? componentIds : undefined,
+      search: set("search"),
+      // `?cf=fieldId:op:value`, repeated. A malformed one is dropped rather than
+      // rejecting the whole request — a stale link should open unfiltered, not
+      // 422 (ADR-0043 §2).
+      customFields: (() => {
+        const parsed = q
+          .getAll("cf")
+          .map(decodePredicate)
+          .filter((p): p is NonNullable<typeof p> => p !== null);
+        return parsed.length ? parsed : undefined;
+      })(),
+    }),
+  );
+}
+
+/**
+ * Drop keys whose value is `undefined`.
+ *
+ * A key set to undefined and an absent key mean the same thing to every
+ * consumer of this filter — but only one of them is invisible to
+ * `Object.keys()`, and that difference is what broke the default above.
+ */
+function dropUndefined(filter: IssueFilterInput): IssueFilterInput {
+  return Object.fromEntries(
+    Object.entries(filter).filter(([, v]) => v !== undefined),
+  ) as IssueFilterInput;
 }

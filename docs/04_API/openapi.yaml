@@ -586,6 +586,45 @@ paths:
               schema: { $ref: "#/components/schemas/Timeline" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  # ── Calendar (ADR-0048, 29_calendar.md) ────────────────────────────────────
+  /projects/{projectId}/calendar:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: Events in a date window, plus the unscheduled panel
+      description: >
+        The Calendar and the Timeline are two pictures of ONE pair of dates, so
+        there is no calendar write endpoint: a drag is
+        `PATCH /issues/{issueId}/schedule` (ADR-0048 §7), which means version
+        checks, RBAC, the archived-project rule and the start-after-due refusal
+        are shared rather than re-implemented per view. Takes the SAME query
+        string as every other list route. An issue is included when its span
+        overlaps the window, where a due date with no start counts as one day on
+        the due date. Capped at 500 events; `truncated` says when that bit.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: First day drawn, inclusive (`YYYY-MM-DD`).
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: >
+            Last day drawn, inclusive. Must be on or after `from`, and at most
+            62 days after it — a six-week month view plus slack. Wider is a
+            report, not a calendar.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Calendar" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: Missing, malformed, inverted or too-wide window }
+
   /issues/{issueId}/schedule:
     parameters:
       - $ref: "#/components/parameters/IssueIdParam"
@@ -2595,6 +2634,67 @@ components:
             (BR-6). Read-only — dragging a number derived from other numbers is
             a control that cannot do what it appears to.
         blockedBy: { type: integer, description: Open blockers (ADR-0046). }
+
+    Calendar:
+      type: object
+      required: [from, to, events, unscheduled, truncated, canEdit]
+      properties:
+        from:
+          type: string
+          format: date
+          description: The window actually queried, echoed back so the client can trust it.
+        to: { type: string, format: date }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarEvent" }
+          description: >
+            Everything whose span overlaps the window. Rolled-up Epics are NOT
+            included (BR-13) — a derived six-week band across every cell is
+            noise in a view about what lands on a day.
+        unscheduled:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarEvent" }
+          description: Undated issues, to drag onto a day. Capped at 50.
+        truncated:
+          type: boolean
+          description: More than 500 events fall in the window; the view says so.
+        canEdit:
+          type: boolean
+          description: >
+            Whether the viewer may drag anything. A hint for the UI only — the
+            boundary is the schedule endpoint, which re-checks server-side.
+
+    CalendarEvent:
+      type: object
+      required: [id, key, title, type, status, priority, startDate, dueDate, version, blockedBy]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/IssueType" }
+        status: { $ref: "#/components/schemas/IssueStatus" }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assignee:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
+        startDate:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            A DAY, never an instant. Null with a due date set means a one-day
+            event on the due date.
+        dueDate: { type: string, format: date, nullable: true }
+        version:
+          type: integer
+          description: For the optimistic-concurrency check on a drag (ADR-0011).
+        blockedBy:
+          type: integer
+          description: Open blockers — the same count the board badge shows.
 
     Timeline:
       type: object
