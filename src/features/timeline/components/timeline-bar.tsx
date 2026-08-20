@@ -131,23 +131,31 @@ export function TimelineBar({
       )}
       title={`${row.key} · ${row.title}`}
     >
-      {/* Resize handles. Only wide enough to grab, and only when there is room
-          — on a month zoom a bar can be four pixels wide, where a handle would
-          be the entire bar. */}
-      {draggable && box.width > 28 && (
+      {/* Resize handles, on EVERY draggable bar.
+
+          These used to be gated behind `width > 28`, which read as a sensible
+          guard and was in fact a bug: a one-day bar is 14px at Week and 12px at
+          Month, so on real data — where most issues have a due date and no
+          start (BR-3) — resizing was impossible at every zoom but Day. The
+          floor in `barBox` (MIN_BAR_PX) now guarantees the room, so the gate is
+          gone rather than merely lowered.
+
+          4px wide with a -4px inset so the grab area spills just outside the
+          bar: at these sizes an edge you must hit exactly is an edge you miss. */}
+      {draggable && (
         <>
           <span
             onPointerDown={onPointerDown("start")}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l-md opacity-0 hover:bg-black/20 group-hover/bar:opacity-100"
+            className="absolute -left-1 top-0 h-full w-2 cursor-ew-resize rounded-l-md bg-black/0 transition-colors hover:bg-black/25 group-hover/bar:bg-black/15"
             aria-hidden
           />
           <span
             onPointerDown={onPointerDown("end")}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r-md opacity-0 hover:bg-black/20 group-hover/bar:opacity-100"
+            className="absolute -right-1 top-0 h-full w-2 cursor-ew-resize rounded-r-md bg-black/0 transition-colors hover:bg-black/25 group-hover/bar:bg-black/15"
             aria-hidden
           />
         </>

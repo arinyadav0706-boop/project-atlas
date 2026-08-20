@@ -129,6 +129,27 @@ The drag is pointer events and a pixels-per-day constant, **not** dnd-kit.
 dnd-kit sorts lists; this is free positioning against a scale, and the
 translation from pixels to a date is the whole job.
 
+### 9. A bar has a minimum width, even when the scale disagrees
+
+`barBox` floors every bar at `MIN_BAR_PX` (30px), and resize handles render on
+every draggable bar rather than only on wide ones.
+
+This is a correction, not an original decision, and the reason is worth keeping.
+An issue with a due date and no start is one day long (BR-3) — which is what
+almost all real data looks like, because nobody has set a `startDate` yet. At
+Week zoom one day is 14px and at Month it is 4.5px. A 14px bar cannot be
+grabbed, cannot host two 8px resize handles, and cannot be told apart from a
+gridline. The first production timeline was made entirely of such bars, so
+resizing was impossible at every zoom but Day — and the only way out of a
+one-day bar *is* to resize it. The chart could not be used to do the thing it
+exists for.
+
+The cost is honest: at Month zoom a one-day bar is drawn about seven days wide.
+A bar nobody can grab is worse than one slightly overstated, and the exact dates
+are on the row and in the tooltip either way. The alternative — a lower floor,
+or handles only above some width — was what shipped, and it is precisely the
+gate that produced the bug.
+
 ## Consequences
 
 **Good.** One new column. Arrows, conflicts and blocked state all come from
@@ -139,7 +160,11 @@ rendering anything.
 **Costs.** `startDate` is a real migration on the busiest table. Every issue in
 the seeded data has at most a due date, so most bars start life one day long
 until someone schedules them — accurate, but it will look sparse before a team
-does the work. The row cap means a large project shows a subset by default.
+does the work, and it makes the minimum-width floor (§9) load-bearing rather
+than cosmetic. The row cap means a large project shows a subset by default.
+Dependency arrows likewise only appear once someone creates a `BLOCKS` link, and
+an empty chart with no arrows is indistinguishable from a broken one, so the
+view says which it is.
 
 **Not decided here.** Auto-rescheduling dependents, critical path, a
 cross-project portfolio timeline, baselines, milestones as a distinct entity,

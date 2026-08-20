@@ -7,6 +7,7 @@ import {
   dayAtX,
   daysBetween,
   isConflict,
+  MIN_BAR_PX,
   PX_PER_DAY,
   spanOf,
   startOfDay,
@@ -137,6 +138,25 @@ describe("bar geometry", () => {
   it("gives a one-day bar a full day of width", () => {
     const box = barBox(axis, { start: day("2026-08-12"), end: day("2026-08-12") });
     expect(box.width).toBe(axis.pxPerDay);
+  });
+
+  // The regression that reached production. An issue with a due date and no
+  // start IS one day (BR-3), which is the shape of almost all real data — and
+  // at Week/Month a one-day bar was 14px/12px: too narrow to grab and too
+  // narrow to host resize handles, so resizing was impossible at every zoom
+  // but Day. Nothing tested it, so nothing caught it.
+  it("never draws a bar too narrow to grab, at any zoom", () => {
+    const oneDay = { start: day("2026-08-12"), end: day("2026-08-12") };
+    for (const zoom of ["DAY", "WEEK", "MONTH"] as const) {
+      const zoomAxis = buildAxis([oneDay], zoom, today);
+      expect(barBox(zoomAxis, oneDay).width).toBeGreaterThanOrEqual(MIN_BAR_PX);
+    }
+  });
+
+  it("leaves long bars alone — the floor is a minimum, not a size", () => {
+    const long = { start: day("2026-08-01"), end: day("2026-08-31") };
+    const weekAxis = buildAxis([long], "WEEK", today);
+    expect(barBox(weekAxis, long).width).toBe(31 * PX_PER_DAY.WEEK);
   });
 
   it("counts the end day — a 10th-to-14th bar is FIVE days wide, not four", () => {

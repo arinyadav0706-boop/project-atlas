@@ -31,6 +31,8 @@ unscheduled tray. Not: auto-rescheduling dependents, critical path, portfolio
 | BR-10 | At most **200 bars**, chosen by **soonest due date** — a rule that is total (every drawn row has a due date) and statable ("the next 200 things due"). Deliberately not "earliest start": the chart *displays* by effective start (`startDate ?? dueDate`), which SQL cannot order by without COALESCE, so selecting on start would make the database's 200 a different set from the one displayed and silently drop rows the chart had decided to draw. The UI says when it truncated. |
 | BR-11 | Rescheduling is version-checked (ADR-0011) and needs the same write access as any issue edit. Moving an issue **never** moves anything else (ADR-0047 §7). |
 | BR-12 | The unscheduled tray lists undated issues, capped at 50. Scheduling one uses **date inputs plus a one-click "This week"**, not drag-from-tray-onto-axis: that gesture needs edge auto-scroll, a drop preview and a separate keyboard path, and none of it is faster than typing a date. Drag-from-tray is a tracked refinement (backlog TL-3), not a claim. |
+| BR-13 | A bar is never drawn narrower than **30px**, whatever the zoom's pixels-per-day says, and resize handles are on **every** draggable bar regardless of width. A one-day bar (BR-3, the shape of most real data) is 14px at Week and 4.5px at Month — unclickable, and with nowhere to put handles, so the only gesture that can turn it into a multi-day bar is unavailable exactly where it is needed. At Month zoom this overstates a one-day bar's width; the row and the tooltip carry the real dates. See ADR-0047 §9. |
+| BR-14 | When there are rows but no `BLOCKS` links among them, the view says arrows come from Blocks links rather than showing nothing. No arrows and broken arrows look the same on screen. |
 
 ## 3. Database
 
@@ -64,9 +66,12 @@ Route `/projects/{id}/timeline`, a tab beside Board and Backlog.
 - **Rows** — key, type icon and title on a fixed left rail; the bar on the
   scrolling right.
 - **Bars** — solid for explicit dates, outlined for a rolled-up Epic (BR-6),
-  struck-through when Done. Drag the body to shift, the edges to resize.
+  struck-through when Done. Drag the body to shift, the edges to resize; the
+  edge handles are always present and always at least 8px of grab area, on a
+  bar that is always at least 30px wide (BR-13).
 - **Arrows** — SVG overlay from blocker's right edge to dependent's left;
-  **red when the plan is impossible** (BR-8), with the count in the header.
+  **red when the plan is impossible** (BR-8), with the count in the header. When
+  there are none, a line says where they come from (BR-14).
 - **Sprint bands** — shaded, named, behind everything.
 - **Unscheduled tray** — a panel of undated issues, each with start/due inputs,
   a **Schedule** button and a one-click **This week**. Keyboard-operable, and
@@ -88,6 +93,9 @@ Route `/projects/{id}/timeline`, a tab beside Board and Backlog.
 7. `startDate` after `dueDate` is a 422 on every path.
 8. Sprint bands appear at their real dates.
 9. A project over the cap renders 200 bars and says it truncated.
+10. A one-day bar is grabbable and resizable at **every** zoom: at Day, Week and
+    Month it is at least 30px wide and carries both edge handles, and dragging
+    its left edge sets a `startDate` where there was none.
 
 ## 7. Validation
 

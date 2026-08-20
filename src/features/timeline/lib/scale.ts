@@ -17,6 +17,22 @@ export const PX_PER_DAY: Record<ZoomDto, number> = {
 export const MS_PER_DAY = 86_400_000;
 
 /**
+ * The narrowest a bar may be drawn, whatever the zoom says.
+ *
+ * Without this, a one-day bar is `pxPerDay` wide — 14px at Week, 12px at Month
+ * — which is not a control anybody can grab, and too narrow to host resize
+ * handles. That is not a rare edge case: an issue with a due date and no start
+ * IS one day (BR-3), and that is the overwhelmingly common shape of real data.
+ * The first production timeline was entirely such bars, and resizing was
+ * literally impossible outside Day zoom.
+ *
+ * The cost is honest and small: at Month zoom a one-day bar is drawn ~7 days
+ * wide. A bar nobody can see or grab is worse than one slightly overstated, and
+ * the exact dates are on the row and in the tooltip either way.
+ */
+export const MIN_BAR_PX = 30;
+
+/**
  * Midnight UTC of the day an instant falls on.
  *
  * UTC, deliberately, everywhere in this module. A due date is a *day*, not an
@@ -139,11 +155,14 @@ export function xFor(axis: Axis, date: Date | string): number {
   return daysBetween(axis.from, date) * axis.pxPerDay;
 }
 
-/** A bar's box. Width counts the end day, so one day is one column wide. */
+/**
+ * A bar's box. Width counts the end day, so one day is one column wide —
+ * floored at `MIN_BAR_PX` so short bars stay grabbable at every zoom.
+ */
 export function barBox(axis: Axis, span: Span): { left: number; width: number } {
   const left = xFor(axis, span.start);
   const width = (daysBetween(span.start, span.end) + 1) * axis.pxPerDay;
-  return { left, width: Math.max(width, axis.pxPerDay) };
+  return { left, width: Math.max(width, MIN_BAR_PX) };
 }
 
 /** Pixels back to a day — the drag's whole job (ADR-0047 §8). */

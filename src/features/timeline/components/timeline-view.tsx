@@ -251,6 +251,18 @@ export function TimelineView({
         </p>
       )}
 
+      {/* "No dependencies yet" and "arrows are broken" look identical on screen
+          — both are an absence. Saying which one it is, and where the arrows
+          come from, is the difference between a missing feature and a missing
+          link. Only once there is something to draw them between. */}
+      {data && data.rows.length > 0 && data.links.length === 0 && (
+        <p className="text-[12px] text-muted-foreground">
+          No dependency arrows yet — add a <span className="font-medium">Blocks</span>{" "}
+          link under Linked issues on any issue, and it will be drawn here between
+          the two bars.
+        </p>
+      )}
+
       <Card className="overflow-hidden">
         {loading && !data ? (
           <div className="space-y-2 p-4">
