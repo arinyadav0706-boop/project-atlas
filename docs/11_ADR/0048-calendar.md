@@ -117,6 +117,39 @@ Same rule and same reason as ADR-0047 §8: a day is a day. The moment local time
 enters the grid, an issue due "the 14th" renders in the 13th's cell for anyone
 west of UTC, and the bug reproduces only for them.
 
+### 11. A bar is a tinted pill, not a filled block
+
+The first version filled each bar with a solid status colour and white text. On
+real data it turned a month into horizontal stripes: the gridlines vanished
+behind the fill, the dates stopped being readable, and every row shouted at the
+same volume. A calendar whose background you cannot see is not a calendar.
+
+A bar is now a pale wash with a 3px accent on its leading edge and ordinary
+foreground text, with a 4px gutter each side so the cell borders show through.
+Colour still carries status, as a mark rather than a floodlight — the same
+reason Design Principles §2 never lets colour work alone. Only HIGHEST and HIGH
+priority get a dot; a mark on every bar is texture, not signal.
+
+### 12. The calendar opens on MY open work, not the project's
+
+A whole project's month is not a calendar. VERUS Web Platform carries ~350 open
+dated issues in any six-week window — about fifty a day against the four that
+fit in a cell. Every cell read "+46 more", and a grid that can show eight
+percent of itself is a worse answer than the issue list it sits next to.
+
+So the default filter is `openOnly` **and** assigned-to-me. That is what a
+calendar is for — Outlook, Google and Jira's calendar all default to the
+person — and the project-wide month becomes the thing you opt into.
+
+Two properties make this safe rather than presumptuous: it is set as the initial
+**filter**, so the bar visibly shows "Open (not done)" with "Assigned to me"
+lit and one click widens either; and the empty state says which default it is,
+because an empty calendar and a narrow filter look identical on screen.
+
+Note what this does NOT fix: the density is still there, and clearing the chip
+brings it back. The honest answer to a genuinely crowded month is a narrower
+scope, not a cleverer grid.
+
 ## Consequences
 
 **Good.** No migration. One write path shared with the Timeline. One definition

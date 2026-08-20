@@ -37,7 +37,7 @@ export default async function ProjectCalendarPage(props: {
         projectId={params.projectId}
         projects={projects.map((p) => ({ id: p.id, key: p.key, name: p.name }))}
         currentUserId={actor.userId}
-        initialFilter={parseFilterFromParams(search)}
+        initialFilter={parseFilterFromParams(search, actor.userId)}
       />
     </>
   );
@@ -47,25 +47,39 @@ export default async function ProjectCalendarPage(props: {
  * `searchParams` gives `string | string[]`; the shared parser reads a
  * `URLSearchParams`. One wire format, one parser (see /issues).
  *
- * With no params the calendar opens on **open work**, for the same reason the
- * Timeline does: a month whose cells are full of finished issues is a picture
- * of the archive, and on a real project the done ones outnumber the live ones
- * enough to push them out of the three-bar cap. Set as the initial FILTER, not
- * injected in the service, so the bar visibly reads "Open (not done)" and one
- * click clears it — a default you cannot see is one you will misread.
+ * With no params the calendar opens on **my open work**, and both halves of
+ * that are deliberate.
+ *
+ * *Open*, for the same reason the Timeline does: a month full of finished
+ * issues is a picture of the archive.
+ *
+ * *Mine*, because a whole project's month is not a calendar. VERUS Web Platform
+ * has ~350 open dated issues in any six-week window — fifty a day, against four
+ * that fit in a cell. Every cell reads "+46 more", and a grid that can only ever
+ * show eight percent of itself is a worse answer than the issue list. A calendar
+ * answers "what do I have on", the way Outlook and Google do and the way Jira's
+ * calendar defaults; a project-wide month is the exception you opt into, not the
+ * thing to open on.
+ *
+ * Set as the initial FILTER rather than injected in the service, so the bar
+ * visibly reads "Open (not done)" with "Assigned to me" lit, and one click on
+ * either widens it. A default you cannot see is one you will misread — and a
+ * default you cannot turn off is a bug.
  */
 function parseFilterFromParams(
   params: Record<string, string | string[] | undefined>,
+  currentUserId: string,
 ): IssueFilter {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (Array.isArray(value)) for (const v of value) query.append(key, v);
     else if (value !== undefined) query.set(key, value);
   }
+  const fallback: IssueFilter = { openOnly: true, assigneeId: currentUserId };
   try {
     const parsed = parseIssueFilter(query);
-    return Object.keys(parsed).length === 0 ? { openOnly: true } : parsed;
+    return Object.keys(parsed).length === 0 ? fallback : parsed;
   } catch {
-    return { openOnly: true };
+    return fallback;
   }
 }

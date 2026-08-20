@@ -260,8 +260,18 @@ export function CalendarView({
           ) : data && data.events.length === 0 && data.unscheduled.length === 0 ? (
             <EmptyState
               icon={<CalendarDays />}
-              title="Nothing scheduled here"
-              description="No issues fall in this window. Try another month, or widen the filter."
+              title={
+                filter.assigneeId === currentUserId
+                  ? "Nothing of yours lands this month"
+                  : "Nothing scheduled here"
+              }
+              description={
+                // An empty calendar and a narrow filter look identical, and the
+                // calendar opens narrow on purpose. Say which one this is.
+                filter.assigneeId === currentUserId
+                  ? "The calendar opens on your own open work. Turn off \u201cAssigned to me\u201d to see the whole project, or try another month."
+                  : "No issues fall in this window. Try another month, or widen the filter."
+              }
             />
           ) : (
             <CalendarGrid

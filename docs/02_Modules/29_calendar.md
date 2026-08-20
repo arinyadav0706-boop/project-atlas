@@ -32,6 +32,8 @@ recurring issues.
 | BR-12 | At most **500 events** in the visible window. Beyond that the view says it truncated and points at the filter, rather than quietly showing a subset. |
 | BR-13 | A rolled-up Epic is **not** drawn. The Timeline computes an epic's span from its children because a Gantt is about hierarchy; a calendar is about what lands on a day, and a derived six-week band across every cell is noise. Epics with their own dates appear normally. |
 | BR-14 | Clicking a bar opens the issue; **dragging one never does** (28_timeline BR-15, same rule, same reason). |
+| BR-15 | A bar is a **tinted pill with a 3px leading accent and foreground text**, with a gutter each side so the cell borders stay visible — never a saturated block with white text, which turns a dense month into unreadable stripes. Only HIGHEST and HIGH priority carry a dot. See ADR-0048 §11. |
+| BR-16 | The calendar opens on **my open work** (`openOnly` + assigned to me), not the whole project's. A project month can hold fifty issues a day against four that fit in a cell. Set as the visible initial filter so one click widens it, and the empty state says which default is in force. See ADR-0048 §12. |
 
 ## 3. Database
 
@@ -93,8 +95,10 @@ Route `/projects/{id}/calendar`, a tab beside Timeline.
 11. An archived project is read-only (409), and a stale version is a 409.
 12. Month navigation moves by whole months — 31 January plus one month is 28
     February, not 3 March — and Today returns to the current one.
-13. The calendar opens on **open work** by default, and the filter bar visibly
-    says so.
+13. The calendar opens on **my open work** by default; the filter bar shows
+    "Open (not done)" with "Assigned to me" lit, and clearing either widens it.
+14. With nothing of mine in the window, the empty state says the calendar is
+    showing only my work — not just "nothing here".
 
 ## 7. Validation
 
