@@ -398,6 +398,13 @@ model Issue {
   // silently overwriting. O(1) per write, no locks; scales to any user count.
   version         Int           @default(0)
   dueDate         DateTime?
+  /// The Timeline bar's left edge (ADR-0047 §1); `dueDate` is its right.
+  ///
+  /// A separate column rather than something derived: the sprint would draw
+  /// every bar the same length, and `createdAt` — when somebody typed it in —
+  /// is not when the work starts. Nullable, because most issues are a deadline
+  /// with no planned start, which the chart renders as a one-day bar.
+  startDate       DateTime?
   // Original effort estimate in MINUTES (ADR-0030, time-tracking feature). Owned
   // by the time-tracking service, not the issue-edit path; not OCC-bound.
   estimateMinutes Int?
@@ -436,6 +443,9 @@ model Issue {
   // A parent's subtasks (ADR-0045): read on every parent detail page, and by
   // the cascade on delete and the sprint follow-the-parent move.
   @@index([parentId])
+  // Timeline (ADR-0047): the chart reads one project's dated issues ordered by
+  // start. Covers both the filter and the sort.
+  @@index([projectId, startDate])
   @@map("issues")
 }
 

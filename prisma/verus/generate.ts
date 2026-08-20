@@ -480,8 +480,22 @@ export function generateVerus(): VerusDataset {
       const createdAt = daysAgo(rng.int(1, 200));
       // Due dates: some future, some overdue (only meaningful when not DONE).
       let dueDate: Date | null = null;
+      let startDate: Date | null = null;
       if (rng.bool(0.3)) {
         dueDate = rng.bool(0.4) ? daysAgo(rng.int(1, 30)) : daysFromNow(rng.int(1, 45));
+        // Roughly two thirds of dated work also carries a planned start
+        // (ADR-0047 §1). Without this every Timeline bar is a one-day sliver:
+        // technically correct — a due date alone IS one day (BR-3) — but a
+        // chart of 200 identical ticks demonstrates nothing, and the seed
+        // exists to make the app demonstrable (ADR-0033).
+        //
+        // Span scales with size so the picture has rhythm: a 1-point chore is
+        // a couple of days, a 13-point story runs a fortnight.
+        if (rng.bool(0.65)) {
+          const points = sized ? rng.pick(STORY_POINTS) : 3;
+          const span = Math.max(1, Math.min(21, Math.round(points * 1.5) + rng.int(0, 3)));
+          startDate = new Date(dueDate.getTime() - span * 86_400_000);
+        }
       }
 
       pushIssue({
@@ -505,6 +519,7 @@ export function generateVerus(): VerusDataset {
         storyPoints: sized ? rng.pick(STORY_POINTS) : null,
         estimateMinutes: rng.bool(0.4) ? rng.pick(ESTIMATE_MINUTES) : null,
         dueDate,
+        startDate,
         createdAt,
         createdBy: reporterId,
       });

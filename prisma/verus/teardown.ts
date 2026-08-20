@@ -50,11 +50,46 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
   await prisma.attachment.deleteMany({ where: inOrgIssue });
   await prisma.issueComponent.deleteMany({ where: inOrgIssue });
   await prisma.issueLabel.deleteMany({ where: inOrgIssue });
+  // ── Everything added AFTER this teardown was first written ───────────────
+  //
+  // Custom fields (ADR-0042), dashboards (ADR-0044), saved views (ADR-0040)
+  // and dependency links (ADR-0046) all hang off issues, projects or the org
+  // with RESTRICT foreign keys, and none of them were added here when they
+  // shipped. Re-seeding has therefore been broken since module 22 — it failed
+  // on the first missing table with a bare P2003, and because a re-seed is a
+  // manual, occasional act, nothing said so for months.
+  //
+  // When a module adds a table, these three queries say whether it belongs
+  // here. Run them; do not guess:
+  //
+  //   SELECT DISTINCT tc.table_name
+  //   FROM information_schema.table_constraints tc
+  //   JOIN information_schema.constraint_column_usage ccu
+  //     ON tc.constraint_name = ccu.constraint_name
+  //   WHERE tc.constraint_type = 'FOREIGN KEY'
+  //     AND ccu.table_name = ANY (ARRAY['issues','projects','organizations'])
+  //     AND tc.table_name <> ccu.table_name;
+  await prisma.customFieldValue.deleteMany({ where: inOrgIssue });
+  await prisma.issueLink.deleteMany({ where: { organizationId: orgId } });
   await prisma.issue.deleteMany({ where: { project: { organizationId: orgId } } });
   await prisma.component.deleteMany({ where: { project: { organizationId: orgId } } });
   await prisma.sprint.deleteMany({ where: { project: { organizationId: orgId } } });
   await prisma.projectMember.deleteMany({ where: { project: { organizationId: orgId } } });
+  await prisma.projectCustomField.deleteMany({
+    where: { project: { organizationId: orgId } },
+  });
   await prisma.project.deleteMany({ where: { organizationId: orgId } });
+  // Dashboards before saved views: a widget may point at a view (ADR-0044 §3),
+  // so the reverse order trips that FK. Widgets themselves cascade from the
+  // dashboard and need no statement of their own.
+  await prisma.dashboard.deleteMany({ where: { organizationId: orgId } });
+  await prisma.savedView.deleteMany({ where: { organizationId: orgId } });
+  // Definitions last of the custom-field tables — values, per-project
+  // enablement and select OPTIONS all reference them.
+  await prisma.customFieldOption.deleteMany({
+    where: { field: { organizationId: orgId } },
+  });
+  await prisma.customFieldDefinition.deleteMany({ where: { organizationId: orgId } });
   await prisma.teamMembership.deleteMany({ where: { team: { organizationId: orgId } } });
   await prisma.team.deleteMany({ where: { organizationId: orgId } });
   await prisma.featureFlag.deleteMany({ where: { organizationId: orgId } });

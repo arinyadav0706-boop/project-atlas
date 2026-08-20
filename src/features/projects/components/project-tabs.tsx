@@ -1,6 +1,13 @@
 "use client";
 
-import { Columns3, KanbanSquare, LineChart, ListTodo, Settings } from "lucide-react";
+import {
+  CalendarRange,
+  Columns3,
+  KanbanSquare,
+  LineChart,
+  ListTodo,
+  Settings,
+} from "lucide-react";
 import { TabNav } from "@/shared/components/ui/tab-nav";
 
 // Project-scoped sub-navigation, on the shared `TabNav` so it is the same
@@ -21,6 +28,9 @@ export function ProjectTabs({ projectId }: { projectId: string }) {
         { href: `${base}/issues`, label: "Issues", icon: ListTodo },
         { href: `${base}/board`, label: "Board", icon: KanbanSquare },
         { href: `${base}/backlog`, label: "Backlog", icon: Columns3 },
+        // Beside Backlog, not next to Reports: planning is what it is for
+        // (ADR-0047), and it reads the same dates the backlog schedules.
+        { href: `${base}/timeline`, label: "Timeline", icon: CalendarRange },
         { href: `${base}/reports`, label: "Reports", icon: LineChart },
         { href: `${base}/settings`, label: "Settings", icon: Settings },
       ]}

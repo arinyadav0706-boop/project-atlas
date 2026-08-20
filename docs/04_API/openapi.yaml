@@ -565,6 +565,61 @@ paths:
         "409": { description: The parent already has 50 subtasks (BR-9) }
         "422": { description: The parent is an Epic, a subtask, or in another project (BR-2) }
 
+  # ── Timeline (ADR-0047, 28_timeline.md) ────────────────────────────────────
+  /projects/{projectId}/timeline:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: Bars, tray, sprint bands, dependency arrows and conflicts — one response
+      description: >
+        Deliberately one call (ADR-0047). Split into pieces, the arrows could
+        arrive before the bars they point at and the chart would flicker its way
+        to correctness. Takes the SAME query string as every other list route,
+        so the timeline narrows with controls people already know. Capped at 200
+        bars chosen by soonest due date; `truncated` says when that bit.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Timeline" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /issues/{issueId}/schedule:
+    parameters:
+      - $ref: "#/components/parameters/IssueIdParam"
+    patch:
+      tags: [issues]
+      summary: Set an issue's start and due dates (a drag on the Timeline)
+      description: >
+        Its own endpoint rather than a corner of the issue PATCH: a drag sends
+        two dates and a version and nothing else, so a dragged bar can never
+        carry a stale title or assignee from a form left open. Dates are days
+        (`YYYY-MM-DD`), not instants — a due date means the same thing in every
+        timezone. Absent means "leave it", null means "clear it".
+        Moving an issue never moves its dependents (ADR-0047 §7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion]
+              properties:
+                startDate: { type: string, nullable: true, example: "2026-08-10" }
+                dueDate: { type: string, nullable: true, example: "2026-08-20" }
+                expectedVersion: { type: integer }
+      responses:
+        "200":
+          description: The rescheduled row
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineRow" }
+        "403": { description: Needs project MEMBER or above }
+        "409": { description: Stale version (ADR-0011), archived project, or a start after the stored due date }
+        "422": { description: A start date after the due date, or a malformed day }
+
   # ── Dependencies (ADR-0046, 27_dependencies.md) ────────────────────────────
   /issues/{issueId}/links:
     parameters:
@@ -2504,6 +2559,11 @@ components:
             (ADR-0045 §7). Estimation happens at the level a team commits to.
         rank: { type: string }
         dueDate: { type: string, format: date-time, nullable: true }
+        startDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: The Timeline bar's left edge (ADR-0047). Set through /issues/{id}/schedule.
         labelIds: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -2514,6 +2574,67 @@ components:
         id: { type: string }
         key: { type: string }
         title: { type: string }
+
+    TimelineRow:
+      type: object
+      required: [id, key, title, type, status, version, rolledUp, blockedBy]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/IssueType" }
+        status: { $ref: "#/components/schemas/IssueStatus" }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        startDate: { type: string, nullable: true, description: "YYYY-MM-DD. The bar's left edge." }
+        dueDate: { type: string, nullable: true, description: "YYYY-MM-DD. The bar's right edge, INCLUSIVE." }
+        version: { type: integer }
+        rolledUp:
+          type: boolean
+          description: >
+            An Epic's bar computed from its children rather than stored on it
+            (BR-6). Read-only — dragging a number derived from other numbers is
+            a control that cannot do what it appears to.
+        blockedBy: { type: integer, description: Open blockers (ADR-0046). }
+
+    Timeline:
+      type: object
+      required: [rows, unscheduled, sprints, links, conflictCount, truncated, canEdit]
+      properties:
+        rows: { type: array, items: { $ref: "#/components/schemas/TimelineRow" } }
+        unscheduled:
+          type: array
+          items: { $ref: "#/components/schemas/TimelineRow" }
+          description: Undated issues, for the tray. Capped at 50.
+        sprints:
+          type: array
+          description: Bands drawn behind the bars (BR-9).
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              status: { type: string }
+              startDate: { type: string }
+              endDate: { type: string }
+        links:
+          type: array
+          description: BLOCKS edges where BOTH ends are drawn — an arrow into empty space is worse than no arrow.
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              blockerId: { type: string }
+              dependentId: { type: string }
+              conflict:
+                type: boolean
+                description: >
+                  The blocker finishes AFTER the dependent starts, so the plan
+                  cannot happen in the order it claims (BR-8). Jira detects this
+                  only in the paid Advanced Roadmaps; here it is a comparison of
+                  two dates already loaded to draw the bars.
+        conflictCount: { type: integer }
+        truncated: { type: boolean, description: The 200-bar cap bit; the UI says so and points at the filter. }
+        canEdit: { type: boolean }
 
     IssueLinkType:
       type: string
