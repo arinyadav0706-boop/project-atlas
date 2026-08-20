@@ -33,6 +33,7 @@ unscheduled tray. Not: auto-rescheduling dependents, critical path, portfolio
 | BR-12 | The unscheduled tray lists undated issues, capped at 50. Scheduling one uses **date inputs plus a one-click "This week"**, not drag-from-tray-onto-axis: that gesture needs edge auto-scroll, a drop preview and a separate keyboard path, and none of it is faster than typing a date. Drag-from-tray is a tracked refinement (backlog TL-3), not a claim. |
 | BR-13 | A bar is never drawn narrower than **30px**, whatever the zoom's pixels-per-day says, and resize handles are on **every** draggable bar regardless of width. A one-day bar (BR-3, the shape of most real data) is 14px at Week and 4.5px at Month — unclickable, and with nowhere to put handles, so the only gesture that can turn it into a multi-day bar is unavailable exactly where it is needed. At Month zoom this overstates a one-day bar's width; the row and the tooltip carry the real dates. See ADR-0047 §9. |
 | BR-14 | When there are rows but no `BLOCKS` links among them, the view says arrows come from Blocks links rather than showing nothing. No arrows and broken arrows look the same on screen. |
+| BR-15 | **A press is a click only if the pointer did not travel** (4px threshold, measured in pixels). A drag that resolves to zero days — shorter than one column at this zoom, or an edge clamped at the one-day minimum — is still a drag: it commits nothing and leaves you on the chart. It must never open the issue. The gesture is recorded in a ref as it happens, not in React state, because the release handler must reason about what the hand did rather than about what has finished rendering. See ADR-0047 §10. |
 
 ## 3. Database
 
@@ -96,6 +97,9 @@ Route `/projects/{id}/timeline`, a tab beside Board and Backlog.
 10. A one-day bar is grabbable and resizable at **every** zoom: at Day, Week and
     Month it is at least 30px wide and carries both edge handles, and dragging
     its left edge sets a `startDate` where there was none.
+11. Clicking a bar opens the issue. **Dragging one never does** — including a
+    drag too short to cross a day boundary, and including an attempt to shrink a
+    one-day bar, both of which commit nothing and leave you on the chart.
 
 ## 7. Validation
 

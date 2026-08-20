@@ -150,6 +150,29 @@ are on the row and in the tooltip either way. The alternative — a lower floor,
 or handles only above some width — was what shipped, and it is precisely the
 gate that produced the bug.
 
+### 10. Distance decides click-vs-drag, and the gesture lives in a ref
+
+A press on a bar is a click if the pointer travelled less than 4px, and a drag
+otherwise. Not "a click if the dates did not change" — which is what shipped,
+and which was wrong in a way that made the whole chart feel broken.
+
+Two gestures resolve to zero days while being unmistakably drags: one shorter
+than a single column (at Day zoom a column is 44px, so *any* drag under 22px),
+and an attempt to shrink a one-day bar, which clamps at the one-day minimum by
+design. Both were read as clicks, so the app navigated to the issue while the
+user was mid-drag. Combined with §9 — every production bar being one day — that
+is most of the gestures anyone would actually make.
+
+Relatedly, the live gesture is recorded in a **ref**, written synchronously on
+each pointer move; React state holds only the preview the bar paints. The
+release handler must reason about what the hand did, and state read from a
+closure is a claim about what has finished rendering, which is not the same
+thing and is not reliable under load.
+
+A drag that resolves to nothing now does nothing: no commit, no navigation, the
+bar snaps back. Doing nothing is the honest outcome — the user asked for a
+change smaller than the chart can express.
+
 ## Consequences
 
 **Good.** One new column. Arrows, conflicts and blocked state all come from

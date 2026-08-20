@@ -2,7 +2,16 @@
 
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@/shared/lib/utils";
-import { barBox, daysBetween, type Axis, type Span } from "@/features/timeline/lib/scale";
+import {
+  barBox,
+  daysBetween,
+  DRAG_THRESHOLD_PX,
+  resolveDrag,
+  type Axis,
+  type DragMode,
+  type DragShift,
+  type Span,
+} from "@/features/timeline/lib/scale";
 import type { TimelineRowDto } from "@/features/timeline/types/timeline.types";
 
 // One bar, and the drag that moves it (ADR-0047 §8).
@@ -11,8 +20,13 @@ import type { TimelineRowDto } from "@/features/timeline/types/timeline.types";
 // lists, and this is free positioning against a scale where the whole job is
 // translating a pixel offset into a date. Pointer capture means a fast drag
 // that outruns the cursor still ends on this element rather than being lost.
-
-type DragMode = "move" | "start" | "end";
+//
+// The live gesture lives in a ref, and only the *preview* lives in state
+// (BR-15). React state is for painting; it is not a reliable record of what
+// the hand just did, because the pointerup handler can run against a render
+// that has not caught up. The ref is written synchronously on every move, so
+// the decision made on release is always about the gesture that actually
+// happened.
 
 const STATUS_FILL: Record<string, string> = {
   TODO: "bg-slate-400",
@@ -38,9 +52,16 @@ export function TimelineBar({
   onSelect: (row: TimelineRowDto) => void;
 }) {
   // Live offsets during a drag, in days. Kept local so the whole chart does not
-  // re-render on every pointer move — only this bar does.
-  const [preview, setPreview] = useState<{ start: number; end: number } | null>(null);
-  const drag = useRef<{ mode: DragMode; originX: number } | null>(null);
+  // re-render on every pointer move — only this bar does. This is the PAINT
+  // copy; the ref below is the record of record.
+  const [preview, setPreview] = useState<DragShift | null>(null);
+  const drag = useRef<{
+    mode: DragMode;
+    originX: number;
+    /** Has the pointer travelled far enough for this to be a drag, not a click? */
+    moved: boolean;
+    shift: DragShift;
+  } | null>(null);
 
   // BR-6: a rolled-up epic is computed from its children, so there is nothing
   // here to drag. Read-only, and drawn differently so that is visible.
@@ -52,8 +73,10 @@ export function TimelineBar({
       e.preventDefault();
       e.stopPropagation();
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      drag.current = { mode, originX: e.clientX };
-      setPreview({ start: 0, end: 0 });
+      drag.current = { mode, originX: e.clientX, moved: false, shift: { start: 0, end: 0 } };
+      // Deliberately no setPreview here: a press that turns out to be a click
+      // should not cost a render, and `preview` staying null is what tells the
+      // bar it is not currently being dragged.
     },
     [draggable],
   );
@@ -62,36 +85,56 @@ export function TimelineBar({
     (e: React.PointerEvent) => {
       const state = drag.current;
       if (!state) return;
-      // Snap to whole days (BR-5) — a Gantt with times on it implies a
-      // precision nobody is planning to.
-      const days = Math.round((e.clientX - state.originX) / axis.pxPerDay);
-      if (state.mode === "move") setPreview({ start: days, end: days });
-      // An edge can never cross the other one: clamp instead of letting the
-      // bar invert, which would send a start-after-due pair the API refuses.
-      else if (state.mode === "start") {
-        setPreview({ start: Math.min(days, daysBetween(span.start, span.end)), end: 0 });
-      } else {
-        setPreview({ start: 0, end: Math.max(days, -daysBetween(span.start, span.end)) });
-      }
+      const dx = e.clientX - state.originX;
+      // Below the threshold this is still a click in progress — hands shake,
+      // and a 2px tremor must not turn a click into a no-op drag.
+      if (!state.moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      state.moved = true;
+      state.shift = resolveDrag(state.mode, dx, axis.pxPerDay, daysBetween(span.start, span.end));
+      setPreview(state.shift);
     },
     [axis.pxPerDay, span],
   );
 
-  const onPointerUp = useCallback(
+  const endGesture = useCallback(
     (e: React.PointerEvent) => {
       const state = drag.current;
+      if (!state) return null;
       drag.current = null;
-      if (!state || !preview) return;
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       setPreview(null);
-      // A drag that moved nothing is a click, and a click opens the issue.
-      if (preview.start === 0 && preview.end === 0) {
+      const el = e.currentTarget as HTMLElement;
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      return state;
+    },
+    [],
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const state = endGesture(e);
+      if (!state) return;
+      // The pointer never really moved: that is a click, and a click opens the
+      // issue. Decided on distance travelled, NOT on whether the dates ended up
+      // different — a drag that resolves to zero days (too short at this zoom,
+      // or an edge clamped at one day) is still a drag, and the one thing it
+      // must not do is navigate away from the chart.
+      if (!state.moved) {
         onSelect(row);
         return;
       }
-      onCommit(row, preview.start, preview.end);
+      if (state.shift.start === 0 && state.shift.end === 0) return;
+      onCommit(row, state.shift.start, state.shift.end);
     },
-    [preview, row, onCommit, onSelect],
+    [endGesture, row, onCommit, onSelect],
+  );
+
+  // A cancelled pointer (the browser taking over for a scroll, a device
+  // disconnecting) abandons the gesture: no commit, no navigation.
+  const onPointerCancel = useCallback(
+    (e: React.PointerEvent) => {
+      endGesture(e);
+    },
+    [endGesture],
   );
 
   const shown: Span = preview
@@ -110,6 +153,7 @@ export function TimelineBar({
       onPointerDown={onPointerDown("move")}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -148,6 +192,7 @@ export function TimelineBar({
             onPointerDown={onPointerDown("start")}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
             className="absolute -left-1 top-0 h-full w-2 cursor-ew-resize rounded-l-md bg-black/0 transition-colors hover:bg-black/25 group-hover/bar:bg-black/15"
             aria-hidden
           />
@@ -155,6 +200,7 @@ export function TimelineBar({
             onPointerDown={onPointerDown("end")}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
             className="absolute -right-1 top-0 h-full w-2 cursor-ew-resize rounded-r-md bg-black/0 transition-colors hover:bg-black/25 group-hover/bar:bg-black/15"
             aria-hidden
           />

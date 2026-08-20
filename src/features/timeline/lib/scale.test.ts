@@ -6,9 +6,11 @@ import {
   buildTicks,
   dayAtX,
   daysBetween,
+  DRAG_THRESHOLD_PX,
   isConflict,
   MIN_BAR_PX,
   PX_PER_DAY,
+  resolveDrag,
   spanOf,
   startOfDay,
   toDayString,
@@ -180,6 +182,56 @@ describe("bar geometry", () => {
     const base = xFor(axis, "2026-08-12");
     expect(toDayString(dayAtX(axis, base + axis.pxPerDay * 0.4))).toBe("2026-08-12");
     expect(toDayString(dayAtX(axis, base + axis.pxPerDay * 0.6))).toBe("2026-08-13");
+  });
+});
+
+// BR-15 — the regression that made the chart feel broken. Click-vs-drag used to
+// be decided by "did the dates change?", so every gesture that resolved to zero
+// days opened the issue instead: at Day zoom (44px/day) any drag under 22px,
+// and every attempt to shrink a one-day bar. The user's hand moved and the app
+// navigated away. Distance decides now; these pin the arithmetic behind it.
+describe("resolving a drag", () => {
+  const WEEK = PX_PER_DAY.WEEK; // 14px per day
+  const DAY = PX_PER_DAY.DAY; // 44px per day
+
+  it("moves both edges together", () => {
+    expect(resolveDrag("move", 3 * WEEK, WEEK, 5)).toEqual({ start: 3, end: 3 });
+    expect(resolveDrag("move", -2 * WEEK, WEEK, 5)).toEqual({ start: -2, end: -2 });
+  });
+
+  it("moves only the edge being dragged", () => {
+    expect(resolveDrag("start", -2 * WEEK, WEEK, 5)).toEqual({ start: -2, end: 0 });
+    expect(resolveDrag("end", 2 * WEEK, WEEK, 5)).toEqual({ start: 0, end: 2 });
+  });
+
+  it("clamps an edge at one day instead of inverting the bar (BR-4)", () => {
+    // Five days long: the start may come forward five days and no further.
+    expect(resolveDrag("start", 9 * WEEK, WEEK, 5)).toEqual({ start: 5, end: 0 });
+    expect(resolveDrag("end", -9 * WEEK, WEEK, 5)).toEqual({ start: 0, end: -5 });
+  });
+
+  it("resolves a one-day bar's shrink to nothing — a drag with nothing to commit", () => {
+    // The exact gesture that used to open the issue. It must resolve to zero…
+    expect(resolveDrag("start", 40, WEEK, 0)).toEqual({ start: 0, end: 0 });
+    expect(resolveDrag("end", -40, WEEK, 0)).toEqual({ start: 0, end: 0 });
+    // …while the other direction still works, which is how a one-day bar
+    // becomes a multi-day one at all.
+    expect(resolveDrag("start", -3 * WEEK, WEEK, 0)).toEqual({ start: -3, end: 0 });
+    expect(resolveDrag("end", 3 * WEEK, WEEK, 0)).toEqual({ start: 0, end: 3 });
+  });
+
+  it("rounds a sub-day drag to zero days — which is NOT the same as a click", () => {
+    // 15px at Day zoom is well past the drag threshold but well under one day.
+    expect(Math.abs(15)).toBeGreaterThan(DRAG_THRESHOLD_PX);
+    expect(resolveDrag("move", 15, DAY, 3)).toEqual({ start: 0, end: 0 });
+    // The component treats this as a drag that commits nothing. The old code
+    // read the same zero and opened the issue.
+  });
+
+  it("uses a threshold small enough that a real drag always clears it", () => {
+    // Big enough to absorb a tremor, small enough that nobody drags less.
+    expect(DRAG_THRESHOLD_PX).toBeGreaterThan(0);
+    expect(DRAG_THRESHOLD_PX).toBeLessThan(MIN_BAR_PX / 4);
   });
 });
 

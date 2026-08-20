@@ -170,6 +170,53 @@ export function dayAtX(axis: Axis, x: number): Date {
   return addDays(axis.from, Math.round(x / axis.pxPerDay));
 }
 
+/** Which edge of a bar a gesture is moving. */
+export type DragMode = "move" | "start" | "end";
+
+/**
+ * How far the pointer must travel before a press counts as a drag rather than
+ * a click (BR-15).
+ *
+ * This is deliberately measured in PIXELS, not in days. The first version asked
+ * "did the dates change?" and treated no-change as a click — which meant a drag
+ * that resolved to zero days opened the issue instead. At Day zoom one day is
+ * 44px, so *any* drag shorter than 22px opened the issue; resizing a one-day
+ * bar in the direction it cannot shrink always did. The user's hand moved; the
+ * intent was unambiguous; the app navigated away.
+ */
+export const DRAG_THRESHOLD_PX = 4;
+
+export interface DragShift {
+  /** Days to move the bar's start. */
+  start: number;
+  /** Days to move the bar's end. */
+  end: number;
+}
+
+/**
+ * A pointer displacement, resolved into the days each edge should move.
+ *
+ * `spanDays` is the bar's current length in days (0 for a one-day bar) and
+ * bounds a resize: an edge may never cross the other one, because a bar that
+ * inverts sends a start-after-due pair the API refuses (BR-4). A resize that
+ * clamps to zero is still a drag — it just has nothing to commit.
+ */
+export function resolveDrag(
+  mode: DragMode,
+  dxPx: number,
+  pxPerDay: number,
+  spanDays: number,
+): DragShift {
+  // Snap to whole days (BR-5) — a Gantt with times on it implies a precision
+  // nobody is planning to.
+  // `+ 0` normalises away negative zero, which `Math.round`/`Math.max` produce
+  // freely and which then leaks into equality checks and JSON as "-0".
+  const days = Math.round(dxPx / pxPerDay) + 0;
+  if (mode === "move") return { start: days, end: days };
+  if (mode === "start") return { start: Math.min(days, spanDays) + 0, end: 0 };
+  return { start: 0, end: Math.max(days, -spanDays) + 0 };
+}
+
 /**
  * A scheduling conflict (BR-8): the blocker finishes after the dependent
  * starts, so the plan cannot happen in the order it claims.
