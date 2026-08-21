@@ -130,25 +130,31 @@ Colour still carries status, as a mark rather than a floodlight — the same
 reason Design Principles §2 never lets colour work alone. Only HIGHEST and HIGH
 priority get a dot; a mark on every bar is texture, not signal.
 
-### 12. The calendar opens on MY open work, not the project's
+### 12. Density is a layout problem, and it has a hard floor
 
-A whole project's month is not a calendar. VERUS Web Platform carries ~350 open
-dated issues in any six-week window — about fifty a day against the four that
-fit in a cell. Every cell read "+46 more", and a grid that can show eight
-percent of itself is a worse answer than the issue list it sits next to.
+A crowded month was first "solved" by defaulting the filter to *assigned to me*.
+That was wrong and it was reverted. A project tab that silently shows one
+person's slice is indistinguishable from an app losing data — which is exactly
+how it was read — and no competitor does it: ClickUp's calendar shows everything
+in the scope you opened. Narrowing what a page is *about* is not a fix for how
+much it draws.
 
-So the default filter is `openOnly` **and** assigned-to-me. That is what a
-calendar is for — Outlook, Google and Jira's calendar all default to the
-person — and the project-wide month becomes the thing you opt into.
+The real lever is the lane cap, and it was set for the wrong goal. At 4 — the
+number that keeps a six-week month on one screen — VERUS Web Platform drew **19
+of 351 issues, with 94.6% behind a "+N more"**. Keeping the month one screen
+tall is not worth showing five percent of it. At 12 the same month draws 55, and
+a heavy month scrolls, which is what a calendar with a lot in it should do.
 
-Two properties make this safe rather than presumptuous: it is set as the initial
-**filter**, so the bar visibly shows "Open (not done)" with "Assigned to me"
-lit and one click widens either; and the empty state says which default it is,
-because an empty calendar and a narrow filter look identical on screen.
+What does NOT go away, and should not be dressed up: that project's busiest day
+has **58 issues overlapping it**. No month grid renders 58 items in a day cell —
+not ClickUp's, not Google's, not Outlook's. Past the cap the honest design is a
+door, not a wall: "+N more" opens the day and lists it *in full* (verified:
+58 of 58). The tools for a genuinely dense month are the week view, which gets a
+much larger cap, and the filter bar.
 
-Note what this does NOT fix: the density is still there, and clearing the chip
-brings it back. The honest answer to a genuinely crowded month is a narrower
-scope, not a cleverer grid.
+`openOnly` remains the default, because a month full of finished work is a
+picture of the archive rather than the plan — and unlike a hidden scope it is
+written on the filter bar as "Open (not done)", one click from off.
 
 ## Consequences
 

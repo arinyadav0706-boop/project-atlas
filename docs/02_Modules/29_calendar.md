@@ -22,7 +22,7 @@ recurring issues.
 | BR-2 | Due date with no start is a **one-day** event on the due date (28_timeline BR-3). The same `spanOf` both views use — one definition, in `shared/lib/day.ts`. |
 | BR-3 | An issue spanning several days is **one bar**, not a copy per day. Across a week boundary it becomes one segment per week row, each marked so the reader can see it continues. |
 | BR-4 | Within a week row, overlapping bars take **distinct lanes**, assigned earliest-start-first then longest-first, so a long bar does not get stranded under short ones. Lanes are stable for a given set of events — the grid must not reshuffle on an unrelated re-render. |
-| BR-5 | A day cell shows at most **4 bars** in month view; the rest collapse into a **"+N more"** control that opens that day. An unbounded cell destroys the grid — one busy Tuesday and every row is 400px tall. The **week view draws one row and so gets a much larger cap (14)**: applying the month's cap to a view whose entire purpose is showing the week in full would collapse it to "+31 more" under four bars. |
+| BR-5 | A day cell shows up to **12 bars** in month view (**30** in week view), and each week row **sizes itself to what it actually holds** — the grid grows and the page scrolls rather than the month staying one screen tall and hiding work to manage it. Beyond the cap the rest collapse into **"+N more"**, which opens that day and lists it **in full**. The cap exists only because a cell must be bounded somewhere; it is a door, not a wall. See ADR-0048 §12. |
 | BR-6 | Dragging a bar to another day **moves the whole span**, preserving duration (ADR-0048 §5). Resizing is not offered here. |
 | BR-7 | Dropping an issue from the unscheduled panel onto a day sets **`dueDate` = that day**, leaving `startDate` null — a one-day event. The person said when it is due, not how long it takes. |
 | BR-8 | Every write goes through `PATCH /api/issues/{id}/schedule` (ADR-0048 §7), so version checks (ADR-0011), RBAC, the archived-project refusal and BR-4 of 28_timeline all apply unchanged. |
@@ -33,7 +33,7 @@ recurring issues.
 | BR-13 | A rolled-up Epic is **not** drawn. The Timeline computes an epic's span from its children because a Gantt is about hierarchy; a calendar is about what lands on a day, and a derived six-week band across every cell is noise. Epics with their own dates appear normally. |
 | BR-14 | Clicking a bar opens the issue; **dragging one never does** (28_timeline BR-15, same rule, same reason). |
 | BR-15 | A bar is a **tinted pill with a 3px leading accent and foreground text**, with a gutter each side so the cell borders stay visible — never a saturated block with white text, which turns a dense month into unreadable stripes. Only HIGHEST and HIGH priority carry a dot. See ADR-0048 §11. |
-| BR-16 | The calendar opens on **my open work** (`openOnly` + assigned to me), not the whole project's. A project month can hold fifty issues a day against four that fit in a cell. Set as the visible initial filter so one click widens it, and the empty state says which default is in force. See ADR-0048 §12. |
+| BR-16 | The calendar opens on the **whole project's open work** (`openOnly`), never on a narrowed scope. It briefly defaulted to assigned-to-me to thin out a crowded month; that reads as an app losing data and was reverted. Density is solved in the layout (BR-5), not by quietly changing what the page is about. `openOnly` stays because a month of finished work is the archive, and it is written on the filter bar, one click from off. See ADR-0048 §12. |
 
 ## 3. Database
 
@@ -95,10 +95,11 @@ Route `/projects/{id}/calendar`, a tab beside Timeline.
 11. An archived project is read-only (409), and a stale version is a 409.
 12. Month navigation moves by whole months — 31 January plus one month is 28
     February, not 3 March — and Today returns to the current one.
-13. The calendar opens on **my open work** by default; the filter bar shows
-    "Open (not done)" with "Assigned to me" lit, and clearing either widens it.
-14. With nothing of mine in the window, the empty state says the calendar is
-    showing only my work — not just "nothing here".
+13. The calendar opens on the whole project's open work; the filter bar shows
+    "Open (not done)" and one click clears it.
+14. Every issue the API returns for the window is either drawn on the grid or
+    counted in a "+N more" — and opening that day lists it in full. Nothing is
+    unreachable.
 
 ## 7. Validation
 

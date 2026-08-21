@@ -177,6 +177,23 @@ describe("lane packing", () => {
   it("has one entry per weekday, always", () => {
     expect(packLanes([]).overflow).toHaveLength(DAYS_PER_WEEK);
   });
+
+  // Pins the VALUE, not just the symbol. Every other test here reads
+  // MAX_LANES_PER_DAY, so they all passed unchanged while the cap sat at 4 and
+  // the grid was hiding 94.6% of a real project behind "+N more". A test that
+  // moves with the constant cannot tell you the constant is wrong.
+  it("draws enough per day to be a calendar, not a summary", () => {
+    expect(MAX_LANES_PER_DAY).toBeGreaterThanOrEqual(10);
+  });
+
+  it("shows a realistic day in full rather than collapsing it", () => {
+    // Ten issues due the same Wednesday is an ordinary Tuesday-afternoon
+    // situation on a real project. All ten belong on the grid.
+    const segs = Array.from({ length: 10 }, (_, i) => seg(`x${i}`, 2, 2));
+    const { placed, overflow } = packLanes(segs);
+    expect(placed).toHaveLength(10);
+    expect(overflow.every((n) => n === 0)).toBe(true);
+  });
 });
 
 describe("what the grid guarantees end to end", () => {

@@ -22,21 +22,27 @@ export const DAYS_PER_WEEK = 7;
 /**
  * Bars drawn in a day cell before the rest collapse into "+N more" (BR-5).
  *
- * Four is what fits at the row height a six-week month needs. Without a cap,
- * one busy Tuesday makes its whole week row 400px tall and the month stops
- * being a month.
+ * Deliberately generous, because rows size themselves to what they actually
+ * hold: the grid grows and the page scrolls, rather than the month staying one
+ * screen tall and hiding the work to manage it.
+ *
+ * This started at 4 — what fits a six-week month on one screen — which meant a
+ * busy project drew four of fifty per day and put "+46 more" in every single
+ * cell. Measured on VERUS Web Platform: **19 of 351 issues visible, 94.6%
+ * behind a click.** A calendar showing five percent of itself has stopped being
+ * a calendar, and "it fits on one screen" is not worth that.
+ *
+ * A cap still exists because something has to bound a cell — fifty bars in one
+ * day is a 1,200px row — and past it "+N more" opens the day in full, so
+ * nothing is ever unreachable.
  */
-export const MAX_LANES_PER_DAY = 4;
+export const MAX_LANES_PER_DAY = 12;
 
 /**
- * The same cap for the week view, which draws ONE row and therefore has the
- * vertical room a month grid does not.
- *
- * Using the month's cap here would collapse a week that fits comfortably into
- * "+31 more" under four bars, in a view whose entire purpose is to show the
- * week in full.
+ * The same cap for the week view, which draws ONE row and therefore has far
+ * more vertical room than a month grid.
  */
-export const MAX_LANES_PER_WEEK_VIEW = 14;
+export const MAX_LANES_PER_WEEK_VIEW = 30;
 
 /** Anything schedulable enough to draw. */
 export interface CalendarItem {

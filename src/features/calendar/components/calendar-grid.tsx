@@ -139,7 +139,8 @@ function WeekRow({
   single: boolean;
 }) {
   // Size to what is actually in the row, not to the cap: an empty week must
-  // not reserve four lanes of blank space.
+  // not reserve twelve lanes of blank space, and a full one must not hide work
+  // to stay short.
   const lanes = Math.min(maxLanes, Math.max(1, ...week.segments.map((s) => s.lane + 1)));
   const hasOverflow = week.overflow.some((n) => n > 0);
   const content = HEADER_H + lanes * LANE_H + (hasOverflow ? 22 : 8);

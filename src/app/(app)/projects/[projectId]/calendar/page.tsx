@@ -37,7 +37,7 @@ export default async function ProjectCalendarPage(props: {
         projectId={params.projectId}
         projects={projects.map((p) => ({ id: p.id, key: p.key, name: p.name }))}
         currentUserId={actor.userId}
-        initialFilter={parseFilterFromParams(search, actor.userId)}
+        initialFilter={parseFilterFromParams(search)}
       />
     </>
   );
@@ -47,35 +47,28 @@ export default async function ProjectCalendarPage(props: {
  * `searchParams` gives `string | string[]`; the shared parser reads a
  * `URLSearchParams`. One wire format, one parser (see /issues).
  *
- * With no params the calendar opens on **my open work**, and both halves of
- * that are deliberate.
+ * With no params the calendar opens on **open work across the whole project**.
  *
- * *Open*, for the same reason the Timeline does: a month full of finished
- * issues is a picture of the archive.
+ * It briefly opened on "my open work" instead, to thin out a crowded month.
+ * That was the wrong trade and it was reverted: a project tab that silently
+ * shows one person's slice looks exactly like an app losing data, and no
+ * competitor does it — ClickUp's calendar shows everything in the scope you
+ * opened. Density is a layout problem and has to be solved in the layout, never
+ * by quietly narrowing what the page is about.
  *
- * *Mine*, because a whole project's month is not a calendar. VERUS Web Platform
- * has ~350 open dated issues in any six-week window — fifty a day, against four
- * that fit in a cell. Every cell reads "+46 more", and a grid that can only ever
- * show eight percent of itself is a worse answer than the issue list. A calendar
- * answers "what do I have on", the way Outlook and Google do and the way Jira's
- * calendar defaults; a project-wide month is the exception you opt into, not the
- * thing to open on.
- *
- * Set as the initial FILTER rather than injected in the service, so the bar
- * visibly reads "Open (not done)" with "Assigned to me" lit, and one click on
- * either widens it. A default you cannot see is one you will misread — and a
- * default you cannot turn off is a bug.
+ * `openOnly` stays, because a month full of finished work is a picture of the
+ * archive — and it is visible in the bar as "Open (not done)", one click from
+ * off.
  */
 function parseFilterFromParams(
   params: Record<string, string | string[] | undefined>,
-  currentUserId: string,
 ): IssueFilter {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (Array.isArray(value)) for (const v of value) query.append(key, v);
     else if (value !== undefined) query.set(key, value);
   }
-  const fallback: IssueFilter = { openOnly: true, assigneeId: currentUserId };
+  const fallback: IssueFilter = { openOnly: true };
   try {
     const parsed = parseIssueFilter(query);
     return Object.keys(parsed).length === 0 ? fallback : parsed;
