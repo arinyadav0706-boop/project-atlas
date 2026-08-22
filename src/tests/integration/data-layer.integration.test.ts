@@ -6,6 +6,7 @@ import { ProjectService } from "@/features/projects/services/project.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import { ranksBetween } from "@/shared/lib/rank";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration tests — run against a REAL Postgres (see
 // docs/08_Testing/01_Testing_Strategy.md). These prove the actual Prisma
@@ -27,7 +28,7 @@ async function seedOrgWithProject(tag: string) {
   const user = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}@example.com`, name: `User ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: user.id },
   });
   await prisma.projectMember.create({
@@ -43,9 +44,11 @@ describe("keyset pagination (IssueService.list)", () => {
   it("pages through all issues with no duplicates or gaps, stable order", async () => {
     const { org, user, project } = await seedOrgWithProject("pag");
     // 120 issues, deterministic distinct ranks for a total ordering.
+    const todo = await statusFor(project.id);
     await prisma.issue.createMany({
       data: ranksBetween(null, null, 120).map((rank, i) => ({
         projectId: project.id,
+        statusId: todo,
         key: `PAG-${i + 1}`,
         type: "TASK" as const,
         title: `Issue ${i + 1}`,
@@ -76,10 +79,14 @@ describe("keyset pagination (IssueService.list)", () => {
 
   it("reports accurate per-status counts independent of the page", async () => {
     const { org, user, project } = await seedOrgWithProject("cnt");
+    const [todoId, doneId] = await Promise.all([
+      statusFor(project.id, "TODO"),
+      statusFor(project.id, "DONE"),
+    ]);
     await prisma.issue.createMany({
       data: [
-        ...ranksBetween(null, null, 3).map((rank, i) => ({ projectId: project.id, key: `CNT-T${i}`, type: "TASK" as const, title: "t", reporterId: user.id, status: "TODO" as const, rank })),
-        ...ranksBetween(null, null, 2).map((rank, i) => ({ projectId: project.id, key: `CNT-D${i}`, type: "TASK" as const, title: "d", reporterId: user.id, status: "DONE" as const, rank })),
+        ...ranksBetween(null, null, 3).map((rank, i) => ({ projectId: project.id, key: `CNT-T${i}`, type: "TASK" as const, title: "t", reporterId: user.id, status: "TODO" as const, statusId: todoId, rank })),
+        ...ranksBetween(null, null, 2).map((rank, i) => ({ projectId: project.id, key: `CNT-D${i}`, type: "TASK" as const, title: "d", reporterId: user.id, status: "DONE" as const, statusId: doneId, rank })),
       ],
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
@@ -139,8 +146,8 @@ describe("tenant isolation", () => {
   it("IssueRepository.listByProject is scoped to the given project only", async () => {
     const a = await seedOrgWithProject("ia");
     const b = await seedOrgWithProject("ib");
-    await prisma.issue.create({ data: { projectId: a.project.id, key: "IA-1", type: "TASK", title: "a", reporterId: a.user.id, rank: "a0" } });
-    await prisma.issue.create({ data: { projectId: b.project.id, key: "IB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" } });
+    await prisma.issue.create({ data: { projectId: a.project.id, key: "IA-1", type: "TASK", title: "a", reporterId: a.user.id, statusId: await statusFor(a.project.id), rank: "a0" } });
+    await prisma.issue.create({ data: { projectId: b.project.id, key: "IB-1", type: "TASK", title: "b", reporterId: b.user.id, statusId: await statusFor(b.project.id), rank: "a0" } });
     const rowsA = await IssueRepository.listByProject(a.project.id, {}, { take: 50 });
     expect(rowsA.map((r) => r.key)).toEqual(["IA-1"]);
   });
@@ -151,7 +158,7 @@ describe("tenant isolation", () => {
     const a = await seedOrgWithProject("ga");
     const b = await seedOrgWithProject("gb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "GB-1", type: "TASK", title: "secret", reporterId: b.user.id, rank: "a0" },
+      data: { projectId: b.project.id, key: "GB-1", type: "TASK", title: "secret", reporterId: b.user.id, statusId: await statusFor(b.project.id), rank: "a0" },
     });
     const actorA: Actor = { userId: a.user.id, orgRole: "MEMBER", organizationId: a.org.id };
     // Tenant scope: the outsider cannot read it, and existence is not revealed.

@@ -4,6 +4,7 @@ import { CalendarService } from "@/features/calendar/services/calendar.service";
 import { TimelineService } from "@/features/timeline/services/timeline.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Tier 4 — Calendar against a REAL Postgres (ADR-0048).
 //
@@ -39,7 +40,7 @@ async function seed(tag: string) {
   const viewer = await mk("viewer");
   const stranger = await mk("stranger"); // same org, NOT on the project
 
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: `P${tag}`, name: "Project" },
   });
   await prisma.projectMember.createMany({
@@ -50,7 +51,7 @@ async function seed(tag: string) {
     ],
   });
 
-  const issue = (opts: {
+  const issue = async (opts: {
     key: string;
     startDate?: string | null;
     dueDate?: string | null;
@@ -63,6 +64,7 @@ async function seed(tag: string) {
         type: "TASK",
         title: opts.key,
         status: opts.status ?? "TODO",
+        statusId: await statusFor(project.id, opts.status ?? "TODO"),
         priority: "MEDIUM",
         reporterId: admin.id,
         rank: nextRank(),
@@ -280,7 +282,7 @@ describe("the window itself", () => {
 
   it("does not leak another project's issues into the window", async () => {
     const s = await seed("cq");
-    const other = await prisma.project.create({
+    const other = await createProjectWithStatuses({
       data: { organizationId: s.org.id, key: "OTHER", name: "Other" },
     });
     await prisma.issue.create({
@@ -293,6 +295,7 @@ describe("the window itself", () => {
         priority: "MEDIUM",
         reporterId: s.adminActor.userId,
         rank: nextRank(),
+        statusId: await statusFor(other.id),
         dueDate: new Date("2026-08-14T00:00:00Z"),
       },
     });

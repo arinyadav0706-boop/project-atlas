@@ -4,6 +4,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { CommentService } from "@/features/comments/services/comment.service";
 import { ConflictError, ForbiddenError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the comment write path end to end
 // (08_comments.md, ADR-0016): create/list ordering + keyset, OCC edit, soft
@@ -26,7 +27,7 @@ async function seed(tag: string) {
   const viewer = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-view@example.com`, name: `Viewer ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.createMany({

@@ -66,7 +66,15 @@ enum IssueType {
   SUBTASK
 }
 
-enum IssueStatus {
+/// The CATEGORY a status belongs to — not the status itself (ADR-0049 §1).
+///
+/// Renamed from `IssueStatus` when statuses became per-project data. Nothing
+/// downstream asks "is this status called Done"; it asks "is it in the done
+/// category", which is why 64 comparison sites across the product kept working
+/// unchanged through that migration. Teams add statuses; the categories are
+/// fixed, because a user-defined category would mean nothing to the reports,
+/// metrics, dependency guard and roll-ups that reason about them.
+enum StatusCategory {
   TODO
   IN_PROGRESS
   IN_REVIEW
@@ -293,6 +301,10 @@ model Project {
   description     String?
   status          ProjectStatus @default(ACTIVE)
   issueKeyCounter Int           @default(0)
+  /// Restricted transitions (30_workflow BR-10). Off by default: ClickUp and
+  /// Asana let you move anything anywhere, and Jira's transition graph is the
+  /// reason "why can't I move this ticket" is a support category.
+  enforceTransitions Boolean    @default(false)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -305,9 +317,64 @@ model Project {
   issues       Issue[]
   components   Component[]
   customFields ProjectCustomField[]
+  statuses     WorkflowStatus[]
+  transitions  StatusTransition[]
 
   @@unique([organizationId, key])
   @@map("projects")
+}
+
+/// A status a team defined for one project (ADR-0049, 30_workflow).
+///
+/// Per-project rather than per-organization, and deliberately without Jira's
+/// scheme indirection: schemes are the right answer at governance scale and the
+/// most complained-about part of Jira administration. A nullable `schemeId` can
+/// be added later without moving a row (backlog WF-3).
+model WorkflowStatus {
+  id             String         @id @default(cuid())
+  /// Denormalised so a tenant-scoped query never needs the project join (F-1).
+  organizationId String
+  projectId      String
+  project        Project        @relation(fields: [projectId], references: [id])
+  name           String
+  category       StatusCategory
+  /// A design-token name, never a hex value — both themes have to keep working.
+  color          String
+  position       Int
+  /// Exactly one per project; new issues get it (BR-5).
+  isDefault      Boolean        @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  issues       Issue[]
+  transitionsFrom StatusTransition[] @relation("TransitionFrom")
+  transitionsTo   StatusTransition[] @relation("TransitionTo")
+
+  @@unique([projectId, name])
+  @@index([projectId, position])
+  @@map("workflow_statuses")
+}
+
+/// One allowed move, when a project turns enforcement on (BR-10).
+model StatusTransition {
+  id           String         @id @default(cuid())
+  projectId    String
+  project      Project        @relation(fields: [projectId], references: [id])
+  fromStatusId String
+  fromStatus   WorkflowStatus @relation("TransitionFrom", fields: [fromStatusId], references: [id])
+  toStatusId   String
+  toStatus     WorkflowStatus @relation("TransitionTo", fields: [toStatusId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([fromStatusId, toStatusId])
+  @@index([projectId])
+  @@map("status_transitions")
 }
 
 model ProjectMember {
@@ -363,7 +430,17 @@ model Issue {
   type            IssueType
   title           String
   description     String?
-  status          IssueStatus   @default(TODO)
+  /// The CATEGORY of this issue's status, denormalised from `statusId`
+  /// (30_workflow BR-2). It must always equal `workflowStatus.category`; the
+  /// service writes both in one update and an integration test pins it.
+  ///
+  /// Denormalised deliberately: the alternative is a join on every list query
+  /// in the product, and this column is read by the board, the backlog, every
+  /// report and metric, the dependency guard and the subtask roll-up.
+  status          StatusCategory @default(TODO)
+  /// The project-defined status a human sees (ADR-0049 §1).
+  statusId        String
+  workflowStatus  WorkflowStatus @relation(fields: [statusId], references: [id])
   priority        IssuePriority @default(MEDIUM)
   assigneeId      String?
   assignee        User?         @relation("IssueAssignee", fields: [assigneeId], references: [id])
@@ -446,6 +523,7 @@ model Issue {
   // Timeline (ADR-0047): the chart reads one project's dated issues ordered by
   // start. Covers both the filter and the sort.
   @@index([projectId, startDate])
+  @@index([statusId])
   @@map("issues")
 }
 

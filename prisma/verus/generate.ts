@@ -6,7 +6,7 @@
 // without tsconfig-paths.
 import type { Prisma } from "@prisma/client";
 import type {
-  IssueStatus,
+  StatusCategory,
   IssueType,
   IssuePriority,
   SprintStatus,
@@ -14,6 +14,7 @@ import type {
   OrgRole,
 } from "@prisma/client";
 import { ranksBetween } from "../../src/shared/lib/rank";
+import { DEFAULT_STATUSES } from "../../src/features/workflow/lib/defaults";
 import { Prng } from "./prng";
 import {
   ORG_ID,
@@ -59,6 +60,7 @@ export interface VerusDataset {
   teams: Prisma.TeamCreateManyInput[];
   memberships: Prisma.TeamMembershipCreateManyInput[];
   projects: Prisma.ProjectCreateManyInput[];
+  workflowStatuses: Prisma.WorkflowStatusCreateManyInput[];
   projectMembers: Prisma.ProjectMemberCreateManyInput[];
   components: Prisma.ComponentCreateManyInput[];
   labels: Prisma.LabelCreateManyInput[];
@@ -76,7 +78,7 @@ export interface VerusDataset {
   stats: Record<string, number>;
 }
 
-const STATUS_WEIGHTS: ReadonlyArray<readonly [IssueStatus, number]> = [
+const STATUS_WEIGHTS: ReadonlyArray<readonly [StatusCategory, number]> = [
   ["DONE", 45],
   ["TODO", 30],
   ["IN_PROGRESS", 15],
@@ -253,6 +255,7 @@ export function generateVerus(): VerusDataset {
 
   // ---- Projects, members, components, sprints ----
   const projects: Prisma.ProjectCreateManyInput[] = [];
+  const workflowStatuses: Prisma.WorkflowStatusCreateManyInput[] = [];
   const projectMembers: Prisma.ProjectMemberCreateManyInput[] = [];
   const components: Prisma.ComponentCreateManyInput[] = [];
   const sprints: Prisma.SprintCreateManyInput[] = [];
@@ -275,6 +278,25 @@ export function generateVerus(): VerusDataset {
 
   for (const spec of PROJECTS) {
     const projectId = `verus-proj-${spec.key}`;
+    // Every project gets the four seeded statuses, exactly as
+    // `ProjectRepository.createWithLead` does for a real one (30_workflow BR-7).
+    // Deterministic ids so a re-seed is idempotent and an issue can reference
+    // its status without a lookup.
+    const statusIdFor = (category: StatusCategory) =>
+      `verus-status-${spec.key}-${category}`;
+    for (const seed of DEFAULT_STATUSES) {
+      workflowStatuses.push({
+        id: statusIdFor(seed.category),
+        organizationId: ORG_ID,
+        projectId,
+        name: seed.name,
+        category: seed.category,
+        color: seed.color,
+        position: seed.position,
+        isDefault: seed.isDefault,
+        createdBy: GOOGLE_ADMIN_ID,
+      });
+    }
     projects.push({
       id: projectId,
       organizationId: ORG_ID,
@@ -412,14 +434,18 @@ export function generateVerus(): VerusDataset {
       const id = `verus-issue-${key}`;
       projectEpicIds.push(id);
       const reporterId = rng.pick(memberIds);
+      // Drawn ONCE: the id and the cached category must describe the same
+      // status, which two separate draws would not guarantee (BR-2).
+      const epicStatus = rng.weighted(STATUS_WEIGHTS);
       pushIssue({
         id,
         projectId,
         key,
+        statusId: statusIdFor(epicStatus),
         type: "EPIC",
         title: spec.epics[i]!,
         description: rng.pick(DESCRIPTIONS) || null,
-        status: rng.weighted(STATUS_WEIGHTS),
+        status: epicStatus,
         priority: rng.weighted(PRIORITY_WEIGHTS),
         assigneeId: rng.bool(0.8) ? rng.pick(memberIds) : null,
         reporterId,
@@ -502,6 +528,7 @@ export function generateVerus(): VerusDataset {
         id,
         projectId,
         key,
+        statusId: statusIdFor(status),
         type,
         title: issueTitle(rng, type),
         description: rng.pick(DESCRIPTIONS) || null,
@@ -772,7 +799,7 @@ export function generateVerus(): VerusDataset {
   };
 
   return {
-    org, admins, cast, teams, memberships, projects, projectMembers, components, labels, sprints,
+    org, admins, cast, teams, memberships, projects, workflowStatuses, projectMembers, components, labels, sprints,
     epics, issues, issueComponents, issueLabels, comments, commentMentions, workLogs, auditLogs, recentItems,
     favorites, stats,
   };

@@ -8,6 +8,7 @@ import type {
   StatusBreakdownData,
   VelocityData,
 } from "@/features/reports/types/report.types";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the reports read paths over existing data
 // (11_reports.md, ADR-0020): velocity from completed sprints, status breakdown
@@ -24,7 +25,7 @@ async function seed(tag: string) {
   const user = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}@x.com`, name: `U ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: `P ${tag}`, createdBy: user.id },
   });
   const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
@@ -42,6 +43,7 @@ async function makeIssue(
       type: "TASK",
       title: data.key,
       status: data.status,
+      statusId: await statusFor(projectId, data.status),
       priority: "MEDIUM",
       reporterId: (await prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { createdBy: true } })).createdBy!,
       rank: `r-${data.key}`,

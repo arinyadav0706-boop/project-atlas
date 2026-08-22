@@ -4,6 +4,7 @@ import { HomeService } from "@/features/home/services/home.service";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
 import { FavoriteService } from "@/features/home/services/favorite.service";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves Home's cross-project scoping (BR-7),
 // starred/recent projects, and the "Continue working" signal end to end.
@@ -20,7 +21,7 @@ async function seed() {
     data: { organizationId: org.id, email: "u@example.com", name: "User" },
   });
   const mk = (key: string) =>
-    prisma.project.create({
+    createProjectWithStatuses({
       data: { organizationId: org.id, key, name: `Project ${key}`, createdBy: user.id },
     });
   const [p1, p2, p3] = await Promise.all([mk("P1"), mk("P2"), mk("P3")]);
@@ -47,6 +48,7 @@ async function assignIssue(projectId: string, userId: string, title: string) {
       reporterId: userId,
       assigneeId: userId,
       status: "TODO",
+      statusId: await statusFor(projectId),
       rank: `a${n}`, // distinct per issue (unique per project+status, ADR-0010)
     },
   });
@@ -106,7 +108,7 @@ describe("Project strip", () => {
     const otherUser = await prisma.user.create({
       data: { organizationId: otherOrg.id, email: "o@x.com", name: "O" },
     });
-    const foreign = await prisma.project.create({
+    const foreign = await createProjectWithStatuses({
       data: { organizationId: otherOrg.id, key: "X", name: "X", createdBy: otherUser.id },
     });
     await expect(FavoriteService.starProject(actor, foreign.id)).rejects.toThrow();

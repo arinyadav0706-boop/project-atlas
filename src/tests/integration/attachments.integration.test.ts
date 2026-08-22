@@ -15,6 +15,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { AttachmentService } from "@/features/attachments/services/attachment.service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres + the on-disk LocalStorageAdapter. Proves the full
 // attachment path (09_attachments.md, ADR-0017): upload writes a blob under an
@@ -38,7 +39,7 @@ async function seed(tag: string) {
   const viewer = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-view@example.com`, name: `Viewer ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.createMany({

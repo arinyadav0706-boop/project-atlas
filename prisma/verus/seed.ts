@@ -124,6 +124,14 @@ async function main(): Promise<void> {
     d.projects.map((p) => ({ ...p, createdBy: ridN(p.createdBy) })),
   );
 
+  // Statuses BEFORE issues: `Issue.statusId` is a required FK, so an issue
+  // inserted first has nothing to point at (30_workflow BR-7).
+  await insertMany<Prisma.WorkflowStatusCreateManyInput>(
+    "workflow statuses",
+    (rows) => prisma.workflowStatus.createMany({ data: rows }),
+    d.workflowStatuses.map((w) => ({ ...w, createdBy: ridN(w.createdBy) })),
+  );
+
   await insertMany<Prisma.ProjectMemberCreateManyInput>(
     "project members",
     (rows) => prisma.projectMember.createMany({ data: rows }),

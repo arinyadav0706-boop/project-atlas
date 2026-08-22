@@ -5,6 +5,7 @@ import { SprintService } from "@/features/sprints/services/sprint.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { ConflictError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the Sprint lifecycle + assignment end to
 // end (07_sprint.md, ADR-0014): create → start (one-active) → drag assign →
@@ -21,7 +22,7 @@ async function seed(tag: string) {
   const lead = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-lead@example.com`, name: `Lead ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.create({

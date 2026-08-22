@@ -47,6 +47,7 @@ const baseProject = {
   description: null,
   status: "ACTIVE" as const,
   issueKeyCounter: 0,
+    enforceTransitions: false,
   createdAt: new Date("2026-07-13T00:00:00Z"),
   updatedAt: new Date("2026-07-13T00:00:00Z"),
   createdBy: "user-1",

@@ -5,6 +5,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { PermissionService } from "@/features/authorization/services/permission.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves ADR-0024: an org ADMIN is an effective
 // LEAD on every project in ITS OWN org (even with no membership row), while
@@ -26,7 +27,7 @@ async function seed(tag: string) {
   const admin = await prisma.user.create({
     data: { organizationId: org.id, email: `admin-${tag}@x.com`, name: "Admin", orgRole: "ADMIN" },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: tag, createdBy: owner.id },
   });
   await prisma.projectMember.create({

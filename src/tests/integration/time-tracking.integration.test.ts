@@ -3,6 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { WorkLogService } from "@/features/time-tracking/services/work-log.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Tier 4 — time tracking against a REAL Postgres (ADR-0030). Proves the summary
 // math, tenant scope (F-1), RBAC (VIEWER/author/LEAD), archived read-only, and
@@ -21,7 +22,7 @@ async function seed(tag: string, status: "ACTIVE" | "ARCHIVED" = "ACTIVE") {
   const lead = await mk("MEMBER", "lead");
   const member = await mk("MEMBER", "member");
   const viewer = await mk("MEMBER", "viewer");
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 6), name: tag, createdBy: lead.id, status },
   });
   await prisma.projectMember.createMany({
@@ -34,6 +35,7 @@ async function seed(tag: string, status: "ACTIVE" | "ARCHIVED" = "ACTIVE") {
   const issue = await prisma.issue.create({
     data: {
       projectId: project.id,
+      statusId: await statusFor(project.id),
       key: `${project.key}-1`,
       type: "TASK",
       title: "Task",

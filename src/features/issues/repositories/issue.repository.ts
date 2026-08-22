@@ -1,9 +1,10 @@
 import { prisma } from "@/shared/lib/db";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 // The Issues list renders the same card as the Board and Backlog, so it reads
 // the same shape — chips included (ADR-0018).
 import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
 import { rankAppend } from "@/shared/lib/rank";
-import type { Prisma, IssueStatus, IssueType } from "@prisma/client";
+import type { Prisma, StatusCategory, IssueType } from "@prisma/client";
 
 // Prisma is imported ONLY in *.repository.ts files. Key generation reads
 // and increments the owning Project row in the same transaction, so keys
@@ -21,7 +22,7 @@ export const MAX_PAGE_SIZE = 100;
 
 function issueWhere(
   projectId: string,
-  filters: { status?: IssueStatus; assigneeId?: string; type?: IssueType },
+  filters: { status?: StatusCategory; assigneeId?: string; type?: IssueType },
 ) {
   return {
     projectId,
@@ -35,7 +36,7 @@ function issueWhere(
 export const IssueRepository = {
   listByProject(
     projectId: string,
-    filters: { status?: IssueStatus; assigneeId?: string; type?: IssueType },
+    filters: { status?: StatusCategory; assigneeId?: string; type?: IssueType },
     page: { cursor?: string; take?: number } = {},
   ) {
     const take = Math.min(page.take ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
@@ -297,11 +298,20 @@ export const IssueRepository = {
         select: { key: true, issueKeyCounter: true },
       });
       const key = `${project.key}-${project.issueKeyCounter}`;
-      // New issues land in the TODO column (the schema default). Append after
-      // its current last card by generating a rank between that last key and
-      // the open end — one row, no rebalance (ADR-0009).
+      // New issues land on the project's DEFAULT status (30_workflow BR-5) —
+      // which is no longer necessarily "To Do", because a team can move the
+      // default to whatever they actually start work in.
+      const status = await WorkflowRepository.findDefault(tx, input.projectId);
+      if (!status) {
+        // Every project is seeded with statuses in the same transaction that
+        // creates it, so this means the data is broken rather than new. Fail
+        // loudly instead of inventing a status.
+        throw new Error(`Project ${input.projectId} has no default status.`);
+      }
+      // Append after the last card in that column by generating a rank between
+      // it and the open end — one row, no rebalance (ADR-0009).
       const last = await tx.issue.findFirst({
-        where: { projectId: input.projectId, status: "TODO", deletedAt: null },
+        where: { projectId: input.projectId, statusId: status.id, deletedAt: null },
         orderBy: { rank: "desc" },
         select: { rank: true },
       });
@@ -309,6 +319,11 @@ export const IssueRepository = {
         data: {
           projectId: input.projectId,
           key,
+          statusId: status.id,
+          // The cached category (BR-2), written in the same statement as the
+          // status it is derived from — never in a second update that could
+          // fail on its own.
+          status: status.category,
           type: input.type,
           title: input.title,
           description: input.description,
@@ -355,7 +370,7 @@ export const IssueRepository = {
   async setStatusWithVersion(
     id: string,
     expectedVersion: number,
-    status: IssueStatus,
+    status: StatusCategory,
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({
@@ -369,7 +384,7 @@ export const IssueRepository = {
   // Reorder neighbour lookup: the rank of a card that must live in the given
   // project + status column (non-deleted). Returns null if it doesn't — the
   // service treats that as an invalid/stale neighbour (never trust the client).
-  findRankInColumn(id: string, projectId: string, status: IssueStatus) {
+  findRankInColumn(id: string, projectId: string, status: StatusCategory) {
     return prisma.issue.findFirst({
       where: { id, projectId, status, deletedAt: null },
       select: { id: true, rank: true },
@@ -430,7 +445,7 @@ export const IssueRepository = {
   async reorderWithVersion(
     id: string,
     expectedVersion: number,
-    data: { rank: string; status?: IssueStatus; epicId?: string | null },
+    data: { rank: string; status?: StatusCategory; epicId?: string | null },
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({

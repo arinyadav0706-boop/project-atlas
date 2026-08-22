@@ -3,6 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { WorkloadService } from "@/features/workload/services/workload.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Tier 4 — Workload against a REAL Postgres (ADR-0034). Proves the cross-project
 // aggregation, the remaining-effort arithmetic against real WorkLog rows, the
@@ -47,14 +48,14 @@ async function seed(tag: string) {
   });
 
   // Two projects: the point is that one person's load spans both (BR-3).
-  const alpha = await prisma.project.create({
+  const alpha = await createProjectWithStatuses({
     data: { organizationId: org.id, key: `A${tag}`, name: "Alpha" },
   });
-  const beta = await prisma.project.create({
+  const beta = await createProjectWithStatuses({
     data: { organizationId: org.id, key: `B${tag}`, name: "Beta" },
   });
 
-  const issue = (opts: {
+  const issue = async (opts: {
     projectId: string;
     key: string;
     assigneeId: string;
@@ -68,6 +69,7 @@ async function seed(tag: string) {
         type: "TASK",
         title: opts.key,
         status: opts.status ?? "TODO",
+        statusId: await statusFor(opts.projectId, opts.status ?? "TODO"),
         priority: "MEDIUM",
         assigneeId: opts.assigneeId,
         reporterId: admin.id,

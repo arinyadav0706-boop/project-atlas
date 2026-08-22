@@ -13,6 +13,7 @@ import { prisma } from "@/shared/lib/db";
 import { ProfileService } from "@/features/profile/services/profile.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres + the on-disk storage adapter. Proves the Profile
 // service (16_profile.md, ADR-0027): self-edit persists and never changes
@@ -28,7 +29,7 @@ async function seed(tag: string) {
   const user = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}@x.com`, name: `${tag} User`, orgRole: "MEMBER" },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 6), name: `${tag} proj`, createdBy: user.id },
   });
   await prisma.projectMember.create({

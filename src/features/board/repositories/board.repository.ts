@@ -3,7 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
 // One card shape for every list surface — see issue-card.repository.ts.
 import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
-import type { IssueStatus } from "@prisma/client";
+import type { StatusCategory } from "@prisma/client";
 import type { BoardFilter } from "@/features/board/types/board.types";
 
 // Prisma is imported ONLY in *.repository.ts. The board reads the Issue table
@@ -19,7 +19,7 @@ export const BoardRepository = {
   // Cards for one status column, ordered by rank. Uses the covering index
   // issues(projectId, status, rank); `id` is the final tiebreaker for a total,
   // stable order (ranks are unique per column but this stays safe regardless).
-  columnItems(projectId: string, status: IssueStatus, filter: BoardFilter) {
+  columnItems(projectId: string, status: StatusCategory, filter: BoardFilter) {
     return prisma.issue.findMany({
       where: { ...issueFilterWhere({ projectIds: [projectId] }, filter), status },
       select: issueCardSelect,

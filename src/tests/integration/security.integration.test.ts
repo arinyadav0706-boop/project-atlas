@@ -3,6 +3,7 @@ import { prisma } from "@/shared/lib/db";
 import { IssueService } from "@/features/issues/services/issue.service";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Tier 4 — adversarial checks against a REAL Postgres. Proves the defenses
 // that must hold even when an attacker crafts requests directly (bypassing the
@@ -16,7 +17,7 @@ async function reset() {
 async function seed(tag: string) {
   const org = await prisma.organization.create({ data: { name: tag, domain: `${tag}.example.com` } });
   const user = await prisma.user.create({ data: { organizationId: org.id, email: `${tag}@example.com`, name: tag } });
-  const project = await prisma.project.create({ data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: tag, createdBy: user.id } });
+  const project = await createProjectWithStatuses({ data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: tag, createdBy: user.id } });
   await prisma.projectMember.create({ data: { projectId: project.id, userId: user.id, role: "LEAD", createdBy: user.id } });
   return { org, user, project };
 }
@@ -29,7 +30,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("wa");
     const b = await seed("wb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "WB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
+      data: { projectId: b.project.id, key: "WB-1", type: "TASK", title: "b", reporterId: b.user.id, statusId: await statusFor(b.project.id), rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id }; // even as org admin
     await expect(
@@ -44,7 +45,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("da");
     const b = await seed("db");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "DB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
+      data: { projectId: b.project.id, key: "DB-1", type: "TASK", title: "b", reporterId: b.user.id, statusId: await statusFor(b.project.id), rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(IssueService.delete(attacker, bIssue.id)).rejects.toBeInstanceOf(NotFoundError);
@@ -56,7 +57,7 @@ describe("cross-tenant writes are refused", () => {
     const a = await seed("ta");
     const b = await seed("tb");
     const bIssue = await prisma.issue.create({
-      data: { projectId: b.project.id, key: "TB-1", type: "TASK", title: "b", reporterId: b.user.id, rank: "a0" },
+      data: { projectId: b.project.id, key: "TB-1", type: "TASK", title: "b", reporterId: b.user.id, statusId: await statusFor(b.project.id), rank: "a0" },
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(
@@ -69,7 +70,7 @@ describe("the fixed workflow cannot be skipped via the service", () => {
   it("TODO → DONE is rejected (must pass through the workflow)", async () => {
     const { org, user, project } = await seed("wf");
     const issue = await prisma.issue.create({
-      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO", rank: "a0" },
+      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO", statusId: await statusFor(project.id), rank: "a0" },
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
     await expect(

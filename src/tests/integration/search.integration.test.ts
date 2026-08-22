@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/db";
 import { SearchService } from "@/features/search/services/search.service";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres FTS (12_search.md, ADR-0021). Proves the
 // tsvector/GIN read path: prefix matching, ts_rank ordering, issue-key boost,
@@ -19,7 +20,7 @@ async function seed(tag: string) {
   const user = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}@x.com`, name: `U ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: {
       organizationId: org.id,
       key: tag.toUpperCase().slice(0, 8),
@@ -44,6 +45,7 @@ async function makeIssue(
       title: data.title,
       description: data.description ?? null,
       status: "TODO",
+      statusId: await statusFor(projectId),
       priority: "MEDIUM",
       reporterId,
       rank: `r-${data.key}`,

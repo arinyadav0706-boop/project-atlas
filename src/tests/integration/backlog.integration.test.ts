@@ -4,6 +4,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { ConflictError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the ADR-0013 unified-rank backlog end to
 // end: the backlog lists unscheduled issues across statuses ordered by the
@@ -23,7 +24,7 @@ async function seed(tag: string) {
   const lead = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-lead@example.com`, name: `Lead ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.create({

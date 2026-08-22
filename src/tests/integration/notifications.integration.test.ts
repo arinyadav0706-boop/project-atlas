@@ -7,6 +7,7 @@ import { NotificationService } from "@/features/notifications/services/notificat
 import { NOTIFICATION_TYPES } from "@/features/notifications/types/notification.types";
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves notification fan-out end to end
 // (10_notifications.md, ADR-0019): ASSIGNED / COMMENT_ADDED / STATUS_CHANGED,
@@ -27,7 +28,7 @@ async function seed(tag: string) {
   const member = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-mem@x.com`, name: `Member ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: `P ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.createMany({

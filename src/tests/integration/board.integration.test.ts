@@ -5,6 +5,7 @@ import { BoardService } from "@/features/board/services/board.service";
 import { ConflictError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { IssueStatusDto } from "@/features/issues/types/issue.types";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the ADR-0009 rank writes end to end:
 // a reorder computes a key strictly between the destination neighbours, writes
@@ -26,7 +27,7 @@ async function seed(tag: string) {
   const other = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-other@example.com`, name: `Other ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase(), name: `Project ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.createMany({

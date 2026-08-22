@@ -4,6 +4,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { SprintService } from "@/features/sprints/services/sprint.service";
 import { ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the backlog group-by-epic MOVES (ADR-0026):
 // a backlog reorder and a sprint→backlog move can each reassign the parent epic
@@ -16,7 +17,7 @@ async function reset() {
 async function seed(tag: string) {
   const org = await prisma.organization.create({ data: { name: tag, domain: `${tag}.example.com` } });
   const user = await prisma.user.create({ data: { organizationId: org.id, email: `${tag}@x.com`, name: tag } });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 6), name: tag, createdBy: user.id },
   });
   await prisma.projectMember.create({ data: { projectId: project.id, userId: user.id, role: "LEAD", createdBy: user.id } });

@@ -1,5 +1,6 @@
 import { prisma } from "@/shared/lib/db";
 import type { ProjectRole, ProjectStatus } from "@prisma/client";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 
 // Prisma is imported ONLY in *.repository.ts files (Feature Architecture §2).
 export const ProjectRepository = {
@@ -60,6 +61,15 @@ export const ProjectRepository = {
           createdBy: input.creatorId,
         },
       });
+      // In the SAME transaction (30_workflow BR-7): a project without statuses
+      // cannot hold an issue, since `Issue.statusId` is required. Seeding it
+      // afterwards would leave a window where creating an issue fails.
+      await WorkflowRepository.seedDefaults(
+        tx,
+        project.id,
+        input.organizationId,
+        input.creatorId,
+      );
       return project;
     });
   },

@@ -5,6 +5,7 @@ import { LabelService } from "@/features/labels/services/label.service";
 import { ComponentService } from "@/features/components/services/component.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
+import { createProjectWithStatuses } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves labels + components end to end (ADR-0018,
 // 17_labels.md, 18_components.md): case-insensitive uniqueness (the functional
@@ -28,7 +29,7 @@ async function seed(tag: string) {
   const viewer = await prisma.user.create({
     data: { organizationId: org.id, email: `${tag}-view@x.com`, name: `Viewer ${tag}` },
   });
-  const project = await prisma.project.create({
+  const project = await createProjectWithStatuses({
     data: { organizationId: org.id, key: tag.toUpperCase().slice(0, 8), name: `P ${tag}`, createdBy: lead.id },
   });
   await prisma.projectMember.createMany({
