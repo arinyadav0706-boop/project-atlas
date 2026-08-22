@@ -63,6 +63,50 @@ graph LR
   actually has a generated Prisma Client available; CI runs it as an
   explicit step for the same reason.
 
+## 4b. Scheduler (ADR-0051)
+
+Recurring issues need something to fire them. That something is a plain HTTP
+endpoint, not a platform primitive:
+
+```
+POST /api/scheduler/tick
+Authorization: Bearer $SCHEDULER_SECRET
+```
+
+Hourly is the intended cadence. **Any** scheduler can call it — a Vercel
+`crons` entry, a Kubernetes CronJob, a systemd timer, a GitHub Actions
+schedule — which is the point: an app that depends on one host's cron product
+is an app that cannot move (ADR-0004).
+
+Properties worth knowing before wiring it up:
+
+- **Idempotent.** Each due recurrence is claimed with a conditional update, so
+  overlapping ticks create one issue between them and a retry after a timeout is
+  safe. Calling it more often than hourly is harmless, just wasted queries.
+- **Cheap when idle.** One indexed read on `recurring_issues.nextRunAt`, which
+  is almost every tick.
+- **Never backfills.** However long it has been down, one tick creates at most
+  one issue per recurrence.
+- **Fails closed.** While `SCHEDULER_SECRET` is unset the endpoint refuses
+  everything — an unauthenticated scheduler is an unauthenticated issue factory.
+
+On Vercel:
+
+```json
+{ "crons": [{ "path": "/api/scheduler/tick", "schedule": "0 * * * *" }] }
+```
+
+Vercel Cron issues a **`GET`**, not a POST, and adds
+`Authorization: Bearer $CRON_SECRET` itself when that variable is set. The route
+therefore answers both verbs with the same auth, and accepts `CRON_SECRET` as an
+alias for `SCHEDULER_SECRET` — so a Vercel deployment sets **one** variable and
+adds the `crons` entry above, with nothing else to keep in sync. Anywhere else,
+set `SCHEDULER_SECRET` and POST it.
+
+**This is not wired up yet** — it is tracked as go-live blocker GL-10, and until
+it is done recurrences are configured and inert, with a stale "next run" on the
+settings row as the only symptom (REC-4).
+
 ## 5. Observability (V1 baseline)
 
 - Structured logging (JSON) from the service layer, shippable to any log

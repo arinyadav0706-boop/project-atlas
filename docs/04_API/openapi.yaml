@@ -1141,6 +1141,133 @@ paths:
         "200": { description: The issue's labels after the change, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Label" } } } } }
         "403": { description: Caller is not a project member }
 
+  # ── Recurring issues (ADR-0051, 32_recurring.md) ───────────────────────────
+  /projects/{projectId}/recurrences:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: A project's recurring work, with next run and what each produced
+      description: >
+        Readable by anyone who can see the project (BR-12) — the person asking
+        "where did this ticket come from" is rarely the one who set it up.
+        `canManage` gates the controls, not the view.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recurrences" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [projects]
+      summary: Create a recurrence
+      description: >
+        LEAD on the project, or an org ADMIN (BR-12). At most 25 per project.
+        The assignee must be a project member; the reporter need only be an
+        active user in the organization, matching what `POST /issues` itself
+        enforces.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecurrenceWrite" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recurrence" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /projects/{projectId}/recurrences/{recurrenceId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+      - name: recurrenceId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [projects]
+      summary: Edit, pause or resume a recurrence
+      description: >
+        `active: false` pauses it and clears the next run; `true` resumes and
+        derives a fresh one. Any edit to the schedule itself re-derives the next
+        firing — a stale one would fire once more on the old day and read as the
+        edit not having saved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecurrenceWrite" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recurrence" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      tags: [projects]
+      summary: Soft-delete a recurrence
+      description: Stops immediately. The issues it created are untouched (BR-14).
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /scheduler/tick:
+    get:
+      tags: [system]
+      summary: Same as POST, for schedulers that only issue GET
+      description: >
+        Vercel Cron issues a `GET` and adds `Authorization: Bearer $CRON_SECRET`
+        itself, so a POST-only endpoint would be uncallable on the primary
+        deployment target. The operation is idempotent, so it does not need to
+        be a POST for safety; POST remains the honest verb for a caller that has
+        a choice. `CRON_SECRET` is accepted as an alias for `SCHEDULER_SECRET`.
+      security:
+        - schedulerSecret: []
+      responses:
+        "200":
+          description: What this tick did
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchedulerTick" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [system]
+      summary: Fire every recurrence that is due
+      description: >
+        Called by whatever cron the host provides — Vercel Cron, a Kubernetes
+        CronJob, a systemd timer, GitHub Actions — so nothing here is a bet on
+        the current platform (ADR-0004, ADR-0051 §5). Hourly is the intended
+        cadence.
+
+
+        **No session.** A shared secret as `Authorization: Bearer <secret>`;
+        while `SCHEDULER_SECRET` is unset every request is refused, because an
+        unauthenticated scheduler endpoint is an unauthenticated issue factory.
+
+
+        **Idempotent** (BR-5): each due recurrence is claimed with a conditional
+        update, so two overlapping ticks create one issue between them and a
+        retry after a timeout is safe. At most one issue per recurrence per
+        tick, however far behind it is (BR-4).
+      security:
+        - schedulerSecret: []
+      responses:
+        "200":
+          description: What this tick did
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SchedulerTick" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   # ── Automations (ADR-0050, 31_automations.md) ──────────────────────────────
   /projects/{projectId}/automations:
     parameters:
@@ -1185,7 +1312,7 @@ paths:
               schema: { $ref: "#/components/schemas/AutomationRule" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
-        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "422": { $ref: "#/components/responses/ValidationError" }
 
   /projects/{projectId}/automations/{ruleId}:
     parameters:
@@ -1213,7 +1340,7 @@ paths:
               schema: { $ref: "#/components/schemas/AutomationRule" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
-        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "422": { $ref: "#/components/responses/ValidationError" }
     delete:
       tags: [projects]
       summary: Soft-delete a rule
@@ -2140,6 +2267,13 @@ paths:
 
 components:
   securitySchemes:
+    schedulerSecret:
+      type: http
+      scheme: bearer
+      description: >
+        The shared secret for `POST /scheduler/tick` (ADR-0051 §5). Not a user
+        session — no user is present when a cron fires. Set as
+        `SCHEDULER_SECRET`; while it is unset the endpoint refuses everything.
     sessionCookie:
       type: apiKey
       in: cookie
@@ -2747,6 +2881,171 @@ components:
             (BR-6). Read-only — dragging a number derived from other numbers is
             a control that cannot do what it appears to.
         blockedBy: { type: integer, description: Open blockers (ADR-0046). }
+
+    Recurrences:
+      type: object
+      required: [items, canManage]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Recurrence" }
+        canManage:
+          type: boolean
+          description: LEAD or org ADMIN (BR-12). A hint for the UI; the service re-checks.
+
+    Recurrence:
+      type: object
+      required:
+        [id, name, active, mode, frequency, interval, startsOn, weekdays, timeOfDay,
+         timeZone, skipWeekends, skipIfOpen, title, type, priority, reporter,
+         occurrences, summary, recentIssues]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 80 }
+        active:
+          type: boolean
+          description: False when paused by hand, or ended by its own end condition (BR-11).
+        mode:
+          type: string
+          enum: [FIXED_SCHEDULE, AFTER_COMPLETION]
+          description: >
+            `FIXED_SCHEDULE` fires on the calendar regardless of the last
+            instance. `AFTER_COMPLETION` fires `intervalDays` after the previous
+            one reaches a DONE category.
+        frequency:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+          description: >
+            No YEARLY — monthly with an interval of 12 is yearly and of 3 is
+            quarterly, so every real cadence is expressible with one fewer
+            frequency to get wrong.
+        interval: { type: integer, minimum: 1, maximum: 24 }
+        startsOn:
+          type: string
+          format: date-time
+          description: Every interval is counted from here, so "every other Tuesday" stays in phase (BR-15).
+        weekdays:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 6 }
+          description: WEEKLY. 0=Sunday. Empty means the weekday `startsOn` falls on.
+        dayOfMonth:
+          type: integer
+          nullable: true
+          description: MONTHLY. Clamped to the month's length, so the 31st fires on 28 February.
+        timeOfDay: { type: integer, minimum: 0, maximum: 1439, description: Minutes past local midnight. }
+        timeZone:
+          type: string
+          description: IANA zone. Per recurrence, not per org (ADR-0051 §7).
+        skipWeekends: { type: boolean, description: DAILY only. }
+        skipIfOpen:
+          type: boolean
+          description: FIXED_SCHEDULE only — skip while the previous instance is open (BR-6).
+        intervalDays:
+          type: integer
+          nullable: true
+          description: AFTER_COMPLETION only.
+        title: { type: string, maxLength: 200 }
+        description: { type: string, nullable: true }
+        type: { $ref: "#/components/schemas/IssueType" }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assignee:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+        reporter:
+          type: object
+          description: Who the created issues are reported by — a real person (BR-8).
+          properties:
+            id: { type: string }
+            name: { type: string }
+        dueInDays: { type: integer, nullable: true }
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Null when paused or ended. The UI leads with this, because a
+            scheduler that has stopped produces nothing and says nothing — a
+            visibly stale next run is the only symptom.
+        lastRunAt: { type: string, format: date-time, nullable: true }
+        occurrences: { type: integer }
+        endsOn: { type: string, format: date-time, nullable: true }
+        maxOccurrences: { type: integer, nullable: true }
+        lastError:
+          type: string
+          nullable: true
+          description: >
+            Why the last firing failed (BR-13). The occurrence fails, the reason
+            is recorded, and the schedule still advances — a stuck recurrence
+            silently producing nothing is worse than a gap.
+        summary:
+          type: string
+          description: The schedule as a sentence ("Every Monday at 09:00"), resolved server-side.
+        recentIssues:
+          type: array
+          description: The most recent issues this produced — the record, in place of a run log (§9).
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              key: { type: string }
+              title: { type: string }
+              createdAt: { type: string, format: date-time }
+
+    RecurrenceWrite:
+      type: object
+      description: >
+        Create requires `name`, `startsOn` and `title`; PATCH takes any subset
+        plus `active`.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        active: { type: boolean, description: PATCH only — pause or resume. }
+        mode: { type: string, enum: [FIXED_SCHEDULE, AFTER_COMPLETION] }
+        frequency: { type: string, enum: [DAILY, WEEKLY, MONTHLY] }
+        interval: { type: integer, minimum: 1, maximum: 24 }
+        startsOn: { type: string, format: date-time }
+        weekdays:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 6 }
+        dayOfMonth: { type: integer, minimum: 1, maximum: 31, nullable: true }
+        timeOfDay: { type: integer, minimum: 0, maximum: 1439 }
+        timeZone: { type: string, description: Must be an IANA zone the server recognises. }
+        skipWeekends: { type: boolean }
+        skipIfOpen: { type: boolean }
+        intervalDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          nullable: true
+          description: Required when `mode` is AFTER_COMPLETION.
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true }
+        type: { type: string, enum: [EPIC, STORY, TASK, BUG] }
+        priority: { $ref: "#/components/schemas/IssuePriority" }
+        assigneeId: { type: string, nullable: true }
+        reporterId: { type: string, description: Defaults to the creator. }
+        dueInDays: { type: integer, minimum: 0, maximum: 365, nullable: true }
+        endsOn: { type: string, format: date-time, nullable: true }
+        maxOccurrences: { type: integer, minimum: 1, maximum: 1000, nullable: true }
+
+    SchedulerTick:
+      type: object
+      required: [claimed, created, skipped, failed, details]
+      description: What one tick did, for the caller's own logs.
+      properties:
+        claimed:
+          type: integer
+          description: >
+            How many due recurrences this caller won. Under two concurrent ticks
+            the two numbers sum to the total due and never overlap (BR-5).
+        created: { type: integer }
+        skipped: { type: integer, description: e.g. the previous instance is still open. }
+        failed: { type: integer }
+        details:
+          type: array
+          items: { type: string }
 
     Automations:
       type: object

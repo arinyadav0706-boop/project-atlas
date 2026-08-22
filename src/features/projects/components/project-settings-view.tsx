@@ -21,6 +21,7 @@ import { Input } from "@/shared/components/ui/input";
 import { LabelsManager } from "@/features/labels/components/labels-manager";
 import { StatusManager } from "@/features/workflow/components/status-manager";
 import { AutomationsManager } from "@/features/automations/components/automations-manager";
+import { RecurrenceManager } from "@/features/recurrence/components/recurrence-manager";
 import { ComponentsManager } from "@/features/components/components/components-manager";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -113,6 +114,15 @@ export function ProjectSettingsView({
             description="When X happens, if Y is true, do Z. Rules act as themselves, never as the person who tripped them, and every evaluation is recorded."
           >
             <AutomationsManager
+              projectId={project.id}
+              members={members.map((m) => ({ userId: m.userId, name: m.name }))}
+            />
+          </SectionCard>
+          <SectionCard
+            title="Recurring work"
+            description="Standups, weekly reports, the monthly review. Each firing creates a fresh issue, so every occurrence keeps its own history and its own cycle time."
+          >
+            <RecurrenceManager
               projectId={project.id}
               members={members.map((m) => ({ userId: m.userId, name: m.name }))}
             />

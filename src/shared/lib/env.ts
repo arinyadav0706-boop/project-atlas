@@ -27,7 +27,22 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().optional().default(""),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
   SUPABASE_STORAGE_BUCKET: z.string().optional().default("attachments"),
+  // Bearer token for POST /api/scheduler/tick (ADR-0051 §5). Optional so a
+  // dev machine boots without one — the endpoint refuses every request while
+  // it is unset, which is the right failure: an unauthenticated scheduler is
+  // an unauthenticated issue factory.
+  SCHEDULER_SECRET: z.string().optional().default(""),
+  // Vercel Cron's own convention: when this is set, Vercel sends
+  // `Authorization: Bearer $CRON_SECRET` with each scheduled request. Accepted
+  // as an alias so a Vercel deployment needs one variable, not two that must be
+  // kept equal.
+  CRON_SECRET: z.string().optional().default(""),
 });
+
+/** The token `POST|GET /api/scheduler/tick` accepts. Empty means "refuse all". */
+export function schedulerSecret(): string {
+  return env.SCHEDULER_SECRET || env.CRON_SECRET;
+}
 
 export const env = envSchema.parse(process.env);
 

@@ -269,6 +269,8 @@ model User {
   dashboards         Dashboard[]      @relation("DashboardOwner")
   managedTeams       Team[]           @relation("TeamManager")
   teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
+  recurrences        RecurringIssue[] @relation("RecurrenceReporter")
+  recurrenceTargets  RecurringIssue[] @relation("RecurrenceAssignee")
 
   @@index([organizationId])
   @@map("users")
@@ -314,18 +316,18 @@ model AuthAccount {
 }
 
 model Project {
-  id              String        @id @default(cuid())
-  organizationId  String
-  organization    Organization  @relation(fields: [organizationId], references: [id])
-  key             String
-  name            String
-  description     String?
-  status          ProjectStatus @default(ACTIVE)
-  issueKeyCounter Int           @default(0)
+  id                 String        @id @default(cuid())
+  organizationId     String
+  organization       Organization  @relation(fields: [organizationId], references: [id])
+  key                String
+  name               String
+  description        String?
+  status             ProjectStatus @default(ACTIVE)
+  issueKeyCounter    Int           @default(0)
   /// Restricted transitions (30_workflow BR-10). Off by default: ClickUp and
   /// Asana let you move anything anywhere, and Jira's transition graph is the
   /// reason "why can't I move this ticket" is a support category.
-  enforceTransitions Boolean    @default(false)
+  enforceTransitions Boolean       @default(false)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -333,15 +335,16 @@ model Project {
   updatedBy String?
   deletedAt DateTime?
 
-  members      ProjectMember[]
-  sprints      Sprint[]
-  issues       Issue[]
-  components   Component[]
-  customFields ProjectCustomField[]
-  statuses     WorkflowStatus[]
-  transitions  StatusTransition[]
-  automations  AutomationRule[]
+  members        ProjectMember[]
+  sprints        Sprint[]
+  issues         Issue[]
+  components     Component[]
+  customFields   ProjectCustomField[]
+  statuses       WorkflowStatus[]
+  transitions    StatusTransition[]
+  automations    AutomationRule[]
   automationRuns AutomationRun[]
+  recurrences    RecurringIssue[]
 
   @@unique([organizationId, key])
   @@map("projects")
@@ -373,7 +376,7 @@ model WorkflowStatus {
   updatedBy String?
   deletedAt DateTime?
 
-  issues       Issue[]
+  issues          Issue[]
   transitionsFrom StatusTransition[] @relation("TransitionFrom")
   transitionsTo   StatusTransition[] @relation("TransitionTo")
 
@@ -387,6 +390,100 @@ model WorkflowStatus {
 /// Per project, like statuses, and for the same reasons — no scheme
 /// indirection, no join to answer "what automates this project", and a nullable
 /// scope can widen it later without moving a row (backlog AUT-4).
+enum RecurrenceMode {
+  /// Fires on the calendar regardless of the last instance.
+  FIXED_SCHEDULE
+  /// Fires `intervalDays` after the previous instance reaches a DONE category.
+  AFTER_COMPLETION
+}
+
+/// No YEARLY: monthly with an interval of 12 IS yearly, and of 3 is
+/// quarterly. One fewer frequency is one fewer thing to get wrong, and every
+/// real cadence a team has is still expressible (rule 10).
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// A template plus a schedule (ADR-0051, 32_recurring.md). Each firing stamps
+/// out a NEW issue — never reopens one, because cycle time and velocity replay
+/// from status transitions and a row completed fifty-two times has no cycle
+/// time at all (BR-1).
+model RecurringIssue {
+  id             String              @id @default(cuid())
+  /// Denormalised so a tenant-scoped query never needs the project join (F-1).
+  organizationId String
+  projectId      String
+  project        Project             @relation(fields: [projectId], references: [id])
+  name           String
+  /// Paused by hand, or ended by its own end condition (BR-11).
+  active         Boolean             @default(true)
+  mode           RecurrenceMode      @default(FIXED_SCHEDULE)
+  frequency      RecurrenceFrequency @default(WEEKLY)
+  /// Every N days/weeks/months/years.
+  interval       Int                 @default(1)
+  /// The day the schedule is measured from. Every interval is counted from
+  /// here, so "every 3 days" and "every other Tuesday" have a defined answer,
+  /// and a recurrence can be set up today to begin next month.
+  startsOn       DateTime
+  /// WEEKLY: which days fire (0=Sunday … 6=Saturday).
+  weekdays       Int[]
+  /// MONTHLY/YEARLY: clamped to the month's length, so the 31st still fires in
+  /// February rather than skipping the month.
+  dayOfMonth     Int?
+  /// Local time of day as minutes past midnight, read in `timeZone`.
+  timeOfDay      Int                 @default(540)
+  /// IANA zone. Per recurrence, not per org: "every Monday at 9" across three
+  /// continents has no single right answer (ADR-0051 §7).
+  timeZone       String              @default("UTC")
+  /// DAILY only — never land on a Saturday or Sunday.
+  skipWeekends   Boolean             @default(false)
+  /// FIXED_SCHEDULE only. Without it, a daily task nobody does becomes thirty
+  /// identical open issues (BR-6).
+  skipIfOpen     Boolean             @default(false)
+  /// AFTER_COMPLETION only — days after the previous instance is done.
+  intervalDays   Int?
+
+  // ── The template stamped out each time ──
+  title       String
+  description String?
+  type        IssueType     @default(TASK)
+  priority    IssuePriority @default(MEDIUM)
+  assigneeId  String?
+  assignee    User?         @relation("RecurrenceAssignee", fields: [assigneeId], references: [id])
+  /// Who the created issues are reported by (BR-8). A real person, because
+  /// "who do I ask about this" must have an answer.
+  reporterId  String
+  reporter    User          @relation("RecurrenceReporter", fields: [reporterId], references: [id])
+  /// Days from creation to the new issue's due date. Null = no due date.
+  dueInDays   Int?
+
+  // ── State ──
+  /// Null once the recurrence has ended (BR-11). Indexed: the scheduler tick
+  /// reads exactly this column across every project in the deployment.
+  nextRunAt      DateTime?
+  lastRunAt      DateTime?
+  occurrences    Int       @default(0)
+  endsOn         DateTime?
+  maxOccurrences Int?
+  /// Why the last occurrence failed, if it did. A stuck schedule that silently
+  /// produces nothing is worse than a gap (BR-13).
+  lastError      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  issues Issue[] @relation("RecurrenceIssues")
+
+  @@index([nextRunAt])
+  @@index([projectId])
+  @@map("recurring_issues")
+}
+
 model AutomationRule {
   id             String            @id @default(cuid())
   /// Denormalised so a tenant-scoped query never needs the project join (F-1).
@@ -506,9 +603,9 @@ model Sprint {
 }
 
 model Issue {
-  id              String        @id @default(cuid())
+  id              String          @id @default(cuid())
   projectId       String
-  project         Project       @relation(fields: [projectId], references: [id])
+  project         Project         @relation(fields: [projectId], references: [id])
   key             String
   type            IssueType
   title           String
@@ -520,20 +617,20 @@ model Issue {
   /// Denormalised deliberately: the alternative is a join on every list query
   /// in the product, and this column is read by the board, the backlog, every
   /// report and metric, the dependency guard and the subtask roll-up.
-  status          StatusCategory @default(TODO)
+  status          StatusCategory  @default(TODO)
   /// The project-defined status a human sees (ADR-0049 §1).
   statusId        String
-  workflowStatus  WorkflowStatus @relation(fields: [statusId], references: [id])
-  priority        IssuePriority @default(MEDIUM)
+  workflowStatus  WorkflowStatus  @relation(fields: [statusId], references: [id])
+  priority        IssuePriority   @default(MEDIUM)
   assigneeId      String?
-  assignee        User?         @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  assignee        User?           @relation("IssueAssignee", fields: [assigneeId], references: [id])
   reporterId      String
-  reporter        User          @relation("IssueReporter", fields: [reporterId], references: [id])
+  reporter        User            @relation("IssueReporter", fields: [reporterId], references: [id])
   sprintId        String?
-  sprint          Sprint?       @relation(fields: [sprintId], references: [id])
+  sprint          Sprint?         @relation(fields: [sprintId], references: [id])
   epicId          String?
-  epic            Issue?        @relation("EpicChildren", fields: [epicId], references: [id])
-  children        Issue[]       @relation("EpicChildren")
+  epic            Issue?          @relation("EpicChildren", fields: [epicId], references: [id])
+  children        Issue[]         @relation("EpicChildren")
   /// Parent of a SUBTASK, and only of a SUBTASK (ADR-0045 §2). Deliberately a
   /// SECOND pointer alongside `epicId` rather than a reuse of it: `epicId` is
   /// the Story→Epic link with its own rule set, and collapsing both into one
@@ -541,8 +638,8 @@ model Issue {
   /// row ever carries both. Jira unified the two in 2023; that is tracked as
   /// backlog ST-7, not smuggled in here.
   parentId        String?
-  parent          Issue?        @relation("Subtasks", fields: [parentId], references: [id])
-  subtasks        Issue[]       @relation("Subtasks")
+  parent          Issue?          @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks        Issue[]         @relation("Subtasks")
   storyPoints     Int?
   // String fractional rank (LexoRank-style, base-62) for board/backlog order.
   // Assigned via `fractional-indexing`; a reorder writes one row, no rebalance
@@ -556,7 +653,7 @@ model Issue {
   // a conditional write (WHERE version = expected) detects a lost update — two
   // people changing the same card — and rejects the stale one instead of
   // silently overwriting. O(1) per write, no locks; scales to any user count.
-  version         Int           @default(0)
+  version         Int             @default(0)
   dueDate         DateTime?
   /// The Timeline bar's left edge (ADR-0047 §1); `dueDate` is its right.
   ///
@@ -568,6 +665,11 @@ model Issue {
   // Original effort estimate in MINUTES (ADR-0030, time-tracking feature). Owned
   // by the time-tracking service, not the issue-edit path; not OCC-bound.
   estimateMinutes Int?
+  /// The recurrence that created this issue (ADR-0051 §9). A back-pointer
+  /// rather than a log table: a recurrence that fires produces an issue, and
+  /// the issue IS the record.
+  recurrenceId    String?
+  recurrence      RecurringIssue? @relation("RecurrenceIssues", fields: [recurrenceId], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -607,6 +709,7 @@ model Issue {
   // start. Covers both the filter and the sort.
   @@index([projectId, startDate])
   @@index([statusId])
+  @@index([recurrenceId])
   @@map("issues")
 }
 
@@ -742,34 +845,34 @@ enum CommentBodyFormat {
 }
 
 model Comment {
-  id              String            @id @default(cuid())
-  issueId         String
-  issue           Issue             @relation(fields: [issueId], references: [id])
+  id               String            @id @default(cuid())
+  issueId          String
+  issue            Issue             @relation(fields: [issueId], references: [id])
   /// Null for a comment an automation rule posted (ADR-0050 §4). A rule is not
   /// a user and must not borrow one: attributing an automated comment to
   /// whoever tripped the trigger is the audit-log lie BR-3 exists to prevent,
   /// and a fake "Automation" user row would leak into every member picker,
   /// mention list and seat count in the product.
-  authorId        String?
+  authorId         String?
   // Restrict, explicitly: making the relation optional flips Prisma's default
   // to SetNull, which would leave a comment with neither an author nor a rule
   // and break the `comments_one_author` CHECK. The database has carried
   // RESTRICT since init; this keeps the schema saying so.
-  author          User?             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  author           User?             @relation(fields: [authorId], references: [id], onDelete: Restrict)
   /// Set instead of `authorId` when a rule posted this. Exactly one of the two
   /// is present on every row.
   automationRuleId String?
-  automationRule   AutomationRule?  @relation(fields: [automationRuleId], references: [id], onDelete: Restrict)
+  automationRule   AutomationRule?   @relation(fields: [automationRuleId], references: [id], onDelete: Restrict)
   // Threading backbone (ADR-0016). Present from day one; the MVP renders flat.
-  parentCommentId String?
-  parentComment   Comment?          @relation("CommentReplies", fields: [parentCommentId], references: [id])
-  replies         Comment[]         @relation("CommentReplies")
-  body            String
-  bodyFormat      CommentBodyFormat @default(MARKDOWN)
+  parentCommentId  String?
+  parentComment    Comment?          @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies          Comment[]         @relation("CommentReplies")
+  body             String
+  bodyFormat       CommentBodyFormat @default(MARKDOWN)
   // "edited" indicator; null until the first edit.
-  editedAt        DateTime?
+  editedAt         DateTime?
   // Optimistic concurrency (ADR-0011): a version-checked edit rejects stale writes.
-  version         Int               @default(0)
+  version          Int               @default(0)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

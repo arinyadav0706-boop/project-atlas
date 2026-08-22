@@ -50,6 +50,7 @@ import {
 import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
 import { AutomationService } from "@/features/automations/services/automation.service";
+import { RecurrenceService } from "@/features/recurrence/services/recurrence.service";
 import type { IssueLinksDto } from "@/features/dependencies/types/dependency.types";
 import type { AutomationTriggerDto } from "@/features/automations/types/automation.types";
 
@@ -689,6 +690,13 @@ export const IssueService = {
     // unblocked either way (30_workflow BR-3).
     if (target.category === "DONE") {
       await DependencyService.notifyUnblocked(actor, { id: issueId, key: existing.key });
+      // An "N days after the last one is done" recurrence schedules its next
+      // firing from here (32_recurring BR-3). Best-effort inside the service —
+      // a scheduling failure must never fail the status change.
+      await RecurrenceService.onIssueCompleted({
+        id: issueId,
+        recurrenceId: existing.recurrenceId,
+      });
     }
     const automated = await AutomationService.dispatch(actor, {
       trigger: "STATUS_CHANGED",
@@ -814,6 +822,12 @@ export const IssueService = {
         await DependencyService.notifyUnblocked(actor, {
           id: existing.id,
           key: existing.key,
+        });
+        // Same as the status menu. Wiring only one of them would make a
+        // recurrence depend on which control somebody happened to use.
+        await RecurrenceService.onIssueCompleted({
+          id: existing.id,
+          recurrenceId: existing.recurrenceId,
         });
       }
       // A column drag fires the same trigger the status menu does. Wiring only

@@ -5,7 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Check, ChevronDown, ChevronRight, GitBranch, Pencil, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  GitBranch,
+  Pencil,
+  Repeat,
+  Trash2,
+} from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
@@ -34,6 +42,10 @@ import { SubtaskPanel } from "./subtask-panel";
 import { ConvertIssueDialog } from "./convert-issue-dialog";
 import { LinkPanel } from "@/features/dependencies/components/link-panel";
 import { StatusSwatch } from "@/features/workflow/components/status-swatch";
+import {
+  blankRecurrence,
+  RecurrenceBuilder,
+} from "@/features/recurrence/components/recurrence-builder";
 import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type {
   IssueDetailDto,
@@ -51,6 +63,11 @@ export function IssueDetailView({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [converting, setConverting] = useState(false);
+  // "Repeat this…" (32_recurring BR-2). The entry point people expect from
+  // ClickUp and Asana, but what it saves is a TEMPLATE, not a property of this
+  // issue — so editing this week's standup never changes next week's.
+  const [repeating, setRepeating] = useState(false);
+  const [savingRepeat, setSavingRepeat] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -283,6 +300,17 @@ export function IssueDetailView({
                 {issue.type === "SUBTASK" ? "Convert to issue" : "Convert to subtask"}
               </Button>
             )}
+            {issue.canEdit && issue.type !== "SUBTASK" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={() => setRepeating(true)}
+              >
+                <Repeat className="h-4 w-4" />
+                Repeat this…
+              </Button>
+            )}
             {issue.canDelete && (
               <Button
                 variant="ghost"
@@ -297,6 +325,39 @@ export function IssueDetailView({
           </div>
         )}
       </aside>
+
+      {repeating && (
+        <RecurrenceBuilder
+          open
+          // Prefilled from this issue, then owned by the template it creates.
+          editing={blankRecurrence({
+            name: issue.title,
+            title: issue.title,
+            description: issue.description,
+            type: issue.type === "SUBTASK" ? "TASK" : issue.type,
+            priority: issue.priority,
+            assigneeId: issue.assignee?.id ?? null,
+          })}
+          members={members}
+          saving={savingRepeat}
+          onClose={() => setRepeating(false)}
+          onSave={async (value) => {
+            setSavingRepeat(true);
+            try {
+              await apiRequest(`/api/projects/${projectId}/recurrences`, {
+                method: "POST",
+                body: value,
+              });
+              toast.success("This will now repeat. Manage it in project settings.");
+              setRepeating(false);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "That didn't work.");
+            } finally {
+              setSavingRepeat(false);
+            }
+          }}
+        />
+      )}
 
       {issue.canEdit && (
         <EditIssueDialog
