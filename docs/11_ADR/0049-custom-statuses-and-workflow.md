@@ -111,6 +111,19 @@ before. Given DB-2 — the deploy that once ran `next build` without
 `migrate deploy` and took production down — a migration that is safe in both
 orders is not a nicety.
 
+### 8. Turning enforcement on cannot be its own deadlock
+
+Worth recording because the browser found it and nothing else would have.
+
+The server refuses `enforce: true` with an empty rule set — correctly, since it
+would freeze every issue in the project where it stands. The editor saved the
+switch immediately, so flipping it on hit that refusal, the switch flipped back,
+and the matrix never rendered: there was no way to tick the first box.
+
+The switch now reveals the matrix locally and enforcement persists the moment
+the first move is allowed. Turning it *off* still saves at once. The rule did
+not change; the order of operations did.
+
 ## Consequences
 
 **Good.** Teams define their own statuses. Everything downstream keeps working

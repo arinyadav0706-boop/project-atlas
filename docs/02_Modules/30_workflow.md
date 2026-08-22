@@ -98,7 +98,9 @@ matching its category, then set `NOT NULL`.
   row with a colour swatch, inline-editable name, a category selector, an issue
   count, a "default" marker and a delete action that asks where its issues go.
 - **Add status** — name, category, colour.
-- **Transitions** — a switch, and when on a from → to matrix of checkboxes.
+- **Transitions** — a switch, and when on a from → to matrix of checkboxes. The
+  diagonal is a dash, not a checkbox: staying put is not a transition, and a box
+  there would imply an issue could be forbidden from being where it is.
 - **Board** — one column per status in `position` order, not four hard-coded
   ones; the column header carries the status colour.
 - **Issue detail / board drag** — the status control lists this project's

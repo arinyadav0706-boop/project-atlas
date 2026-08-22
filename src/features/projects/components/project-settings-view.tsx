@@ -19,6 +19,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { LabelsManager } from "@/features/labels/components/labels-manager";
+import { StatusManager } from "@/features/workflow/components/status-manager";
 import { ComponentsManager } from "@/features/components/components/components-manager";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -100,6 +101,12 @@ export function ProjectSettingsView({
             isLead={isLead}
             currentUserId={currentUserId}
           />
+          <SectionCard
+            title="Statuses"
+            description="The columns on this project's board. Each maps to a category — that's what reports, the workload and dependencies reason about, whatever you call the status."
+          >
+            <StatusManager projectId={project.id} />
+          </SectionCard>
           <SectionCard
             title="Components"
             description="Sub-systems of this project. A component's owner is the default assignee for new work tagged with it."
