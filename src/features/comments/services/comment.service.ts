@@ -20,6 +20,7 @@ import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 import { elevate, canWriteContent } from "@/features/authorization/permission";
 import type {
+  CommentAuthorDto,
   CommentDto,
   CommentPageDto,
   CommentThreadDto,
@@ -49,6 +50,28 @@ async function resolve(
   return { context, role };
 }
 
+/**
+ * Who a reader sees. A person, or the rule that posted it (ADR-0050 §4).
+ *
+ * The rule's CURRENT name, read through the relation rather than copied into
+ * the comment when it was written — renaming a rule should rename it
+ * everywhere it has ever spoken, exactly as renaming a user does.
+ */
+function displayAuthor(row: CommentRow): CommentAuthorDto {
+  if (row.author) return row.author;
+  if (row.automationRule) {
+    return {
+      id: row.automationRule.id,
+      name: row.automationRule.name,
+      avatarUrl: null,
+      isAutomation: true,
+    };
+  }
+  // Unreachable: the `comments_one_author` CHECK forbids it. Handled rather
+  // than asserted, because a render is not the place to throw.
+  return { id: "unknown", name: "Unknown", avatarUrl: null };
+}
+
 function toDto(
   row: CommentRow,
   actor: Actor,
@@ -57,14 +80,17 @@ function toDto(
   extra: { replyCount?: number; replies?: CommentDto[] } = {},
 ): CommentDto {
   const writable = canWrite(role) && projectStatus !== "ARCHIVED";
-  const isAuthor = row.authorId === actor.userId;
+  // A rule's comment has no author to match, so `isAuthor` is false for
+  // everyone — nobody edits what an automation said, and only a LEAD may
+  // remove it. That is the right answer, not an accident of the null.
+  const isAuthor = row.authorId !== null && row.authorId === actor.userId;
   return {
     id: row.id,
     issueId: row.issueId,
     parentCommentId: row.parentCommentId,
     body: row.body,
     bodyFormat: row.bodyFormat,
-    author: row.author,
+    author: displayAuthor(row),
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt ? row.editedAt.toISOString() : null,
     version: row.version,
@@ -280,7 +306,10 @@ export const CommentService = {
 
     const row = await CommentRepository.create({
       issueId,
-      authorId: actor.userId,
+      // Exactly one of the two (ADR-0050 §4). An automation actor's `userId` is
+      // the rule's id, which is not a user and must not be written as one.
+      authorId: actor.automation ? null : actor.userId,
+      automationRuleId: actor.automation?.ruleId ?? null,
       body: input.body,
       parentCommentId,
       mentionedUserIds,

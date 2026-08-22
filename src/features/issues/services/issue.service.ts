@@ -49,7 +49,9 @@ import {
 } from "@/features/issues/services/hierarchy";
 import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
+import { AutomationService } from "@/features/automations/services/automation.service";
 import type { IssueLinksDto } from "@/features/dependencies/types/dependency.types";
+import type { AutomationTriggerDto } from "@/features/automations/types/automation.types";
 
 // Business rules from docs/02_Modules/04_issues.md. RBAC + the fixed
 // workflow are enforced here, server-side, per the actor's effective project
@@ -171,6 +173,19 @@ async function toDetailDto(
     workflowStatus: row.workflowStatus,
     allowedStatuses: await WorkflowService.reachableStatuses(row.projectId, row.statusId),
   };
+}
+
+/**
+ * The row as it stands after automations have had their turn.
+ *
+ * A no-op unless a rule actually wrote — the flag comes from `dispatch`, which
+ * knows. Falls back to the row we already have if the re-read comes back empty
+ * (a rule that deleted the issue is not a reason to 404 the write that
+ * succeeded).
+ */
+async function refreshed(row: IssueRow, changed: boolean): Promise<IssueRow> {
+  if (!changed) return row;
+  return (await IssueRepository.findDetail(row.id)) ?? row;
 }
 
 // Assignee (if set) must be a member of the same project (BR-3).
@@ -394,7 +409,19 @@ export const IssueService = {
       issueTitle: row.title,
       assigneeId: row.assigneeId,
     });
-    return await toDetailDto(row, actor, role);
+    // Rules react AFTER the write commits, never inside it (ADR-0050 §5): an
+    // automation may not roll back the issue somebody just created. Dispatch
+    // swallows its own failures for the same reason.
+    const automated = await AutomationService.dispatch(actor, {
+      trigger: "ISSUE_CREATED",
+      projectId,
+      organizationId: context.organizationId,
+      issueId: row.id,
+    });
+    // Re-read only when a rule actually wrote, so an unautomated project pays
+    // nothing: `row` was fetched before the rules ran and would otherwise show
+    // the priority the issue held for the millisecond before it was escalated.
+    return await toDetailDto(await refreshed(row, automated), actor, role);
   },
 
   async update(
@@ -556,7 +583,28 @@ export const IssueService = {
         assigneeId: input.assigneeId,
       });
     }
-    return await toDetailDto(row, actor, role);
+    // Automation triggers, on the fields that ACTUALLY changed (ADR-0050).
+    // Comparing against `existing` rather than trusting the input: a PATCH that
+    // re-sends the current assignee has changed nothing, and firing "assignee
+    // changed" for it would make every save look like a reassignment.
+    const triggers: AutomationTriggerDto[] = [];
+    if (input.assigneeId !== undefined && input.assigneeId !== existing.assigneeId) {
+      triggers.push("ASSIGNEE_CHANGED");
+    }
+    if (input.priority !== undefined && input.priority !== existing.priority) {
+      triggers.push("PRIORITY_CHANGED");
+    }
+    let automated = false;
+    for (const trigger of triggers) {
+      automated =
+        (await AutomationService.dispatch(actor, {
+          trigger,
+          projectId: existing.projectId,
+          organizationId: context.organizationId,
+          issueId,
+        })) || automated;
+    }
+    return await toDetailDto(await refreshed(row, automated), actor, role);
   },
 
   /**
@@ -642,7 +690,13 @@ export const IssueService = {
     if (target.category === "DONE") {
       await DependencyService.notifyUnblocked(actor, { id: issueId, key: existing.key });
     }
-    return await toDetailDto(row, actor, role);
+    const automated = await AutomationService.dispatch(actor, {
+      trigger: "STATUS_CHANGED",
+      projectId: existing.projectId,
+      organizationId: context.organizationId,
+      issueId,
+    });
+    return await toDetailDto(await refreshed(row, automated), actor, role);
   },
 
   // Board/Backlog reorder (05_board.md BR-3/BR-4, 06_backlog.md, ADR-0009,
@@ -762,6 +816,15 @@ export const IssueService = {
           key: existing.key,
         });
       }
+      // A column drag fires the same trigger the status menu does. Wiring only
+      // one of them would make a rule depend on which control somebody used.
+      const automated = await AutomationService.dispatch(actor, {
+        trigger: "STATUS_CHANGED",
+        projectId: existing.projectId,
+        organizationId: context.organizationId,
+        issueId: existing.id,
+      });
+      return await toDetailDto(await refreshed(row, automated), actor, role);
     }
     return await toDetailDto(row, actor, role);
   },

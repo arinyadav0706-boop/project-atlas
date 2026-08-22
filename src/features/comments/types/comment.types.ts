@@ -6,6 +6,14 @@ export interface CommentAuthorDto {
   id: string;
   name: string;
   avatarUrl: string | null;
+  /**
+   * True when the "author" is an automation rule, not a person (ADR-0050 §4).
+   *
+   * The UI badges it rather than showing an avatar, because a reader who thinks
+   * a teammate wrote the escalation checklist will go and ask that teammate
+   * about it.
+   */
+  isAutomation?: boolean;
 }
 
 // A person the comment names (ADR-0038 §1). Resolved from the body's tokens, so

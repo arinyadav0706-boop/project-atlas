@@ -1141,6 +1141,119 @@ paths:
         "200": { description: The issue's labels after the change, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Label" } } } } }
         "403": { description: Caller is not a project member }
 
+  # ── Automations (ADR-0050, 31_automations.md) ──────────────────────────────
+  /projects/{projectId}/automations:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: A project's automation rules, with each one's last run
+      description: >
+        Readable by anyone who can see the project (BR-9) — automated behaviour
+        that only admins can explain is worse than no automation, because the
+        person asking "why did my ticket move" is rarely the person who wrote
+        the rule. `canManage` gates the controls, not the view. A rule whose
+        stored document no longer parses comes back with `broken` set rather
+        than erroring the whole list (BR-6).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Automations" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [projects]
+      summary: Create a rule
+      description: >
+        LEAD on the project, or an org ADMIN (BR-9). One trigger, at most 10
+        conditions (ANDed) and 5 actions (in order); at most 20 rules per
+        project, and the twenty-first is refused with a reason (AC-11). An
+        empty condition list means "every time", but an empty selection INSIDE
+        a condition is refused — "type is (nothing)" is a half-configured rule,
+        not a filter that matches everything.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutomationRuleWrite" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRule" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
+  /projects/{projectId}/automations/{ruleId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+      - name: ruleId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [projects]
+      summary: Rename, enable/disable, or replace the rule document
+      description: >
+        LEAD or org ADMIN. Disabling is the safe alternative to deleting
+        (BR-10): a disabled rule is evaluated by nothing and logs nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutomationRuleWrite" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRule" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+    delete:
+      tags: [projects]
+      summary: Soft-delete a rule
+      description: >
+        It stops running immediately. Its run log stays — the record of what an
+        automation did outlives the rule.
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/automations/runs:
+    parameters:
+      - $ref: "#/components/parameters/ProjectIdParam"
+    get:
+      tags: [projects]
+      summary: The rule audit log, newest first
+      description: >
+        Every evaluation, including the ones that did nothing (BR-5). Skips are
+        the records people assume are noise and are actually the most useful:
+        without them "why didn't my rule fire" is unanswerable. Readable by
+        anyone who can see the project (BR-9).
+      parameters:
+        - name: ruleId
+          in: query
+          schema: { type: string }
+          description: Narrow to one rule. Blank reads as absent, never as a rule named "".
+        - name: take
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AutomationRun" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /projects/{projectId}/components:
     parameters:
       - $ref: "#/components/parameters/ProjectIdParam"
@@ -1616,7 +1729,7 @@ paths:
                 type: object
                 required: [items, nextCursor, projectsInScope]
                 properties:
-                  items: { type: array, items: { $ref: "#/components/schemas/IssueListItemDto" } }
+                  items: { type: array, items: { $ref: "#/components/schemas/Issue" } }
                   nextCursor: { type: string, nullable: true }
                   projectsInScope:
                     type: integer
@@ -2262,7 +2375,7 @@ components:
         items:
           type: array
           description: "kind=list. At most 10 rows (BR-10)."
-          items: { $ref: "#/components/schemas/IssueListItemDto" }
+          items: { $ref: "#/components/schemas/Issue" }
         total: { type: integer, description: "kind=breakdown|list — everything matching, not just what is shown." }
         reason: { type: string, description: "kind=unavailable — why, in words a reader can act on." }
 
@@ -2634,6 +2747,161 @@ components:
             (BR-6). Read-only — dragging a number derived from other numbers is
             a control that cannot do what it appears to.
         blockedBy: { type: integer, description: Open blockers (ADR-0046). }
+
+    Automations:
+      type: object
+      required: [rules, canManage]
+      properties:
+        rules:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationRule" }
+        canManage:
+          type: boolean
+          description: >
+            Whether the viewer may create or edit rules — LEAD or org ADMIN
+            (BR-9). A hint for the UI only; the service re-checks.
+
+    AutomationRule:
+      type: object
+      required: [id, name, enabled, trigger, conditions, actions]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 80 }
+        enabled: { type: boolean }
+        trigger:
+          type: string
+          enum: [ISSUE_CREATED, STATUS_CHANGED, ASSIGNEE_CHANGED, PRIORITY_CHANGED]
+          description: >
+            One per rule. Every one is something a person did — scheduled
+            triggers need a scheduler and are future scope (AUT-8).
+        conditions:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationCondition" }
+          description: ANDed. Empty means the rule runs on every matching trigger.
+        actions:
+          type: array
+          items: { $ref: "#/components/schemas/AutomationAction" }
+          description: Run in order. A failure at action two leaves action one applied.
+        broken:
+          type: string
+          description: >
+            Present when the stored document no longer parses (BR-6). The rule
+            is surfaced and skipped, never executed on a guess about what its
+            author meant. `conditions` and `actions` come back empty.
+        lastRun:
+          allOf: [{ $ref: "#/components/schemas/AutomationRun" }]
+          nullable: true
+
+    AutomationRuleWrite:
+      type: object
+      description: >
+        Create requires `name`, `trigger` and at least one action; PATCH takes
+        any subset. Discriminated on `kind` throughout, and validated by Zod on
+        the way in AND on the way out — the Json columns cannot police their own
+        shape (ADR-0050 §7).
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        trigger:
+          type: string
+          enum: [ISSUE_CREATED, STATUS_CHANGED, ASSIGNEE_CHANGED, PRIORITY_CHANGED]
+        enabled: { type: boolean }
+        conditions:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/AutomationCondition" }
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/AutomationAction" }
+
+    AutomationCondition:
+      type: object
+      required: [kind]
+      description: >
+        Discriminated on `kind`. Each carries a LIST rather than one value, so
+        "type is Bug or Story" is one condition a person can read where two ORed
+        conditions would need a grouping concept the builder does not have. A
+        list is never empty — that is a half-configured rule, not "match
+        everything".
+      properties:
+        kind:
+          type: string
+          enum: [TYPE_IS, PRIORITY_IS, STATUS_CATEGORY_IS, STATUS_IS, ASSIGNEE_IS, HAS_LABEL]
+        types:
+          type: array
+          items: { type: string, enum: [EPIC, STORY, TASK, BUG, SUBTASK] }
+        priorities:
+          type: array
+          items: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] }
+        categories:
+          type: array
+          items: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE] }
+        statusIds:
+          type: array
+          items: { type: string }
+        userIds:
+          type: array
+          items: { type: string, nullable: true }
+          description: "`null` means unassigned — a real state people build rules around."
+        labelIds:
+          type: array
+          items: { type: string }
+
+    AutomationAction:
+      type: object
+      required: [kind]
+      description: >
+        Discriminated on `kind`. Every action goes through the service layer, so
+        an automated write obeys every rule a person's write obeys — transition
+        restrictions, the subtask-done guard, the status/category invariant
+        (BR-7).
+      properties:
+        kind:
+          type: string
+          enum: [SET_STATUS, ASSIGN, SET_PRIORITY, ADD_COMMENT, NOTIFY]
+        statusId: { type: string }
+        userId:
+          type: string
+          nullable: true
+          description: "On `ASSIGN`, `null` unassigns. On `NOTIFY`, required when target is USER."
+        priority:
+          type: string
+          enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST]
+        body:
+          type: string
+          maxLength: 2000
+          description: >
+            Posted as the RULE, never as the person who tripped the trigger
+            (ADR-0050 §4). No smart values in V1 (AUT-9).
+        target:
+          type: string
+          enum: [ASSIGNEE, REPORTER, USER]
+
+    AutomationRun:
+      type: object
+      required: [id, ruleId, ruleName, issueKey, outcome, detail, durationMs, createdAt]
+      description: One evaluation. Written for every rule the trigger matched (BR-5).
+      properties:
+        id: { type: string }
+        ruleId: { type: string }
+        ruleName: { type: string }
+        issueKey:
+          type: string
+          nullable: true
+        outcome:
+          type: string
+          enum: [SUCCESS, SKIPPED, FAILED]
+          description: >
+            `SKIPPED` names the condition that stopped it — the most useful of
+            the three, because "why didn't my rule fire" is the more common
+            question. `FAILED` names the error and leaves earlier actions
+            applied.
+        detail:
+          type: string
+          description: One human sentence. The run log is read by people, not by code.
+        durationMs: { type: integer }
+        createdAt: { type: string, format: date-time }
 
     Calendar:
       type: object

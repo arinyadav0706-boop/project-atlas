@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Zap } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
@@ -77,17 +78,29 @@ export function CommentRow({
 
   return (
     <div className="flex gap-3">
+      {/* A rule gets a mark, not an avatar (ADR-0050 §4). A reader who thinks
+          a teammate wrote the escalation checklist will go and ask that
+          teammate about it. */}
       <Avatar className={compact ? "h-6 w-6 shrink-0" : "h-7 w-7 shrink-0"}>
         {comment.author.avatarUrl && (
           <AvatarImage src={comment.author.avatarUrl} alt={comment.author.name} />
         )}
         <AvatarFallback className="text-[11px]">
-          {comment.author.name.charAt(0).toUpperCase()}
+          {comment.author.isAutomation ? (
+            <Zap className="size-3" />
+          ) : (
+            comment.author.name.charAt(0).toUpperCase()
+          )}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{comment.author.name}</span>
+          {comment.author.isAutomation && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+              Automation
+            </span>
+          )}
           <span>{new Date(comment.createdAt).toLocaleString()}</span>
           {comment.editedAt && <span>· edited</span>}
         </div>

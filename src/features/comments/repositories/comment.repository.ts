@@ -19,6 +19,10 @@ const commentSelect = {
   version: true,
   createdAt: true,
   author: authorSelect,
+  // Null unless a rule posted this (ADR-0050 §4). The NAME comes off the rule
+  // rather than being copied into the comment, so renaming a rule renames it
+  // everywhere it has ever spoken.
+  automationRule: { select: { id: true, name: true } },
 } as const;
 
 // Keyset pagination — never return an unbounded thread (Performance doc, standard
@@ -108,11 +112,13 @@ export const CommentRepository = {
    */
   async participantIds(issueId: string): Promise<string[]> {
     const rows = await prisma.comment.findMany({
-      where: { issueId, deletedAt: null },
+      // An automated comment has no author, so it contributes no participant —
+      // notifying a rule is not a thing.
+      where: { issueId, deletedAt: null, authorId: { not: null } },
       select: { authorId: true },
       distinct: ["authorId"],
     });
-    return rows.map((r) => r.authorId);
+    return rows.map((r) => r.authorId).filter((id): id is string => id !== null);
   },
 
   countByIssue(issueId: string) {
@@ -141,19 +147,24 @@ export const CommentRepository = {
   // "mentions me", silently.
   create(input: {
     issueId: string;
-    authorId: string;
+    /** A person, or a rule — never both, never neither (CHECK `comments_one_author`). */
+    authorId: string | null;
+    automationRuleId: string | null;
     body: string;
     parentCommentId: string | null;
     mentionedUserIds: string[];
   }) {
+    // Whoever or whatever wrote it, for the audit columns.
+    const writer = input.authorId ?? input.automationRuleId;
     return prisma.$transaction(async (tx) => {
       const row = await tx.comment.create({
         data: {
           issueId: input.issueId,
           authorId: input.authorId,
+          automationRuleId: input.automationRuleId,
           body: input.body,
           parentCommentId: input.parentCommentId,
-          createdBy: input.authorId,
+          createdBy: writer,
         },
         select: commentSelect,
       });
@@ -162,7 +173,7 @@ export const CommentRepository = {
           data: input.mentionedUserIds.map((userId) => ({
             commentId: row.id,
             userId,
-            createdBy: input.authorId,
+            createdBy: writer,
           })),
           skipDuplicates: true,
         });

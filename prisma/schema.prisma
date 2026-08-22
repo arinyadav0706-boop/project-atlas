@@ -81,6 +81,24 @@ enum StatusCategory {
   DONE
 }
 
+/// What starts an automation rule (ADR-0050 §1). Every one is a thing a PERSON
+/// did — scheduled triggers need a scheduler and are future scope.
+enum AutomationTrigger {
+  ISSUE_CREATED
+  STATUS_CHANGED
+  ASSIGNEE_CHANGED
+  PRIORITY_CHANGED
+}
+
+/// The outcome of one rule evaluation (ADR-0050 §6). SKIPPED is recorded on
+/// purpose: "why didn't my rule fire" is the more common question, and without
+/// the skip record it is unanswerable.
+enum AutomationRunOutcome {
+  SUCCESS
+  SKIPPED
+  FAILED
+}
+
 enum IssuePriority {
   LOWEST
   LOW
@@ -104,6 +122,9 @@ enum NotificationType {
   /// type, not a STATUS_CHANGED on someone else's issue: the recipient does
   /// not care that VWP-12 moved, they care that THEIR issue can now start.
   UNBLOCKED
+  /// An automation rule's `NOTIFY` action (ADR-0050). Its own type because the
+  /// follow-up question — "who decided that?" — has a different answer.
+  AUTOMATION
 }
 
 enum NotificationEntityType {
@@ -319,6 +340,8 @@ model Project {
   customFields ProjectCustomField[]
   statuses     WorkflowStatus[]
   transitions  StatusTransition[]
+  automations  AutomationRule[]
+  automationRuns AutomationRun[]
 
   @@unique([organizationId, key])
   @@map("projects")
@@ -357,6 +380,66 @@ model WorkflowStatus {
   @@unique([projectId, name])
   @@index([projectId, position])
   @@map("workflow_statuses")
+}
+
+/// One automation rule: a trigger, some conditions, some actions (ADR-0050).
+///
+/// Per project, like statuses, and for the same reasons — no scheme
+/// indirection, no join to answer "what automates this project", and a nullable
+/// scope can widen it later without moving a row (backlog AUT-4).
+model AutomationRule {
+  id             String            @id @default(cuid())
+  /// Denormalised so a tenant-scoped query never needs the project join (F-1).
+  organizationId String
+  projectId      String
+  project        Project           @relation(fields: [projectId], references: [id])
+  name           String
+  /// Disabling is the safe alternative to deleting (BR-10).
+  enabled        Boolean           @default(true)
+  trigger        AutomationTrigger
+  /// Zod-validated documents, not one table per condition/action type
+  /// (ADR-0050 §7). The database cannot police the shape, so every read and
+  /// every write parses them; a rule that no longer parses is reported broken
+  /// rather than executed on a guess.
+  conditions     Json
+  actions        Json
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  runs     AutomationRun[]
+  comments Comment[]
+
+  @@index([projectId, enabled])
+  @@map("automation_rules")
+}
+
+/// One evaluation of one rule (ADR-0050 §6).
+///
+/// Jira's rule audit log is the difference between "the tool is haunted" and
+/// "rule 3 did that at 14:02", so every outcome is recorded — including the
+/// skips.
+model AutomationRun {
+  id         String               @id @default(cuid())
+  ruleId     String
+  rule       AutomationRule       @relation(fields: [ruleId], references: [id])
+  projectId  String
+  project    Project              @relation(fields: [projectId], references: [id])
+  /// Null only for a run that failed before it resolved an issue.
+  issueId    String?
+  outcome    AutomationRunOutcome
+  /// One human sentence: what changed, which condition stopped it, or why it
+  /// failed. The run log is read by people, not by code.
+  detail     String
+  durationMs Int
+  createdAt  DateTime             @default(now())
+
+  @@index([ruleId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("automation_runs")
 }
 
 /// One allowed move, when a project turns enforcement on (BR-10).
@@ -662,8 +745,21 @@ model Comment {
   id              String            @id @default(cuid())
   issueId         String
   issue           Issue             @relation(fields: [issueId], references: [id])
-  authorId        String
-  author          User              @relation(fields: [authorId], references: [id])
+  /// Null for a comment an automation rule posted (ADR-0050 §4). A rule is not
+  /// a user and must not borrow one: attributing an automated comment to
+  /// whoever tripped the trigger is the audit-log lie BR-3 exists to prevent,
+  /// and a fake "Automation" user row would leak into every member picker,
+  /// mention list and seat count in the product.
+  authorId        String?
+  // Restrict, explicitly: making the relation optional flips Prisma's default
+  // to SetNull, which would leave a comment with neither an author nor a rule
+  // and break the `comments_one_author` CHECK. The database has carried
+  // RESTRICT since init; this keeps the schema saying so.
+  author          User?             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  /// Set instead of `authorId` when a rule posted this. Exactly one of the two
+  /// is present on every row.
+  automationRuleId String?
+  automationRule   AutomationRule?  @relation(fields: [automationRuleId], references: [id], onDelete: Restrict)
   // Threading backbone (ADR-0016). Present from day one; the MVP renders flat.
   parentCommentId String?
   parentComment   Comment?          @relation("CommentReplies", fields: [parentCommentId], references: [id])

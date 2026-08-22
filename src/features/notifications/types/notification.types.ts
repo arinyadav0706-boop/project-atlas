@@ -16,6 +16,8 @@ export const NOTIFICATION_TYPES = [
   "COMMENT_ADDED",
   /** A blocker finished and this issue can start (ADR-0046 §6). */
   "UNBLOCKED",
+  /** An automation rule's `NOTIFY` action (ADR-0050). */
+  "AUTOMATION",
 ] as const;
 
 export type NotificationTypeDto = (typeof NOTIFICATION_TYPES)[number];

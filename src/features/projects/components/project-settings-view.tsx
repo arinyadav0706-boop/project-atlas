@@ -20,6 +20,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { LabelsManager } from "@/features/labels/components/labels-manager";
 import { StatusManager } from "@/features/workflow/components/status-manager";
+import { AutomationsManager } from "@/features/automations/components/automations-manager";
 import { ComponentsManager } from "@/features/components/components/components-manager";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -106,6 +107,15 @@ export function ProjectSettingsView({
             description="The columns on this project's board. Each maps to a category — that's what reports, the workload and dependencies reason about, whatever you call the status."
           >
             <StatusManager projectId={project.id} />
+          </SectionCard>
+          <SectionCard
+            title="Automations"
+            description="When X happens, if Y is true, do Z. Rules act as themselves, never as the person who tripped them, and every evaluation is recorded."
+          >
+            <AutomationsManager
+              projectId={project.id}
+              members={members.map((m) => ({ userId: m.userId, name: m.name }))}
+            />
           </SectionCard>
           <SectionCard
             title="Components"

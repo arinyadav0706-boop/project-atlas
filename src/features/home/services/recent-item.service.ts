@@ -15,6 +15,12 @@ export const RecentItemService = {
     entityId: string,
     interactionType: InteractionTypeDto,
   ): Promise<void> {
+    // A rule has no "continue working" list, and `userId` is a rule id on an
+    // automation write (ADR-0050 §4) — inserting it would violate the FK to
+    // `users`. The catch below would eat that, which is exactly why it is
+    // checked here instead: a swallowed error per automated write is a round
+    // trip and a log line for something we already know cannot apply.
+    if (actor.automation) return;
     try {
       await RecentItemRepository.record({
         userId: actor.userId,

@@ -186,6 +186,31 @@ export const NotificationService = {
     });
   },
 
+  /**
+   * An automation rule's `NOTIFY` action (ADR-0050).
+   *
+   * The message names the rule, because "VWP-12 needs attention" from nobody in
+   * particular is the notification people learn to ignore. Its own type, so the
+   * bell can say an automation sent this rather than implying a colleague did.
+   */
+  automationNotified(
+    actor: Actor,
+    input: {
+      issueId: string;
+      issueKey: string;
+      ruleName: string;
+      recipientIds: (string | null | undefined)[];
+    },
+  ) {
+    return notify(actor, {
+      recipientIds: input.recipientIds,
+      type: "AUTOMATION",
+      entityType: "ISSUE",
+      entityId: input.issueId,
+      message: `${input.issueKey} — flagged by the rule "${truncate(input.ruleName, 40)}"`,
+    });
+  },
+
   // --- Reads (the bell + notifications page) ---
 
   async list(
