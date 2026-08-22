@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Actor } from "@/shared/types/actor";
 
+vi.mock("@/features/workflow/services/workflow.service", () => ({
+  WorkflowService: {
+    requireStatus: vi.fn(async (_p: string, id: string) => STATUS_BY_ID[id]!),
+    assertTransitionAllowed: vi.fn(async () => undefined),
+    reachableStatuses: vi.fn(async () => Object.values(STATUS_BY_ID)),
+  },
+}));
+
 vi.mock("@/features/issues/repositories/issue.repository", () => ({
   DEFAULT_PAGE_SIZE: 50,
   MAX_PAGE_SIZE: 100,
@@ -55,6 +63,16 @@ import { IssueService } from "./issue.service";
 import { ConflictError, ValidationError } from "@/shared/lib/errors";
 import { MAX_SUBTASKS_PER_PARENT } from "@/features/issues/validation/issue.schemas";
 
+// The seeded four (30_workflow BR-7). Statuses are per-project data now, so the
+// service asks the workflow layer instead of consulting a constant.
+const STATUS_BY_ID: Record<string, { id: string; name: string; category: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE"; color: string; position: number; isDefault: boolean }> = {
+  "st-todo": { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true },
+  "st-ip": { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false },
+  "st-review": { id: "st-review", name: "In Review", category: "IN_REVIEW", color: "amber", position: 2, isDefault: false },
+  "st-done": { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false },
+};
+
+
 // Subtasks (docs/02_Modules/26_subtasks.md, ADR-0045).
 
 const repo = vi.mocked(IssueRepository);
@@ -79,6 +97,8 @@ function row(overrides: Record<string, unknown> = {}) {
     title: "Add login",
     description: null,
     status: "TODO",
+    statusId: "st-todo",
+    workflowStatus: STATUS_BY_ID["st-todo"],
     priority: "MEDIUM",
     assigneeId: null,
     reporterId: "user-1",
@@ -244,7 +264,7 @@ describe("a parent cannot be marked done over open subtasks", () => {
   it("refuses the transition and names the count", async () => {
     repo.countOpenSubtasks.mockResolvedValue(3 as never);
     await expect(
-      IssueService.transition(actor, "issue-1", "DONE", 0),
+      IssueService.transition(actor, "issue-1", "st-done", 0),
     ).rejects.toThrow(/3 subtasks are still open/);
     expect(repo.setStatusWithVersion).not.toHaveBeenCalled();
   });
@@ -252,7 +272,7 @@ describe("a parent cannot be marked done over open subtasks", () => {
   it("allows it once they are all done", async () => {
     repo.countOpenSubtasks.mockResolvedValue(0 as never);
     repo.setStatusWithVersion.mockResolvedValue(row({ status: "DONE" }) as never);
-    await expect(IssueService.transition(actor, "issue-1", "DONE", 0)).resolves.toBeTruthy();
+    await expect(IssueService.transition(actor, "issue-1", "st-done", 0)).resolves.toBeTruthy();
   });
 
   it("does not block any other transition", async () => {
@@ -260,7 +280,7 @@ describe("a parent cannot be marked done over open subtasks", () => {
     repo.findDetail.mockResolvedValue(row({ status: "IN_PROGRESS" }) as never);
     repo.setStatusWithVersion.mockResolvedValue(row({ status: "IN_REVIEW" }) as never);
     await expect(
-      IssueService.transition(actor, "issue-1", "IN_REVIEW", 0),
+      IssueService.transition(actor, "issue-1", "st-review", 0),
     ).resolves.toBeTruthy();
   });
 
@@ -269,7 +289,7 @@ describe("a parent cannot be marked done over open subtasks", () => {
     await expect(
       IssueService.reorder(actor, "issue-1", {
         scope: "board",
-        status: "DONE",
+        statusId: "st-done",
         expectedVersion: 0,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -281,7 +301,7 @@ describe("a parent cannot be marked done over open subtasks", () => {
       row({ type: "SUBTASK", parentId: "p1", status: "IN_REVIEW" }) as never,
     );
     repo.setStatusWithVersion.mockResolvedValue(row({ status: "DONE" }) as never);
-    await IssueService.transition(actor, "sub-1", "DONE", 0);
+    await IssueService.transition(actor, "sub-1", "st-done", 0);
     expect(repo.countOpenSubtasks).not.toHaveBeenCalled();
   });
 });

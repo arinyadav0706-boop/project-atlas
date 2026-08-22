@@ -10,9 +10,9 @@ export async function POST(request: NextRequest, props: Params) {
   const params = await props.params;
   return handleRoute(async () => {
     const actor = await requireMutationActor();
-    const { status, expectedVersion } = transitionIssueSchema.parse(await request.json());
+    const { statusId, expectedVersion } = transitionIssueSchema.parse(await request.json());
     return NextResponse.json(
-      await IssueService.transition(actor, params.issueId, status, expectedVersion),
+      await IssueService.transition(actor, params.issueId, statusId, expectedVersion),
     );
   });
 }

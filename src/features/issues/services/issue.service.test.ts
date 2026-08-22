@@ -36,6 +36,14 @@ vi.mock("@/features/projects/services/project.service", () => ({
     getMemberRole: vi.fn(),
   },
 }));
+vi.mock("@/features/workflow/services/workflow.service", () => ({
+  WorkflowService: {
+    requireStatus: vi.fn(),
+    assertTransitionAllowed: vi.fn(),
+    reachableStatuses: vi.fn(),
+  },
+}));
+
 vi.mock("@/features/admin/services/audit-log.service", () => ({
   AuditLogService: { record: vi.fn() },
 }));
@@ -68,12 +76,14 @@ vi.mock("@/features/notifications/services/notification.service", () => ({
 }));
 
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
+import { WorkflowService } from "@/features/workflow/services/workflow.service";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { IssueService } from "./issue.service";
 import { ConflictError, ForbiddenError, ValidationError } from "@/shared/lib/errors";
 
 const repo = vi.mocked(IssueRepository);
+const workflow = vi.mocked(WorkflowService);
 const projects = vi.mocked(ProjectService);
 const audit = vi.mocked(AuditLogService);
 
@@ -85,6 +95,7 @@ const ctx = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 function issueRow(overrides: Record<string, unknown> = {}) {
@@ -96,6 +107,15 @@ function issueRow(overrides: Record<string, unknown> = {}) {
     title: "Do the thing",
     description: null,
     status: "TODO",
+    statusId: "st-todo",
+    workflowStatus: {
+      id: "st-todo",
+      name: "To Do",
+      category: "TODO",
+      color: "slate",
+      position: 0,
+      isDefault: true,
+    },
     priority: "MEDIUM",
     assigneeId: null,
     reporterId: "user-1",
@@ -126,6 +146,23 @@ beforeEach(() => {
   repo.countSubtasks.mockResolvedValue(0 as never);
   repo.countOpenSubtasks.mockResolvedValue(0 as never);
   repo.softDeleteSubtasks.mockResolvedValue({ count: 0 } as never);
+  // Statuses are per-project data now (ADR-0049). Defaults describe the seeded
+  // four, so every pre-workflow test keeps meaning what it meant; the cases
+  // that care override them.
+  workflow.reachableStatuses.mockResolvedValue([
+    { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true },
+    { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false },
+    { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false },
+  ]);
+  workflow.assertTransitionAllowed.mockResolvedValue(undefined);
+  workflow.requireStatus.mockImplementation(async (_projectId, statusId) => {
+    const byId: Record<string, { id: string; name: string; category: "TODO" | "IN_PROGRESS" | "DONE"; color: string; position: number; isDefault: boolean }> = {
+      "st-todo": { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true },
+      "st-ip": { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false },
+      "st-done": { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false },
+    };
+    return byId[statusId]!;
+  });
 });
 
 describe("list (pagination + counts)", () => {
@@ -270,7 +307,7 @@ describe("create", () => {
   });
 
   it("rejects creation on an archived project (BR-4 projects)", async () => {
-    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED" });
+    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED", enforceTransitions: false });
     projects.getMemberRole.mockResolvedValue("LEAD");
     await expect(
       IssueService.create(actor, "proj-1", { type: "TASK", title: "x", priority: "MEDIUM" }),
@@ -279,12 +316,38 @@ describe("create", () => {
 });
 
 describe("transition", () => {
-  it("rejects an illegal transition with a validation error (BR-5)", async () => {
+  // The old fixed graph (To Do → In Progress → In Review → Done, no skipping)
+  // is gone with ADR-0049. It was stricter than ClickUp, Asana AND Jira's
+  // default workflow, all of which let you move anything anywhere, and it could
+  // not survive per-project statuses anyway: a project may have three columns
+  // in one category. Restriction is now opt-in, per project, and enforced by
+  // the workflow layer — so these tests assert that the service ASKS it.
+  it("moves straight to Done when the project has not restricted transitions", async () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
     projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.setStatusWithVersion.mockResolvedValue(issueRow({ status: "DONE" }) as never);
+
+    await IssueService.transition(actor, "issue-1", "st-done", 0);
+
+    expect(workflow.assertTransitionAllowed).toHaveBeenCalledWith(
+      "proj-1",
+      "st-todo",
+      "st-done",
+    );
+    expect(repo.setStatusWithVersion).toHaveBeenCalled();
+  });
+
+  it("refuses when the project's rules refuse — the guard is not advisory", async () => {
+    repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    workflow.assertTransitionAllowed.mockRejectedValue(
+      new ConflictError("This project restricts status changes."),
+    );
+
     await expect(
-      IssueService.transition(actor, "issue-1", "DONE", 0),
-    ).rejects.toBeInstanceOf(ValidationError);
+      IssueService.transition(actor, "issue-1", "st-done", 0),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(repo.setStatusWithVersion).not.toHaveBeenCalled();
   });
 
   it("performs a legal transition and audit-logs it (BR-6)", async () => {
@@ -294,19 +357,22 @@ describe("transition", () => {
       issueRow({ status: "IN_PROGRESS" }) as never,
     );
 
-    await IssueService.transition(actor, "issue-1", "IN_PROGRESS", 0);
+    await IssueService.transition(actor, "issue-1", "st-ip", 0);
 
+    // Both halves of the invariant, in one call (30_workflow BR-2).
     expect(repo.setStatusWithVersion).toHaveBeenCalledWith(
       "issue-1",
       0,
-      "IN_PROGRESS",
+      { id: "st-ip", category: "IN_PROGRESS" },
       "user-1",
     );
+    // The audit line names the STATUS, because "IN_REVIEW -> IN_REVIEW" tells a
+    // reader nothing on a project with three review columns.
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "ISSUE_STATUS_CHANGED",
-        beforeData: { status: "TODO" },
-        afterData: { status: "IN_PROGRESS" },
+        beforeData: { status: "To Do", category: "TODO" },
+        afterData: { status: "In Progress", category: "IN_PROGRESS" },
       }),
     );
   });
@@ -317,7 +383,7 @@ describe("transition", () => {
     repo.setStatusWithVersion.mockResolvedValue(null as never); // version moved on
 
     await expect(
-      IssueService.transition(actor, "issue-1", "IN_PROGRESS", 0),
+      IssueService.transition(actor, "issue-1", "st-ip", 0),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(audit.record).not.toHaveBeenCalled();
   });
@@ -389,16 +455,17 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
     );
 
     await IssueService.reorder(actor, "issue-1", {
-      status: "IN_PROGRESS",
+      statusId: "st-ip",
       expectedVersion: 0,
     });
 
     const [, , data] = repo.reorderWithVersion.mock.calls[0]!;
-    expect(data.status).toBe("IN_PROGRESS");
+    // Both halves together (30_workflow BR-2).
+    expect(data.status).toEqual({ id: "st-ip", category: "IN_PROGRESS" });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "ISSUE_STATUS_CHANGED",
-        afterData: { status: "IN_PROGRESS" },
+        afterData: { status: "In Progress", category: "IN_PROGRESS" },
       }),
     );
   });
@@ -411,18 +478,24 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
 
     await expect(
       IssueService.reorder(actor, "issue-1", {
-        status: "IN_PROGRESS",
+        statusId: "st-ip",
         expectedVersion: 0,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(audit.record).not.toHaveBeenCalled();
   });
 
-  it("rejects an illegal column move (TODO → DONE) before any write", async () => {
+  // A board drag must answer to the project's rules exactly as the status menu
+  // does. Guarding only the menu would leave the board as the way round the
+  // rule, which is worse than not having the rule at all.
+  it("refuses a column move the project's rules refuse, before any write", async () => {
     repo.findDetail.mockResolvedValue(issueRow({ status: "TODO" }) as never);
+    workflow.assertTransitionAllowed.mockRejectedValue(
+      new ConflictError("This project restricts status changes."),
+    );
     await expect(
-      IssueService.reorder(actor, "issue-1", { status: "DONE", expectedVersion: 0 }),
-    ).rejects.toBeInstanceOf(ValidationError);
+      IssueService.reorder(actor, "issue-1", { statusId: "st-done", expectedVersion: 0 }),
+    ).rejects.toBeInstanceOf(ConflictError);
     expect(repo.reorderWithVersion).not.toHaveBeenCalled();
   });
 
@@ -455,7 +528,7 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
   });
 
   it("rejects a reorder on an archived project", async () => {
-    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED" });
+    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED", enforceTransitions: false });
     repo.findDetail.mockResolvedValue(issueRow() as never);
     await expect(
       IssueService.reorder(actor, "issue-1", {
@@ -524,7 +597,7 @@ describe("reorder (Board/Backlog, ADR-0009)", () => {
       await expect(
         IssueService.reorder(actor, "issue-1", {
           scope: "backlog",
-          status: "IN_PROGRESS",
+          statusId: "st-ip",
           expectedVersion: 0,
         }),
       ).rejects.toBeInstanceOf(ValidationError);

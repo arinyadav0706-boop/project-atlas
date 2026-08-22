@@ -83,8 +83,11 @@ export const createSubtaskSchema = z.object({
  *  being readable. */
 export const MAX_SUBTASKS_PER_PARENT = 50;
 
+// A status is a per-project row now, not one of four fixed values
+// (30_workflow BR-1), so a transition names an id. The service checks it
+// belongs to the issue's project — an id from another project is a 404.
 export const transitionIssueSchema = z.object({
-  status: issueStatus,
+  statusId: z.string().trim().min(1, "Choose a status."),
   expectedVersion,
 });
 
@@ -96,7 +99,8 @@ export const reorderIssueSchema = z.object({
   // Which view's neighbours to validate against (ADR-0013). Defaults to board,
   // so existing board callers are unaffected.
   scope: z.enum(["board", "backlog"]).default("board"),
-  status: issueStatus.optional(),
+  /** The destination COLUMN, which is a status id (30_workflow BR-5). */
+  statusId: z.string().trim().min(1).optional(),
   beforeId: z.string().nullable().optional(),
   afterId: z.string().nullable().optional(),
   // Group-by-epic backlog drop (ADR-0026): reassign the parent epic in the same

@@ -1,9 +1,9 @@
 import type {
   IssueListItemDto,
   IssueStatusCounts,
-  IssueStatusDto,
-} from "@/features/issues/types/issue.types";
+  } from "@/features/issues/types/issue.types";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 
 // The Board is a project-level view; scope is a composable, extensible filter
 // layered on top — never a separate board (ADR-0008).
@@ -15,13 +15,20 @@ import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 export type BoardFilter = IssueFilter;
 
 // One status column, its cards already ordered by `rank` (ADR-0009).
+//
+// A column IS a project status now (30_workflow BR-1), not one of four fixed
+// values: a team can have "Triage", "Blocked" and "In QA" and the board has to
+// draw them. `category` rides along because the card colouring, the
+// done-confirmation and the reports all reason about the category, not the name.
 export interface BoardColumnDto {
-  status: IssueStatusDto;
+  status: WorkflowStatusDto;
   items: IssueListItemDto[];
+  /** Live total in this column under the active filter — the column is capped. */
+  count: number;
 }
 
 export interface BoardDto {
-  // Always the four columns, in workflow order (TODO → DONE).
+  // The project's statuses, in the order the team put them in.
   columns: BoardColumnDto[];
   // Per-status totals under the active filter (ALL = sum), so counts stay
   // accurate even though each column is capped.

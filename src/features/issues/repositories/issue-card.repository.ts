@@ -21,7 +21,14 @@ export const issueCardSelect = {
   key: true,
   type: true,
   title: true,
+  // The CATEGORY (30_workflow BR-2) — what filters and reports reason about.
   status: true,
+  // …and the project-defined status a human reads. Both, because the card
+  // shows the name while the code branches on the category.
+  statusId: true,
+  workflowStatus: {
+    select: { id: true, name: true, category: true, color: true, position: true, isDefault: true },
+  },
   priority: true,
   storyPoints: true,
   updatedAt: true,

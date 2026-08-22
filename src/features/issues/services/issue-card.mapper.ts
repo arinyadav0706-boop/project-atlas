@@ -1,3 +1,4 @@
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type {
   IssueListItemDto,
   IssuePriorityDto,
@@ -23,6 +24,7 @@ export interface IssueCardRow {
   type: IssueTypeDto;
   title: string;
   status: IssueStatusDto;
+  workflowStatus?: WorkflowStatusDto;
   priority: IssuePriorityDto;
   storyPoints: number | null;
   updatedAt: Date;
@@ -45,6 +47,7 @@ export function toIssueCardDto(row: IssueCardRow): IssueListItemDto {
     type: row.type,
     title: row.title,
     status: row.status,
+    workflowStatus: row.workflowStatus,
     priority: row.priority,
     storyPoints: row.storyPoints,
     updatedAt: row.updatedAt.toISOString(),

@@ -6,9 +6,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "@/shared/lib/utils";
-import { StatusDot, statusLabel } from "@/features/issues/components/issue-meta";
+import { StatusSwatch } from "@/features/workflow/components/status-swatch";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import { BoardCard } from "./board-card";
-import type { IssueListItemDto, IssueStatusDto } from "@/features/issues/types/issue.types";
+import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
 // One status column. It's a droppable so a card can be dropped onto an empty
 // column (where there is no card to drop onto), and a SortableContext so cards
@@ -21,12 +22,12 @@ export function BoardColumn({
   canWrite,
 }: {
   projectId: string;
-  status: IssueStatusDto;
+  status: WorkflowStatusDto;
   items: IssueListItemDto[];
   count: number;
   canWrite: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: columnDroppableId(status) });
+  const { setNodeRef, isOver } = useDroppable({ id: columnDroppableId(status.id) });
 
   return (
     // A white column containing a recessed well, so the stack reads as three
@@ -36,8 +37,8 @@ export function BoardColumn({
     // became four floating stacks of cards.
     <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-background p-2 shadow-card">
       <div className="mb-2 flex items-center gap-2 px-2 pt-1">
-        <StatusDot status={status} />
-        <h2 className="text-[13px] font-semibold text-foreground">{statusLabel(status)}</h2>
+        <StatusSwatch color={status.color} />
+        <h2 className="text-[13px] font-semibold text-foreground">{status.name}</h2>
         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
           {count}
         </span>
@@ -74,6 +75,7 @@ export function BoardColumn({
 
 // Column droppable ids are namespaced so they never collide with card ids.
 export const COLUMN_DROP_PREFIX = "col:";
-export function columnDroppableId(status: IssueStatusDto): string {
-  return `${COLUMN_DROP_PREFIX}${status}`;
+/** Droppable id for a column. Keyed by STATUS ID (30_workflow BR-5). */
+export function columnDroppableId(statusId: string): string {
+  return `${COLUMN_DROP_PREFIX}${statusId}`;
 }

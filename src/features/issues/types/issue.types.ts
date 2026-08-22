@@ -1,3 +1,4 @@
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type { IssueLinkDto } from "@/features/dependencies/types/dependency.types";
 
 // DTOs returned to the client — never the raw Prisma model.
@@ -39,7 +40,17 @@ export interface IssueListItemDto {
   key: string;
   type: IssueTypeDto;
   title: string;
+  /** The CATEGORY (30_workflow BR-2) — what card colouring and filters use. */
   status: IssueStatusDto;
+  /**
+   * The project-defined status, for anything that shows its name.
+   *
+   * Optional for the same reason the classification chips are: Home and the
+   * cross-project widgets use a deliberately lean select and would pay two
+   * joins per row for a name they never render. Surfaces that have it show the
+   * team's own word; the rest fall back to the category label.
+   */
+  workflowStatus?: WorkflowStatusDto;
   priority: IssuePriorityDto;
   assignee: IssueAssigneeDto | null;
   storyPoints: number | null;
@@ -118,7 +129,10 @@ export interface SubtaskDto {
   id: string;
   key: string;
   title: string;
+  /** The CATEGORY, for the roll-up and the done checks. */
   status: IssueStatusDto;
+  /** The project-defined status a human reads and picks from. */
+  workflowStatus: WorkflowStatusDto;
   priority: IssuePriorityDto;
   assignee: IssueAssigneeDto | null;
   estimateMinutes: number | null;
@@ -185,6 +199,15 @@ export interface IssueDetailDto extends IssueListItemDto {
   // never guesses.
   canEdit: boolean;
   canDelete: boolean;
-  // Legal next statuses from the current one (fixed workflow).
-  allowedStatuses: IssueStatusDto[];
+  /** The project-defined status this issue is on (30_workflow BR-1). */
+  workflowStatus: WorkflowStatusDto;
+  /**
+   * Where it may go from here, current status included.
+   *
+   * The project's own statuses, narrowed by its transition rules when it has
+   * opted into them (BR-10). Unrestricted by default, so this is usually every
+   * status the project has — which is what ClickUp, Asana and Jira's default
+   * workflow all offer.
+   */
+  allowedStatuses: WorkflowStatusDto[];
 }

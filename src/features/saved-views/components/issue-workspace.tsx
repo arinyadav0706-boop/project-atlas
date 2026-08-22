@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListFilter, Save, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
@@ -14,6 +14,7 @@ import { issueFilterToQuery } from "@/features/issues/lib/issue-filter-query";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { BulkEditResultDto } from "@/features/bulk-edit/types/bulk-edit.types";
 import { CustomFieldFilters } from "@/features/custom-fields/components/custom-field-filters";
@@ -162,6 +163,45 @@ export function IssueWorkspace({
   );
 
   const allOnPageSelected = items.length > 0 && items.every((i) => selected.has(i.id));
+
+  /**
+   * Statuses to offer for a bulk status change — only when the selection sits
+   * in ONE project.
+   *
+   * Statuses are per-project (30_workflow BR-1), so a status id means nothing
+   * to a selection spanning two of them. Rather than offer options the server
+   * would refuse per issue, the control hides — the same reasoning that already
+   * keeps the assignee and sprint pickers out of a cross-project selection.
+   */
+  const selectedProjectId = useMemo(() => {
+    const ids = new Set(
+      items.filter((i) => selected.has(i.id)).map((i) => i.projectId),
+    );
+    return ids.size === 1 ? [...ids][0]! : null;
+  }, [items, selected]);
+
+  const [bulkStatuses, setBulkStatuses] = useState<WorkflowStatusDto[]>([]);
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setBulkStatuses([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiRequest<{ statuses: WorkflowStatusDto[] }>(
+          `/api/projects/${selectedProjectId}/statuses`,
+        );
+        if (!cancelled) setBulkStatuses(res.statuses);
+      } catch {
+        // A failed lookup hides the control rather than showing a stale list.
+        if (!cancelled) setBulkStatuses([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjectId]);
 
   async function applyBulk(changes: BulkEditChanges) {
     setApplying(true);
@@ -349,6 +389,7 @@ export function IssueWorkspace({
                 <BulkActionBar
                   count={selected.size}
                   currentUserId={currentUserId}
+                  statuses={bulkStatuses}
                   applying={applying}
                   onApply={applyBulk}
                   onClear={() => setSelected(new Set())}

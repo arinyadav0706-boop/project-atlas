@@ -38,12 +38,12 @@ beforeEach(() => vi.resetAllMocks());
 
 it("401 when unauthenticated", async () => {
   actorMock.mockResolvedValue(null);
-  expect((await POST(jsonReq({ status: "IN_PROGRESS" }), params)).status).toBe(401);
+  expect((await POST(jsonReq({ statusId: "st-ip" }), params)).status).toBe(401);
 });
 
-it("422 on invalid status enum", async () => {
+it("422 on a missing status id", async () => {
   actorMock.mockResolvedValue(actor);
-  const res = await POST(jsonReq({ status: "SHIPPED" }), params);
+  const res = await POST(jsonReq({ statusId: "" }), params);
   expect(res.status).toBe(422);
   expect(svc.transition).not.toHaveBeenCalled();
 });
@@ -52,7 +52,7 @@ it("200 on a legal transition", async () => {
   actorMock.mockResolvedValue(actor);
   svc.transition.mockResolvedValue({ id: "issue-1", status: "IN_PROGRESS" } as never);
   expect(
-    (await POST(jsonReq({ status: "IN_PROGRESS", expectedVersion: 0 }), params)).status,
+    (await POST(jsonReq({ statusId: "st-ip", expectedVersion: 0 }), params)).status,
   ).toBe(200);
 });
 

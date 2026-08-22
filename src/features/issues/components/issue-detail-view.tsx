@@ -33,10 +33,11 @@ import { IssueDescription } from "./issue-description";
 import { SubtaskPanel } from "./subtask-panel";
 import { ConvertIssueDialog } from "./convert-issue-dialog";
 import { LinkPanel } from "@/features/dependencies/components/link-panel";
+import { StatusSwatch } from "@/features/workflow/components/status-swatch";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type {
   IssueDetailDto,
-  IssueStatusDto,
-} from "@/features/issues/types/issue.types";
+  } from "@/features/issues/types/issue.types";
 
 export function IssueDetailView({
   projectId,
@@ -54,13 +55,15 @@ export function IssueDetailView({
   const [transitioning, setTransitioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  async function changeStatus(to: IssueStatusDto) {
-    if (to === issue.status) return;
+  async function changeStatus(to: WorkflowStatusDto) {
+    if (to.id === issue.workflowStatus.id) return;
     // BR-8: warn, never refuse. A blocker is a separate issue and "blocked" is
     // an assertion that goes stale — the person clicking Done usually knows
     // more than the link does. Refusing would just make them delete the link,
     // which destroys the data we wanted. So: name the blockers, then obey.
-    if (to === "DONE" && issue.openBlockerKeys.length > 0) {
+    // The CATEGORY, not the name: a project may call its finished column
+    // "Shipped" (30_workflow BR-3).
+    if (to.category === "DONE" && issue.openBlockerKeys.length > 0) {
       const blockers = issue.openBlockerKeys.join(", ");
       const ok = window.confirm(
         `${blockers} ${issue.openBlockerKeys.length === 1 ? "is" : "are"} still blocking ${issue.key}.\n\nMark it done anyway?`,
@@ -71,9 +74,9 @@ export function IssueDetailView({
     try {
       await apiRequest<IssueDetailDto>(`/api/issues/${issue.id}/transition`, {
         method: "POST",
-        body: { status: to, expectedVersion: issue.version },
+        body: { statusId: to.id, expectedVersion: issue.version },
       });
-      toast.success(`Moved to ${statusLabel(to)}`);
+      toast.success(`Moved to ${to.name}`);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not change status.");
@@ -147,6 +150,7 @@ export function IssueDetailView({
             parentId={issue.id}
             parentKey={issue.key}
             members={members}
+            statuses={issue.allowedStatuses}
             subtasks={issue.subtasks}
             progress={issue.subtaskProgress}
             canEdit={issue.canEdit}
@@ -173,8 +177,8 @@ export function IssueDetailView({
                   className="w-full justify-between"
                 >
                   <span className="flex items-center gap-2">
-                    <StatusDot status={issue.status} />
-                    {statusLabel(issue.status)}
+                    <StatusSwatch color={issue.workflowStatus.color} />
+                    {issue.workflowStatus.name}
                   </span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
@@ -182,13 +186,13 @@ export function IssueDetailView({
               <DropdownMenuContent className="w-[220px]">
                 {issue.allowedStatuses.map((s) => (
                   <DropdownMenuItem
-                    key={s}
+                    key={s.id}
                     onSelect={() => changeStatus(s)}
                     className="flex items-center gap-2"
                   >
-                    <StatusDot status={s} />
-                    {statusLabel(s)}
-                    {s === issue.status && (
+                    <StatusSwatch color={s.color} />
+                    {s.name}
+                    {s.id === issue.workflowStatus.id && (
                       <Check className="ml-auto h-4 w-4 text-accent" />
                     )}
                   </DropdownMenuItem>
@@ -197,8 +201,8 @@ export function IssueDetailView({
             </DropdownMenu>
           ) : (
             <span className="inline-flex items-center gap-2 text-sm text-foreground">
-              <StatusDot status={issue.status} />
-              {statusLabel(issue.status)}
+              <StatusSwatch color={issue.workflowStatus.color} />
+              {issue.workflowStatus.name}
             </span>
           )}
         </div>

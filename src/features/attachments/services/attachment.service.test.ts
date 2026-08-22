@@ -40,6 +40,7 @@ const ctx = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 function row(overrides: Record<string, unknown> = {}) {

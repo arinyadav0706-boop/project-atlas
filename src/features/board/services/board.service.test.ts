@@ -5,9 +5,14 @@ vi.mock("@/features/board/repositories/board.repository", () => ({
   BOARD_COLUMN_LIMIT: 100,
   BoardRepository: {
     columnItems: vi.fn(),
-    countByStatus: vi.fn(),
+    countByCategory: vi.fn(),
+    countByStatusId: vi.fn(),
   },
 }));
+vi.mock("@/features/workflow/repositories/workflow.repository", () => ({
+  WorkflowRepository: { list: vi.fn() },
+}));
+
 vi.mock("@/features/projects/services/project.service", () => ({
   ProjectService: {
     getContext: vi.fn(),
@@ -17,11 +22,22 @@ vi.mock("@/features/projects/services/project.service", () => ({
 
 import { BoardRepository } from "@/features/board/repositories/board.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 import { BoardService } from "./board.service";
 import { NotFoundError } from "@/shared/lib/errors";
 
 const repo = vi.mocked(BoardRepository);
 const projects = vi.mocked(ProjectService);
+const workflow = vi.mocked(WorkflowRepository);
+
+// The seeded four (30_workflow BR-7) — what every project starts with, so these
+// tests keep describing the board they described before statuses became data.
+const STATUSES = [
+  { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true },
+  { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false },
+  { id: "st-review", name: "In Review", category: "IN_REVIEW", color: "amber", position: 2, isDefault: false },
+  { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false },
+] as const;
 
 const actor: Actor = { userId: "user-1", orgRole: "MEMBER", organizationId: "org-1" };
 const ctx = {
@@ -30,16 +46,19 @@ const ctx = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
-function card(id: string, status: string) {
+function card(id: string, statusId: string) {
+  const status = STATUSES.find((s) => s.id === statusId)!;
   return {
     id,
     projectId: "proj-1",
     key: `ENG-${id}`,
     type: "TASK",
     title: id,
-    status,
+    status: status.category,
+    workflowStatus: status,
     priority: "MEDIUM",
     storyPoints: null,
     updatedAt: new Date("2026-07-14T00:00:00Z"),
@@ -53,21 +72,26 @@ function card(id: string, status: string) {
 beforeEach(() => {
   vi.resetAllMocks();
   projects.getContext.mockResolvedValue(ctx);
-  // One card per column, keyed by status, so we can assert column mapping.
+  workflow.list.mockResolvedValue(STATUSES as never);
+  // One card per column, keyed by status id, so we can assert column mapping.
   repo.columnItems.mockImplementation(
-    ((_p: string, status: string) => Promise.resolve([card(status, status)])) as never,
+    ((_p: string, statusId: string) => Promise.resolve([card(statusId, statusId)])) as never,
   );
-  repo.countByStatus.mockResolvedValue([
+  repo.countByCategory.mockResolvedValue([
     { status: "TODO", _count: { _all: 3 } },
     { status: "DONE", _count: { _all: 1 } },
+  ] as never);
+  repo.countByStatusId.mockResolvedValue([
+    { statusId: "st-todo", _count: { _all: 3 } },
+    { statusId: "st-done", _count: { _all: 1 } },
   ] as never);
 });
 
 describe("getBoard", () => {
-  it("returns the four columns in workflow order, each ordered by rank", async () => {
+  it("returns a column per project status, in the team's order, each ordered by rank", async () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
     const board = await BoardService.getBoard(actor, "proj-1", {});
-    expect(board.columns.map((c) => c.status)).toEqual([
+    expect(board.columns.map((c) => c.status.category)).toEqual([
       "TODO",
       "IN_PROGRESS",
       "IN_REVIEW",
@@ -112,7 +136,7 @@ describe("getBoard", () => {
     const filter = { assigneeId: "u-9", type: "BUG" as const };
     const board = await BoardService.getBoard(actor, "proj-1", filter);
     expect(board.appliedFilter).toEqual(filter);
-    expect(repo.columnItems).toHaveBeenCalledWith("proj-1", "TODO", filter);
+    expect(repo.columnItems).toHaveBeenCalledWith("proj-1", "st-todo", filter);
   });
 
   it("treats a project in another org as absent (F-1 tenant scope)", async () => {

@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 
 // The bulk action bar (23_bulk_edit.md §5).
@@ -37,12 +38,23 @@ const NONE = "__none__";
 export function BulkActionBar({
   count,
   currentUserId,
+  statuses,
   applying,
   onApply,
   onClear,
 }: {
   count: number;
   currentUserId: string;
+  /**
+   * The statuses on offer, or empty.
+   *
+   * Statuses are per-project now (30_workflow BR-1), so one id means nothing to
+   * a selection spanning two projects. The workspace passes them only when a
+   * single project is in scope; otherwise the control is hidden rather than
+   * shown with options that would be refused per issue — the same reasoning
+   * that already keeps assignee and sprint out of a cross-project selection.
+   */
+  statuses: WorkflowStatusDto[];
   applying: boolean;
   onApply: (changes: BulkEditChanges) => void;
   onClear: () => void;
@@ -52,7 +64,7 @@ export function BulkActionBar({
   const [assignee, setAssignee] = useState<string>(NONE);
 
   const changes: BulkEditChanges = {
-    ...(status !== NONE ? { status: status as BulkEditChanges["status"] } : {}),
+    ...(status !== NONE ? { statusId: status } : {}),
     ...(priority !== NONE ? { priority: priority as BulkEditChanges["priority"] } : {}),
     ...(assignee !== NONE
       ? { assigneeId: assignee === "__unassigned__" ? null : currentUserId }
@@ -74,18 +86,17 @@ export function BulkActionBar({
 
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
 
+      {statuses.length > 0 && (
       <Field
         label="Set status"
         value={status}
         onChange={setStatus}
         options={[
           { value: NONE, label: "Status…" },
-          { value: "TODO", label: "To Do" },
-          { value: "IN_PROGRESS", label: "In Progress" },
-          { value: "IN_REVIEW", label: "In Review" },
-          { value: "DONE", label: "Done" },
+          ...statuses.map((s) => ({ value: s.id, label: s.name })),
         ]}
       />
+      )}
 
       <Field
         label="Set priority"

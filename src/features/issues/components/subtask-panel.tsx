@@ -16,12 +16,12 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { cn } from "@/shared/lib/utils";
-import { allowedTransitions } from "@/features/issues/services/issue-workflow";
+import { StatusSwatch } from "@/features/workflow/components/status-swatch";
+import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import { StatusDot, statusLabel } from "@/features/issues/components/issue-meta";
 import { MAX_SUBTASKS_PER_PARENT } from "@/features/issues/validation/issue.schemas";
 import { CreateSubtaskDialog } from "@/features/issues/components/create-subtask-dialog";
 import type {
-  IssueStatusDto,
   SubtaskDto,
   SubtaskProgressDto,
 } from "@/features/issues/types/issue.types";
@@ -38,6 +38,7 @@ export function SubtaskPanel({
   parentId,
   parentKey,
   members,
+  statuses,
   subtasks,
   progress,
   canEdit,
@@ -46,6 +47,11 @@ export function SubtaskPanel({
   parentId: string;
   parentKey: string;
   members: { userId: string; name: string }[];
+  /**
+   * The project's statuses. A subtask lives in the same project as its parent,
+   * so the parent's list is exactly the right one — no per-row fetch.
+   */
+  statuses: WorkflowStatusDto[];
   subtasks: SubtaskDto[];
   progress: SubtaskProgressDto;
   canEdit: boolean;
@@ -76,13 +82,13 @@ export function SubtaskPanel({
     }
   }
 
-  async function setStatus(subtask: SubtaskDto, to: IssueStatusDto) {
-    if (to === subtask.status) return;
+  async function setStatus(subtask: SubtaskDto, to: WorkflowStatusDto) {
+    if (to.id === subtask.workflowStatus.id) return;
     setBusyId(subtask.id);
     try {
       await apiRequest(`/api/issues/${subtask.id}/transition`, {
         method: "POST",
-        body: { status: to, expectedVersion: subtask.version },
+        body: { statusId: to.id, expectedVersion: subtask.version },
       });
       router.refresh();
     } catch (error) {
@@ -163,21 +169,21 @@ export function SubtaskPanel({
                       aria-label={`Status of ${subtask.key}`}
                       className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                     >
-                      <StatusDot status={subtask.status} />
-                      {statusLabel(subtask.status)}
+                      <StatusSwatch color={subtask.workflowStatus.color} />
+                      {subtask.workflowStatus.name}
                       <ChevronDown className="h-3 w-3" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[180px]">
-                    {[subtask.status, ...allowedTransitions(subtask.status)].map((s) => (
+                    {statuses.map((s) => (
                       <DropdownMenuItem
-                        key={s}
+                        key={s.id}
                         onSelect={() => setStatus(subtask, s)}
                         className="flex items-center gap-2"
                       >
-                        <StatusDot status={s} />
-                        {statusLabel(s)}
-                        {s === subtask.status && (
+                        <StatusSwatch color={s.color} />
+                        {s.name}
+                        {s.id === subtask.workflowStatus.id && (
                           <Check className="ml-auto h-3.5 w-3.5 text-accent" />
                         )}
                       </DropdownMenuItem>

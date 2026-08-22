@@ -67,6 +67,10 @@ export interface ProjectContext {
   key: string;
   name: string;
   status: "ACTIVE" | "ARCHIVED";
+  /// Restricted status transitions (30_workflow BR-10). Carried here because
+  /// every status write already resolves the context, so the guard costs no
+  /// extra query.
+  enforceTransitions: boolean;
 }
 
 export const ProjectService = {
@@ -84,6 +88,7 @@ export const ProjectService = {
       key: project.key,
       name: project.name,
       status: project.status,
+      enforceTransitions: project.enforceTransitions,
     };
   },
 

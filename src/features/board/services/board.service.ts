@@ -1,6 +1,6 @@
 import { BoardRepository } from "@/features/board/repositories/board.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
-import { ISSUE_STATUSES } from "@/features/issues/services/issue-workflow";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 // One card shape + mapper for every list surface (ADR-0018/0026).
 import { toIssueCardDto } from "@/features/issues/services/issue-card.mapper";
 import { NotFoundError } from "@/shared/lib/errors";
@@ -36,19 +36,27 @@ export const BoardService = {
     }
     const role = elevate(actor, await ProjectService.getMemberRole(projectId, actor.userId));
 
-    const [columns, grouped] = await Promise.all([
-      // Four bounded, index-covered column reads in parallel.
+    // The project's own statuses decide the columns (30_workflow BR-5), so the
+    // board is data-driven: two columns for a team that wants two, twelve for a
+    // team that wants twelve.
+    const statuses = await WorkflowRepository.list(projectId);
+
+    const [columns, byCategory, byStatusId] = await Promise.all([
+      // One bounded, index-covered read per column, in parallel.
       Promise.all(
-        ISSUE_STATUSES.map(async (status) => ({
+        statuses.map(async (status) => ({
           status,
           items: (
-            await BoardRepository.columnItems(projectId, status, filter)
+            await BoardRepository.columnItems(projectId, status.id, filter)
           ).map(toIssueCardDto),
         })),
       ),
-      BoardRepository.countByStatus(projectId, filter),
+      BoardRepository.countByCategory(projectId, filter),
+      BoardRepository.countByStatusId(projectId, filter),
     ]);
 
+    // The chips still speak in categories — "3 in progress" means the same
+    // thing whether a team has one in-progress column or four.
     const counts: IssueStatusCounts = {
       ALL: 0,
       TODO: 0,
@@ -56,11 +64,18 @@ export const BoardService = {
       IN_REVIEW: 0,
       DONE: 0,
     };
-    for (const row of grouped) {
+    for (const row of byCategory) {
       counts[row.status] = row._count._all;
       counts.ALL += row._count._all;
     }
 
-    return { columns, counts, appliedFilter: filter, canWrite: canWrite(role) };
+    const totals = new Map(byStatusId.map((r) => [r.statusId, r._count._all]));
+
+    return {
+      columns: columns.map((c) => ({ ...c, count: totals.get(c.status.id) ?? 0 })),
+      counts,
+      appliedFilter: filter,
+      canWrite: canWrite(role),
+    };
   },
 };

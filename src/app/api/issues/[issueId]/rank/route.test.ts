@@ -44,9 +44,9 @@ it("401 when unauthenticated", async () => {
   ).toBe(401);
 });
 
-it("422 on an invalid status enum in the body", async () => {
+it("422 on a blank status id in the body", async () => {
   actorMock.mockResolvedValue(actor);
-  const res = await PATCH(jsonReq({ status: "SHIPPED", expectedVersion: 0 }), params);
+  const res = await PATCH(jsonReq({ statusId: "", expectedVersion: 0 }), params);
   expect(res.status).toBe(422);
   expect(svc.reorder).not.toHaveBeenCalled();
 });

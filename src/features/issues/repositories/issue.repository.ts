@@ -72,6 +72,9 @@ export const IssueRepository = {
     return prisma.issue.findFirst({
       where: { id, deletedAt: null },
       include: {
+        workflowStatus: {
+          select: { id: true, name: true, category: true, color: true, position: true, isDefault: true },
+        },
         assignee: assigneeSelect,
         reporter: assigneeSelect,
         // Parent epic summary in the same round-trip (no N+1) — ADR-0026.
@@ -222,6 +225,9 @@ export const IssueRepository = {
         key: true,
         title: true,
         status: true,
+        workflowStatus: {
+          select: { id: true, name: true, category: true, color: true, position: true, isDefault: true },
+        },
         priority: true,
         estimateMinutes: true,
         version: true,
@@ -340,6 +346,9 @@ export const IssueRepository = {
           createdBy: input.creatorId,
         },
         include: {
+          workflowStatus: {
+            select: { id: true, name: true, category: true, color: true, position: true, isDefault: true },
+          },
           assignee: assigneeSelect,
           reporter: assigneeSelect,
           epic: { select: { id: true, key: true, title: true } },
@@ -367,15 +376,27 @@ export const IssueRepository = {
   },
 
   // Version-checked status transition (ADR-0011). Null on a lost update.
+  /**
+   * Move an issue to a status, version-checked (ADR-0011).
+   *
+   * Writes the status AND its cached category in one statement — the invariant
+   * in 30_workflow BR-2 is not something a second update can be trusted to
+   * uphold, because the second update can fail on its own.
+   */
   async setStatusWithVersion(
     id: string,
     expectedVersion: number,
-    status: StatusCategory,
+    status: { id: string; category: StatusCategory },
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({
       where: { id, version: expectedVersion, deletedAt: null },
-      data: { status, version: { increment: 1 }, updatedBy: actorId },
+      data: {
+        statusId: status.id,
+        status: status.category,
+        version: { increment: 1 },
+        updatedBy: actorId,
+      },
     });
     if (result.count === 0) return null;
     return IssueRepository.findDetail(id);
@@ -384,9 +405,9 @@ export const IssueRepository = {
   // Reorder neighbour lookup: the rank of a card that must live in the given
   // project + status column (non-deleted). Returns null if it doesn't — the
   // service treats that as an invalid/stale neighbour (never trust the client).
-  findRankInColumn(id: string, projectId: string, status: StatusCategory) {
+  findRankInColumn(id: string, projectId: string, statusId: string) {
     return prisma.issue.findFirst({
-      where: { id, projectId, status, deletedAt: null },
+      where: { id, projectId, statusId, deletedAt: null },
       select: { id: true, rank: true },
     });
   },
@@ -445,14 +466,19 @@ export const IssueRepository = {
   async reorderWithVersion(
     id: string,
     expectedVersion: number,
-    data: { rank: string; status?: StatusCategory; epicId?: string | null },
+    data: {
+      rank: string;
+      /** Both halves of the invariant, or neither (30_workflow BR-2). */
+      status?: { id: string; category: StatusCategory };
+      epicId?: string | null;
+    },
     actorId: string,
   ) {
     const result = await prisma.issue.updateMany({
       where: { id, version: expectedVersion, deletedAt: null },
       data: {
         rank: data.rank,
-        ...(data.status ? { status: data.status } : {}),
+        ...(data.status ? { statusId: data.status.id, status: data.status.category } : {}),
         // Group-by-epic backlog drop reassigns the parent in the same write
         // (ADR-0026); omitted for ordinary reorders so the epic is untouched.
         ...(data.epicId !== undefined ? { epicId: data.epicId } : {}),

@@ -4,6 +4,8 @@ import { IssueRepository } from "@/features/issues/repositories/issue.repository
 import { ProjectService } from "@/features/projects/services/project.service";
 import { SprintRepository } from "@/features/sprints/repositories/sprint.repository";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
+import { WorkflowService } from "@/features/workflow/services/workflow.service";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 import { NotificationService } from "@/features/notifications/services/notification.service";
 import { bulkEditSchema } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { Actor } from "@/shared/types/actor";
@@ -17,6 +19,14 @@ vi.mock("@/features/projects/services/project.service", () => ({
 vi.mock("@/features/sprints/repositories/sprint.repository", () => ({
   SprintRepository: { findById: vi.fn() },
 }));
+vi.mock("@/features/workflow/services/workflow.service", () => ({
+  WorkflowService: { assertTransitionAllowed: vi.fn(async () => undefined) },
+}));
+
+vi.mock("@/features/workflow/repositories/workflow.repository", () => ({
+  WorkflowRepository: { findById: vi.fn() },
+}));
+
 vi.mock("@/features/admin/services/audit-log.service", () => ({
   AuditLogService: { record: vi.fn() },
 }));
@@ -28,6 +38,15 @@ const issues = vi.mocked(IssueRepository);
 const projects = vi.mocked(ProjectService);
 const sprints = vi.mocked(SprintRepository);
 const audit = vi.mocked(AuditLogService);
+const workflow = vi.mocked(WorkflowService);
+const workflowRepo = vi.mocked(WorkflowRepository);
+
+// The seeded four (30_workflow BR-7).
+const STATUS_BY_ID: Record<string, { id: string; name: string; category: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE"; color: string; position: number; isDefault: boolean; projectId: string; organizationId: string }> = {
+  "st-todo": { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true, projectId: "proj-1", organizationId: "org-1" },
+  "st-ip": { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false, projectId: "proj-1", organizationId: "org-1" },
+  "st-done": { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false, projectId: "proj-1", organizationId: "org-1" },
+};
 const notify = vi.mocked(NotificationService);
 
 const actor = { userId: "u1", organizationId: "org-1", orgRole: "MEMBER" } as Actor;
@@ -37,8 +56,10 @@ function issue(over: Record<string, unknown> = {}) {
     id: "i1",
     key: "VWP-1",
     title: "Thing",
-    projectId: "p1",
+    projectId: "proj-1",
     status: "TODO",
+    statusId: "st-todo",
+    workflowStatus: STATUS_BY_ID["st-todo"],
     priority: "MEDIUM",
     assigneeId: null,
     sprintId: null,
@@ -53,11 +74,14 @@ beforeEach(() => {
   issues.updateWithVersion.mockImplementation(((id: string) =>
     Promise.resolve(issue({ id, key: "VWP-1" }))) as never);
   projects.getContext.mockResolvedValue({
-    id: "p1",
+    id: "proj-1",
     organizationId: "org-1",
     status: "ACTIVE",
   } as never);
   projects.getMemberRole.mockResolvedValue("MEMBER" as never);
+  workflow.assertTransitionAllowed.mockResolvedValue(undefined);
+  workflowRepo.findById.mockImplementation((async (id: string) =>
+    STATUS_BY_ID[id] ?? null) as never);
 });
 
 const run = (ids: string[], changes: Record<string, unknown>) =>
@@ -105,8 +129,12 @@ describe("per-issue evaluation (BR-3)", () => {
 });
 
 describe("workflow (BR-6)", () => {
-  it("refuses a status jump that skips a stage", async () => {
-    const result = await run(["a"], { status: "DONE" }); // from TODO
+  // The fixed graph is gone (ADR-0049): restriction is per project and off by
+  // default, so what is refused here is a project's own rule — reported per
+  // issue, so a 40-issue move still applies to the ones that are legal.
+  it("refuses a move the project's rules refuse, per issue", async () => {
+    workflow.assertTransitionAllowed.mockRejectedValue(new Error("restricted"));
+    const result = await run(["a"], { statusId: "st-done" });
     expect(result.results[0]).toMatchObject({
       outcome: "failed",
       reason: "invalid_transition",
@@ -114,8 +142,20 @@ describe("workflow (BR-6)", () => {
     expect(issues.updateWithVersion).not.toHaveBeenCalled();
   });
 
-  it("allows a legal step", async () => {
-    const result = await run(["a"], { status: "IN_PROGRESS" });
+  // A status belongs to ONE project (30_workflow BR-1), so an id cannot mean
+  // anything to an issue in another one.
+  it("refuses an issue that belongs to a different project than the status", async () => {
+    workflowRepo.findById.mockResolvedValue({
+      ...STATUS_BY_ID["st-ip"]!,
+      projectId: "other-project",
+      organizationId: "org-1",
+    } as never);
+    const result = await run(["a"], { statusId: "st-ip" });
+    expect(result.results[0]).toMatchObject({ reason: "invalid_transition" });
+  });
+
+  it("allows a move when nothing refuses it", async () => {
+    const result = await run(["a"], { statusId: "st-ip" });
     expect(result.updated).toBe(1);
   });
 });
@@ -132,8 +172,11 @@ describe("no-op detection (BR-7)", () => {
 
   it("writes only the fields that actually differ", async () => {
     issues.findDetail.mockResolvedValue(issue({ priority: "HIGH" }) as never);
-    await run(["a"], { priority: "HIGH", status: "IN_PROGRESS" });
-    expect(issues.updateWithVersion.mock.calls[0]![2]).toEqual({ status: "IN_PROGRESS" });
+    await run(["a"], { priority: "HIGH", statusId: "st-ip" });
+    expect(issues.updateWithVersion.mock.calls[0]![2]).toEqual({
+      statusId: "st-ip",
+      status: "IN_PROGRESS",
+    });
   });
 });
 
@@ -174,12 +217,12 @@ describe("assignee and sprint must belong to the issue's project", () => {
 
 describe("audit and notifications", () => {
   it("audits a bulk status change like a single one (BR-12)", async () => {
-    await run(["a"], { status: "IN_PROGRESS" });
+    await run(["a"], { statusId: "st-ip" });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "ISSUE_STATUS_CHANGED",
-        beforeData: { status: "TODO" },
-        afterData: { status: "IN_PROGRESS" },
+        beforeData: { status: "To Do", category: "TODO" },
+        afterData: { status: "In Progress", category: "IN_PROGRESS" },
       }),
     );
   });

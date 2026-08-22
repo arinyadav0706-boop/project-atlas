@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/db";
 import { IssueService } from "@/features/issues/services/issue.service";
-import { ConflictError, NotFoundError, ValidationError } from "@/shared/lib/errors";
+import { ConflictError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
@@ -61,23 +61,48 @@ describe("cross-tenant writes are refused", () => {
     });
     const attacker: Actor = { userId: a.user.id, orgRole: "ADMIN", organizationId: a.org.id };
     await expect(
-      IssueService.transition(attacker, bIssue.id, "IN_PROGRESS", 0),
+      IssueService.transition(attacker, bIssue.id, await statusFor(b.project.id, "IN_PROGRESS"), 0),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
-describe("the fixed workflow cannot be skipped via the service", () => {
-  it("TODO → DONE is rejected (must pass through the workflow)", async () => {
+// Was "the fixed workflow cannot be skipped". That global graph is gone with
+// ADR-0049 — it was stricter than ClickUp, Asana and Jira's default workflow.
+// What matters for security is the replacement: when a project HAS restricted
+// its transitions, the service enforces it, so the rule cannot be bypassed by
+// calling the API directly instead of using the board.
+describe("a project's transition rules cannot be skipped via the service", () => {
+  it("refuses a move the project did not allow, and writes nothing", async () => {
     const { org, user, project } = await seed("wf");
+    const todo = await statusFor(project.id, "TODO");
+    const inProgress = await statusFor(project.id, "IN_PROGRESS");
+    const done = await statusFor(project.id, "DONE");
+
+    // Restrict the project to a single legal move: To Do → In Progress.
+    await prisma.statusTransition.create({
+      data: { projectId: project.id, fromStatusId: todo, toStatusId: inProgress },
+    });
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { enforceTransitions: true },
+    });
+
     const issue = await prisma.issue.create({
-      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO", statusId: await statusFor(project.id), rank: "a0" },
+      data: { projectId: project.id, key: "WF-1", type: "TASK", title: "x", reporterId: user.id, status: "TODO", statusId: todo, rank: "a0" },
     });
     const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
+
     await expect(
-      IssueService.transition(actor, issue.id, "DONE", 0),
-    ).rejects.toBeInstanceOf(ValidationError);
+      IssueService.transition(actor, issue.id, done, 0),
+    ).rejects.toBeInstanceOf(ConflictError);
     const row = await prisma.issue.findUnique({ where: { id: issue.id } });
     expect(row?.status).toBe("TODO"); // unchanged
+    expect(row?.statusId).toBe(todo);
+
+    // …and the one move it DID allow still works.
+    await expect(
+      IssueService.transition(actor, issue.id, inProgress, 0),
+    ).resolves.toMatchObject({ status: "IN_PROGRESS" });
   });
 });
 

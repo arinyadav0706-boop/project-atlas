@@ -5,7 +5,7 @@ import { SprintService } from "@/features/sprints/services/sprint.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { ConflictError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
-import { createProjectWithStatuses } from "./helpers/workflow";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the Sprint lifecycle + assignment end to
 // end (07_sprint.md, ADR-0014): create → start (one-active) → drag assign →
@@ -106,7 +106,7 @@ describe("Sprint lifecycle + assignment integration", () => {
     // Walk `done` to DONE.
     for (const to of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
       const v = await prisma.issue.findUnique({ where: { id: done!.id }, select: { version: true } });
-      await IssueService.transition(actor, done!.id, to, v!.version);
+      await IssueService.transition(actor, done!.id, await statusFor(project.id, to), v!.version);
     }
     await SprintService.start(actor, s.id);
     await SprintService.complete(actor, s.id);
@@ -141,7 +141,7 @@ describe("Sprint lifecycle + assignment integration", () => {
     await move(actor, i1!.id, { sprintId: s.id, beforeId: null, afterId: null });
     for (const to of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
       const v = await prisma.issue.findUnique({ where: { id: i1!.id }, select: { version: true } });
-      await IssueService.transition(actor, i1!.id, to, v!.version);
+      await IssueService.transition(actor, i1!.id, await statusFor(project.id, to), v!.version);
     }
     await SprintService.start(actor, s.id);
     await SprintService.complete(actor, s.id);
@@ -206,7 +206,7 @@ describe("Sprint lifecycle + assignment integration", () => {
     await move(actor, b!.id, { sprintId: s.id, beforeId: null, afterId: null });
     for (const to of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
       const v = await prisma.issue.findUnique({ where: { id: a!.id }, select: { version: true } });
-      await IssueService.transition(actor, a!.id, to, v!.version);
+      await IssueService.transition(actor, a!.id, await statusFor(project.id, to), v!.version);
     }
     const panel = await SprintService.getPanel(actor, project.id);
     const section = panel.sprints.find((x) => x.sprint.id === s.id)!;

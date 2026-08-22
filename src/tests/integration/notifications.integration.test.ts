@@ -7,7 +7,7 @@ import { NotificationService } from "@/features/notifications/services/notificat
 import { NOTIFICATION_TYPES } from "@/features/notifications/types/notification.types";
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
 import type { Actor } from "@/shared/types/actor";
-import { createProjectWithStatuses } from "./helpers/workflow";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves notification fan-out end to end
 // (10_notifications.md, ADR-0019): ASSIGNED / COMMENT_ADDED / STATUS_CHANGED,
@@ -88,7 +88,7 @@ describe("Notifications integration", () => {
     });
     const afterAssign = await IssueService.get(asLead, issue.id);
     // Lead moves it forward; assignee (member) is notified, actor (lead) is not.
-    await IssueService.transition(asLead, issue.id, "IN_PROGRESS", afterAssign.version);
+    await IssueService.transition(asLead, issue.id, await statusFor(issue.projectId, "IN_PROGRESS"), afterAssign.version);
 
     const forMember = await NotificationService.list(asMember, {});
     expect(forMember.items.map((i) => i.type)).toContain("STATUS_CHANGED");
@@ -142,7 +142,7 @@ describe("Notifications integration", () => {
 
     // A second event, then mark-all.
     const v = (await IssueService.get(asLead, issue.id)).version;
-    await IssueService.transition(asLead, issue.id, "IN_PROGRESS", v);
+    await IssueService.transition(asLead, issue.id, await statusFor(issue.projectId, "IN_PROGRESS"), v);
     expect(await NotificationService.unreadCount(asMember)).toBe(1);
     await NotificationService.markAllRead(asMember);
     expect(await NotificationService.unreadCount(asMember)).toBe(0);
@@ -230,7 +230,7 @@ describe("closing a blocker notifies whoever was waiting (UNBLOCKED)", () => {
     // Walk the fixed workflow to DONE.
     let v = blocker.version;
     for (const status of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
-      v = (await IssueService.transition(asLead, blocker.id, status, v)).version;
+      v = (await IssueService.transition(asLead, blocker.id, await statusFor(project.id, status), v)).version;
     }
 
     const forMember = await NotificationService.list(asMember, {});
@@ -267,7 +267,7 @@ describe("closing a blocker notifies whoever was waiting (UNBLOCKED)", () => {
 
     let v = first.version;
     for (const status of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
-      v = (await IssueService.transition(asLead, first.id, status, v)).version;
+      v = (await IssueService.transition(asLead, first.id, await statusFor(project.id, status), v)).version;
     }
 
     // Still blocked by `second`. Telling someone they are free while something
@@ -277,7 +277,7 @@ describe("closing a blocker notifies whoever was waiting (UNBLOCKED)", () => {
 
     let v2 = second.version;
     for (const status of ["IN_PROGRESS", "IN_REVIEW", "DONE"] as const) {
-      v2 = (await IssueService.transition(asLead, second.id, status, v2)).version;
+      v2 = (await IssueService.transition(asLead, second.id, await statusFor(project.id, status), v2)).version;
     }
     const after = await NotificationService.list(asMember, {});
     expect(after.items.filter((i) => i.type === "UNBLOCKED")).toHaveLength(1);

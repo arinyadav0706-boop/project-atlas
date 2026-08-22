@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -17,7 +17,6 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
-import { ISSUE_STATUSES } from "@/features/issues/services/issue-workflow";
 import { BoardColumn, COLUMN_DROP_PREFIX } from "./board-column";
 import { BoardCard } from "./board-card";
 import { BoardFilterBar } from "./board-filter-bar";
@@ -25,10 +24,12 @@ import type { BoardDto, BoardFilter } from "@/features/board/types/board.types";
 import type {
   IssueListItemDto,
   IssueStatusCounts,
-  IssueStatusDto,
-} from "@/features/issues/types/issue.types";
+  } from "@/features/issues/types/issue.types";
 
-type Columns = Record<IssueStatusDto, IssueListItemDto[]>;
+// Keyed by STATUS ID, not by category (30_workflow BR-5). A project can have
+// three columns that are all IN_PROGRESS, and a category-keyed map would merge
+// them into one.
+type Columns = Record<string, IssueListItemDto[]>;
 
 // The drop target is whatever the CURSOR is over, not the dragged card's
 // nearest corner (closestCorners) — a wide card near a column boundary
@@ -40,13 +41,9 @@ const boardCollisionDetection: CollisionDetection = (args) => {
 };
 
 function toColumns(board: BoardDto): Columns {
-  const cols = emptyColumns();
-  for (const column of board.columns) cols[column.status] = column.items;
+  const cols: Columns = {};
+  for (const column of board.columns) cols[column.status.id] = column.items;
   return cols;
-}
-
-function emptyColumns(): Columns {
-  return { TODO: [], IN_PROGRESS: [], IN_REVIEW: [], DONE: [] };
 }
 
 function filterToQuery(filter: BoardFilter): string {
@@ -85,6 +82,11 @@ export function BoardView({
   sprints: { id: string; name: string; status: string }[];
 }) {
   const [columns, setColumns] = useState<Columns>(() => toColumns(initialBoard));
+  // The column definitions themselves are data now, so they move with the board.
+  const [statuses, setStatuses] = useState(() => initialBoard.columns.map((c) => c.status));
+  const [columnCounts, setColumnCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(initialBoard.columns.map((c) => [c.status.id, c.count])),
+  );
   const [counts, setCounts] = useState<IssueStatusCounts>(initialBoard.counts);
   const [filter, setFilter] = useState<BoardFilter>(initialBoard.appliedFilter);
   const [activeCard, setActiveCard] = useState<IssueListItemDto | null>(null);
@@ -112,6 +114,8 @@ export function BoardView({
         );
         if (cancelled) return;
         setColumns(toColumns(board));
+        setStatuses(board.columns.map((c) => c.status));
+        setColumnCounts(Object.fromEntries(board.columns.map((c) => [c.status.id, c.count])));
         setCounts(board.counts);
       } catch (error) {
         if (!cancelled) {
@@ -125,8 +129,8 @@ export function BoardView({
   }, [projectId, filter]);
 
   const containerOfCard = useCallback(
-    (cardId: string): IssueStatusDto | null =>
-      ISSUE_STATUSES.find((s) => columns[s].some((i) => i.id === cardId)) ?? null,
+    (cardId: string): string | null =>
+      Object.keys(columns).find((id) => columns[id]!.some((i) => i.id === cardId)) ?? null,
     [columns],
   );
 
@@ -134,7 +138,7 @@ export function BoardView({
     (event: DragStartEvent) => {
       const id = String(event.active.id);
       const from = containerOfCard(id);
-      setActiveCard(from ? columns[from].find((i) => i.id === id) ?? null : null);
+      setActiveCard(from ? columns[from]?.find((i) => i.id === id) ?? null : null);
     },
     [columns, containerOfCard],
   );
@@ -150,35 +154,59 @@ export function BoardView({
       const from = containerOfCard(activeId);
       if (!from) return;
       const to = overId.startsWith(COLUMN_DROP_PREFIX)
-        ? (overId.slice(COLUMN_DROP_PREFIX.length) as IssueStatusDto)
+        ? overId.slice(COLUMN_DROP_PREFIX.length)
         : containerOfCard(overId);
       if (!to) return;
       if (activeId === overId) return; // dropped on itself — no change
 
       const columnsSnapshot = columns;
       const countsSnapshot = counts;
-      const moved = columns[from].find((i) => i.id === activeId);
+      const columnCountsSnapshot = columnCounts;
+      const moved = columns[from]?.find((i) => i.id === activeId);
       if (!moved) return;
+      const destStatus = statuses.find((s) => s.id === to);
+      if (!destStatus) return;
 
       // Build the optimistic layout: remove from source, insert into dest.
-      const sourceAfter = columns[from].filter((i) => i.id !== activeId);
-      const dest = from === to ? sourceAfter : [...columns[to]];
+      const sourceAfter = columns[from]!.filter((i) => i.id !== activeId);
+      const dest = from === to ? sourceAfter : [...(columns[to] ?? [])];
       const insertAt = overId.startsWith(COLUMN_DROP_PREFIX)
         ? dest.length
         : (() => {
             const idx = dest.findIndex((i) => i.id === overId);
             return idx >= 0 ? idx : dest.length;
           })();
-      dest.splice(insertAt, 0, { ...moved, status: to });
+      // The card carries the CATEGORY for its colouring, and the destination
+      // status supplies it — the two must not drift even for the optimistic
+      // frame (30_workflow BR-2).
+      dest.splice(insertAt, 0, {
+        ...moved,
+        status: destStatus.category,
+        workflowStatus: destStatus,
+      });
 
       const next: Columns = { ...columns, [from]: sourceAfter, [to]: dest };
       // Neighbours the server ranks between (ascending rank order = top→bottom).
       const beforeId = dest[insertAt - 1]?.id ?? null;
       const afterId = dest[insertAt + 1]?.id ?? null;
 
+      const fromStatus = statuses.find((s) => s.id === from);
       setColumns(next);
       if (from !== to) {
-        setCounts((c) => ({ ...c, [from]: c[from] - 1, [to]: c[to] + 1 }));
+        setColumnCounts((c) => ({
+          ...c,
+          [from]: (c[from] ?? 1) - 1,
+          [to]: (c[to] ?? 0) + 1,
+        }));
+        // The category chips only move when the CATEGORY does — dragging
+        // between two in-progress columns changes neither chip.
+        if (fromStatus && fromStatus.category !== destStatus.category) {
+          setCounts((c) => ({
+            ...c,
+            [fromStatus.category]: c[fromStatus.category] - 1,
+            [destStatus.category]: c[destStatus.category] + 1,
+          }));
+        }
       }
 
       try {
@@ -189,7 +217,7 @@ export function BoardView({
           {
             method: "PATCH",
             body: {
-              ...(from !== to ? { status: to } : {}),
+              ...(from !== to ? { statusId: to } : {}),
               beforeId,
               afterId,
               expectedVersion: moved.version,
@@ -199,7 +227,7 @@ export function BoardView({
         // Refresh the moved card's version so a subsequent drag isn't stale.
         setColumns((prev) => ({
           ...prev,
-          [to]: prev[to].map((i) =>
+          [to]: (prev[to] ?? []).map((i) =>
             i.id === activeId ? { ...i, version: updated.version } : i,
           ),
         }));
@@ -208,13 +236,12 @@ export function BoardView({
         // restore the previous layout and counts exactly.
         setColumns(columnsSnapshot);
         setCounts(countsSnapshot);
+        setColumnCounts(columnCountsSnapshot);
         toast.error(error instanceof Error ? error.message : "Couldn't move that card.");
       }
     },
-    [columns, counts, containerOfCard],
+    [columns, counts, columnCounts, statuses, containerOfCard],
   );
-
-  const columnList = useMemo(() => ISSUE_STATUSES, []);
 
   return (
     <div>
@@ -233,16 +260,21 @@ export function BoardView({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {columnList.map((status) => (
-            <BoardColumn
-              key={status}
-              projectId={projectId}
-              status={status}
-              items={columns[status]}
-              count={counts[status]}
-              canWrite={canWrite}
-            />
+        {/* Columns are data, so their number is not known at build time: a
+            fixed 4-up grid squeezed twelve statuses into unreadable slivers.
+            A scrolling row of fixed-width columns is what ClickUp and Jira both
+            do, and it degrades honestly — the board gets wider, not denser. */}
+        <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+          {statuses.map((status) => (
+            <div key={status.id} className="w-[300px] shrink-0 snap-start">
+              <BoardColumn
+                projectId={projectId}
+                status={status}
+                items={columns[status.id] ?? []}
+                count={columnCounts[status.id] ?? 0}
+                canWrite={canWrite}
+              />
+            </div>
           ))}
         </div>
         <DragOverlay>

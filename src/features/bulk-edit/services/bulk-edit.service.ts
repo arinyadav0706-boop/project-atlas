@@ -3,7 +3,9 @@ import { canWriteContent, elevate } from "@/features/authorization/permission";
 import { ProjectService } from "@/features/projects/services/project.service";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { SprintRepository } from "@/features/sprints/repositories/sprint.repository";
-import { canTransition } from "@/features/issues/services/issue-workflow";
+import { NotFoundError } from "@/shared/lib/errors";
+import { WorkflowService } from "@/features/workflow/services/workflow.service";
+import { WorkflowRepository } from "@/features/workflow/repositories/workflow.repository";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 import { NotificationService } from "@/features/notifications/services/notification.service";
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
@@ -14,10 +16,7 @@ import type {
   BulkFailureReason,
   BulkResultItemDto,
 } from "@/features/bulk-edit/types/bulk-edit.types";
-import {
-  SUBTASK_PARENT_TYPES,
-  type IssueStatusDto,
-} from "@/features/issues/types/issue.types";
+import { SUBTASK_PARENT_TYPES } from "@/features/issues/types/issue.types";
 
 // Business rules: docs/02_Modules/23_bulk_edit.md (ADR-0041). Every rule is
 // re-evaluated PER ISSUE, server-side: the client's selection is a request, not
@@ -97,13 +96,13 @@ async function assigneeAllowed(
 /** The subset of `changes` this issue does not already satisfy (BR-7). */
 function pendingChanges(issue: IssueRow, changes: BulkEditChanges) {
   const pending: {
-    status?: IssueStatusDto;
+    statusId?: string;
     priority?: BulkEditChanges["priority"];
     assigneeId?: string | null;
     sprintId?: string | null;
   } = {};
-  if (changes.status !== undefined && issue.status !== changes.status) {
-    pending.status = changes.status;
+  if (changes.statusId !== undefined && issue.statusId !== changes.statusId) {
+    pending.statusId = changes.statusId;
   }
   if (changes.priority !== undefined && issue.priority !== changes.priority) {
     pending.priority = changes.priority;
@@ -134,6 +133,16 @@ export const BulkEditService = {
     let notified = 0;
     let notificationsSuppressed = false;
 
+    // Resolved once, outside the loop: a status belongs to exactly one project
+    // (30_workflow BR-1), so a selection spanning projects can only satisfy it
+    // for the issues in that one — the rest are refused per issue below.
+    const targetStatus = changes.statusId
+      ? await WorkflowRepository.findById(changes.statusId)
+      : null;
+    if (changes.statusId && !targetStatus) {
+      throw new NotFoundError("Status not found.");
+    }
+
     for (const issueId of issueIds) {
       const issue = await IssueRepository.findDetail(issueId);
       if (!issue) {
@@ -162,18 +171,32 @@ export const BulkEditService = {
         continue;
       }
 
-      // The workflow is a rule, not a request error: "TODO → DONE" is a
-      // legitimate thing to ask for and a legitimate thing to refuse (BR-6).
-      if (pending.status && !canTransition(issue.status, pending.status)) {
-        results.push(fail(issueId, issue.key, "invalid_transition"));
-        continue;
+      // A restricted project's rules are a rule, not a request error: asking
+      // is legitimate and refusing is legitimate (BR-6). Reported per issue so
+      // a 40-issue move still applies to the 37 that are legal.
+      if (pending.statusId) {
+        const target = targetStatus!;
+        if (issue.projectId !== target.projectId) {
+          results.push(fail(issueId, issue.key, "invalid_transition"));
+          continue;
+        }
+        try {
+          await WorkflowService.assertTransitionAllowed(
+            issue.projectId,
+            issue.statusId,
+            target.id,
+          );
+        } catch {
+          results.push(fail(issueId, issue.key, "invalid_transition"));
+          continue;
+        }
       }
 
       // BR-7 applies here too, or bulk edit becomes the way round it. Reported
       // per issue like every other refusal (ADR-0041 §1), so a 40-issue "mark
       // done" still applies to the 37 that are legal.
       if (
-        pending.status === "DONE" &&
+        targetStatus?.category === "DONE" &&
         (SUBTASK_PARENT_TYPES as readonly string[]).includes(issue.type)
       ) {
         if ((await IssueRepository.countOpenSubtasks(issueId)) > 0) {
@@ -214,7 +237,10 @@ export const BulkEditService = {
         issueId,
         issue.version,
         {
-          ...(pending.status !== undefined ? { status: pending.status } : {}),
+          // Both halves of the invariant, in the one update (BR-2).
+          ...(pending.statusId !== undefined && targetStatus
+            ? { statusId: targetStatus.id, status: targetStatus.category }
+            : {}),
           ...(pending.priority !== undefined ? { priority: pending.priority } : {}),
           ...(pending.assigneeId !== undefined ? { assigneeId: pending.assigneeId } : {}),
           ...(pending.sprintId !== undefined ? { sprintId: pending.sprintId } : {}),
@@ -231,15 +257,15 @@ export const BulkEditService = {
 
       // Cycle time reads this trail, so a bulk transition must leave the same
       // record a single one does or the report grows a hole (BR-12).
-      if (pending.status) {
+      if (pending.statusId && targetStatus) {
         await AuditLogService.record({
           organizationId: facts.organizationId,
           actorId: actor.userId,
           action: "ISSUE_STATUS_CHANGED",
           entityType: "Issue",
           entityId: issueId,
-          beforeData: { status: issue.status },
-          afterData: { status: pending.status },
+          beforeData: { status: issue.workflowStatus.name, category: issue.status },
+          afterData: { status: targetStatus.name, category: targetStatus.category },
         });
       }
 
@@ -248,7 +274,7 @@ export const BulkEditService = {
       // exists so a 100-issue reassignment does not land as 100 messages to
       // one person, whereas an unblock goes to a DIFFERENT person per issue
       // and is the thing they most need to hear.
-      if (pending.status === "DONE") {
+      if (targetStatus?.category === "DONE") {
         await DependencyService.notifyUnblocked(actor, { id: issueId, key: row.key });
       }
 

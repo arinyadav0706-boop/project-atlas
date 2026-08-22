@@ -7,6 +7,14 @@ import type { ProjectRoleDto } from "@/features/projects/types/project.types";
 // module is considered done." Repository + sibling services are mocked; this
 // asserts the service layer's allow/deny decision for every (role × action).
 
+vi.mock("@/features/workflow/services/workflow.service", () => ({
+  WorkflowService: {
+    requireStatus: vi.fn(async (_p: string, id: string) => STATUS_BY_ID[id]!),
+    assertTransitionAllowed: vi.fn(async () => undefined),
+    reachableStatuses: vi.fn(async () => Object.values(STATUS_BY_ID)),
+  },
+}));
+
 vi.mock("@/features/issues/repositories/issue.repository", () => ({
   DEFAULT_PAGE_SIZE: 50,
   MAX_PAGE_SIZE: 100,
@@ -73,6 +81,16 @@ import { ProjectService } from "@/features/projects/services/project.service";
 import { IssueService } from "./issue.service";
 import { ForbiddenError } from "@/shared/lib/errors";
 
+// The seeded four (30_workflow BR-7). Statuses are per-project data now, so the
+// service asks the workflow layer instead of consulting a constant.
+const STATUS_BY_ID: Record<string, { id: string; name: string; category: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE"; color: string; position: number; isDefault: boolean }> = {
+  "st-todo": { id: "st-todo", name: "To Do", category: "TODO", color: "slate", position: 0, isDefault: true },
+  "st-ip": { id: "st-ip", name: "In Progress", category: "IN_PROGRESS", color: "sky", position: 1, isDefault: false },
+  "st-review": { id: "st-review", name: "In Review", category: "IN_REVIEW", color: "amber", position: 2, isDefault: false },
+  "st-done": { id: "st-done", name: "Done", category: "DONE", color: "emerald", position: 3, isDefault: false },
+};
+
+
 const repo = vi.mocked(IssueRepository);
 const projects = vi.mocked(ProjectService);
 
@@ -82,6 +100,7 @@ const ACTIVE_CTX = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 // The issue under test is reported by, and assigned to, SOMEONE ELSE — so the
@@ -95,6 +114,8 @@ function otherRow() {
     title: "Someone else's issue",
     description: null,
     status: "TODO",
+    statusId: "st-todo",
+    workflowStatus: STATUS_BY_ID["st-todo"],
     priority: "MEDIUM",
     assigneeId: "other-user",
     reporterId: "other-user",
@@ -124,7 +145,7 @@ function arrange(role: ProjectRoleDto | null) {
   repo.createWithKey.mockResolvedValue(otherRow() as never);
   repo.updateWithVersion.mockResolvedValue(otherRow() as never);
   repo.setStatusWithVersion.mockResolvedValue(
-    { ...otherRow(), status: "IN_PROGRESS" } as never,
+    { ...otherRow(), status: "IN_PROGRESS", statusId: "st-ip", workflowStatus: STATUS_BY_ID["st-ip"] } as never,
   );
   repo.softDelete.mockResolvedValue(otherRow() as never);
 }
@@ -137,7 +158,7 @@ const ACTIONS: Record<ActionName, (actor: Actor) => Promise<unknown>> = {
   create: (a) =>
     IssueService.create(a, "proj-1", { type: "TASK", title: "x", priority: "MEDIUM" }),
   update: (a) => IssueService.update(a, "issue-1", { title: "y", expectedVersion: 0 }),
-  transition: (a) => IssueService.transition(a, "issue-1", "IN_PROGRESS", 0),
+  transition: (a) => IssueService.transition(a, "issue-1", "st-ip", 0),
   delete: (a) => IssueService.delete(a, "issue-1"),
 };
 

@@ -4,7 +4,7 @@ import { IssueService } from "@/features/issues/services/issue.service";
 import { BacklogService } from "@/features/backlog/services/backlog.service";
 import { ConflictError, ValidationError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
-import { createProjectWithStatuses } from "./helpers/workflow";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the ADR-0013 unified-rank backlog end to
 // end: the backlog lists unscheduled issues across statuses ordered by the
@@ -67,7 +67,7 @@ describe("Backlog view (ADR-0013) integration", () => {
     const { actor, project } = await seed("bl");
     const [a, b, c] = await createIssues(actor, project.id, ["A", "B", "C"]);
     // Move B out of TODO — it must still appear in the backlog (status-agnostic).
-    await IssueService.transition(actor, b!.id, "IN_PROGRESS", 0);
+    await IssueService.transition(actor, b!.id, await statusFor(project.id, "IN_PROGRESS"), 0);
 
     const backlog = await BacklogService.getBacklog(actor, project.id, {});
     expect(backlog.items.map((i) => i.title)).toEqual(["A", "B", "C"]);
@@ -129,7 +129,7 @@ describe("Backlog view (ADR-0013) integration", () => {
     await expect(
       IssueService.reorder(actor, a!.id, {
         scope: "backlog",
-        status: "IN_PROGRESS",
+        statusId: await statusFor(project.id, "IN_PROGRESS"),
         expectedVersion: row!.version,
       }),
     ).rejects.toBeInstanceOf(ValidationError);

@@ -3,7 +3,6 @@ import { prisma } from "@/shared/lib/db";
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
 // One card shape for every list surface — see issue-card.repository.ts.
 import { issueCardSelect } from "@/features/issues/repositories/issue-card.repository";
-import type { StatusCategory } from "@prisma/client";
 import type { BoardFilter } from "@/features/board/types/board.types";
 
 // Prisma is imported ONLY in *.repository.ts. The board reads the Issue table
@@ -16,21 +15,30 @@ export const BOARD_COLUMN_LIMIT = 100;
 
 
 export const BoardRepository = {
-  // Cards for one status column, ordered by rank. Uses the covering index
-  // issues(projectId, status, rank); `id` is the final tiebreaker for a total,
-  // stable order (ranks are unique per column but this stays safe regardless).
-  columnItems(projectId: string, status: StatusCategory, filter: BoardFilter) {
+  // Cards for one column, ordered by rank. A column is a STATUS ID now
+  // (30_workflow BR-5) — a project may have three columns in the same category,
+  // and grouping by category would merge them into one.
+  columnItems(projectId: string, statusId: string, filter: BoardFilter) {
     return prisma.issue.findMany({
-      where: { ...issueFilterWhere({ projectIds: [projectId] }, filter), status },
+      where: { ...issueFilterWhere({ projectIds: [projectId] }, filter), statusId },
       select: issueCardSelect,
       orderBy: [{ rank: "asc" }, { id: "asc" }],
       take: BOARD_COLUMN_LIMIT,
     });
   },
 
-  // Per-status totals under the active filter — accurate even though each
+  // Per-column totals under the active filter — accurate even though each
   // column is capped.
-  countByStatus(projectId: string, filter: BoardFilter) {
+  countByStatusId(projectId: string, filter: BoardFilter) {
+    return prisma.issue.groupBy({
+      by: ["statusId"],
+      where: issueFilterWhere({ projectIds: [projectId] }, filter),
+      _count: { _all: true },
+    });
+  },
+
+  // Per-CATEGORY totals, for the filter chips that still speak in categories.
+  countByCategory(projectId: string, filter: BoardFilter) {
     return prisma.issue.groupBy({
       by: ["status"],
       where: issueFilterWhere({ projectIds: [projectId] }, filter),

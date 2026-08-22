@@ -55,6 +55,7 @@ const ctx = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 function row(overrides: Record<string, unknown> = {}) {
@@ -153,7 +154,7 @@ describe("create", () => {
   });
 
   it("rejects commenting on an archived project", async () => {
-    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED" });
+    projects.getContext.mockResolvedValue({ ...ctx, status: "ARCHIVED", enforceTransitions: false });
     projects.getMemberRole.mockResolvedValue("MEMBER");
     await expect(
       CommentService.create(actor, "issue-1", { body: "hi" }),

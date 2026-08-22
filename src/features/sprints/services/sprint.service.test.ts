@@ -65,6 +65,7 @@ const ctx = {
   key: "ENG",
   name: "Engineering",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 function sprintRow(overrides: Record<string, unknown> = {}) {
@@ -187,7 +188,7 @@ describe("start", () => {
     );
     sprints.start.mockResolvedValue({
       ok: true,
-      sprint: sprintRow({ status: "ACTIVE" }),
+      sprint: sprintRow({ status: "ACTIVE", enforceTransitions: false }),
     } as never);
     const s = await SprintService.start(actor, "sprint-1");
     expect(s.status).toBe("ACTIVE");
@@ -205,7 +206,7 @@ describe("start", () => {
 describe("complete", () => {
   it("completes an ACTIVE sprint (LEAD)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD");
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     sprints.complete.mockResolvedValue({
       sprint: sprintRow({ status: "COMPLETED" }),
       returnedCount: 2,
@@ -227,7 +228,7 @@ describe("complete", () => {
     sprints.findById.mockImplementation(((id: string) =>
       Promise.resolve(
         id === "sprint-1"
-          ? sprintRow({ id: "sprint-1", status: "ACTIVE" })
+          ? sprintRow({ id: "sprint-1", status: "ACTIVE", enforceTransitions: false })
           : sprintRow({ id: "next", status: "PLANNED" }),
       )) as never);
     sprints.complete.mockResolvedValue({
@@ -243,7 +244,7 @@ describe("complete", () => {
     sprints.findById.mockImplementation(((id: string) =>
       Promise.resolve(
         id === "sprint-1"
-          ? sprintRow({ id: "sprint-1", status: "ACTIVE" })
+          ? sprintRow({ id: "sprint-1", status: "ACTIVE", enforceTransitions: false })
           : sprintRow({ id: "done", status: "COMPLETED" }),
       )) as never);
     await expect(SprintService.complete(actor, "sprint-1", "done")).rejects.toBeInstanceOf(
@@ -272,7 +273,7 @@ describe("progress (BR-7, derived)", () => {
       { status: "TODO", _count: { _all: 2 }, _sum: { storyPoints: 5 } },
       { status: "DONE", _count: { _all: 3 }, _sum: { storyPoints: 8 } },
     ] as never);
-    sprints.listByProject.mockResolvedValue([sprintRow({ status: "ACTIVE" })] as never);
+    sprints.listByProject.mockResolvedValue([sprintRow({ status: "ACTIVE", enforceTransitions: false })] as never);
     const list = await SprintService.list(actor, "proj-1");
     expect(list[0]!.progress).toEqual({
       totalIssues: 5,
@@ -294,7 +295,7 @@ describe("delete", () => {
 
   it("blocks deleting an ACTIVE sprint (must complete first)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD");
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     await expect(SprintService.delete(actor, "sprint-1")).rejects.toBeInstanceOf(ConflictError);
     expect(sprints.softDelete).not.toHaveBeenCalled();
   });
@@ -338,7 +339,7 @@ describe("getPanel", () => {
   it("returns every non-completed sprint as a section, each with its issues", async () => {
     projects.getMemberRole.mockResolvedValue("MEMBER");
     sprints.listPlanning.mockResolvedValue([
-      sprintRow({ id: "active-1", status: "ACTIVE" }),
+      sprintRow({ id: "active-1", status: "ACTIVE", enforceTransitions: false }),
       sprintRow({ id: "plan-1", status: "PLANNED" }),
     ] as never);
     sprints.listSprintIssues.mockResolvedValue([] as never);
@@ -377,7 +378,7 @@ describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
 
   it("assigns a backlog issue into a sprint with a rank between neighbours", async () => {
     issues.findDetail.mockResolvedValue(issueRow({ sprintId: null }) as never);
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     issues.findRankInSprint.mockImplementation(((id: string) =>
       Promise.resolve(
         id === "b" ? { id: "b", rank: "a1" } : id === "a" ? { id: "a", rank: "a3" } : null,
@@ -405,7 +406,7 @@ describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
   // happened — and not writing one on a real move loses that history for good.
   it("records ISSUE_SPRINT_CHANGED when the issue changes sprint", async () => {
     issues.findDetail.mockResolvedValue(issueRow({ sprintId: null }) as never);
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     issues.findRankInSprint.mockResolvedValue(null as never);
     issues.moveToSprintWithVersion.mockResolvedValue(
       issueRow({ sprintId: "sprint-1", version: 1 }) as never,
@@ -429,7 +430,7 @@ describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
 
   it("records nothing when the move is a reorder inside the same sprint", async () => {
     issues.findDetail.mockResolvedValue(issueRow({ sprintId: "sprint-1" }) as never);
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     issues.findRankInSprint.mockResolvedValue(null as never);
     issues.moveToSprintWithVersion.mockResolvedValue(
       issueRow({ sprintId: "sprint-1", version: 1 }) as never,
@@ -496,7 +497,7 @@ describe("moveIssue (BR-6/BR-5, ADR-0014)", () => {
 
   it("rejects a stale version (lost update, ADR-0011)", async () => {
     issues.findDetail.mockResolvedValue(issueRow({ sprintId: null }) as never);
-    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE" }) as never);
+    sprints.findById.mockResolvedValue(sprintRow({ status: "ACTIVE", enforceTransitions: false }) as never);
     issues.moveToSprintWithVersion.mockResolvedValue(null as never);
     await expect(
       SprintService.moveIssue(actor, "issue-1", { sprintId: "sprint-1", expectedVersion: 0 }),

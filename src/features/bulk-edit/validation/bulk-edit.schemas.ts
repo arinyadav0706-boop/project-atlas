@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { issuePriority, issueStatus } from "@/features/issues/validation/issue.schemas";
+import { issuePriority } from "@/features/issues/validation/issue.schemas";
 
 // One schema per action, shared client/server (Coding Standards §3).
 // Constraints from docs/02_Modules/23_bulk_edit.md §7.
@@ -15,7 +15,10 @@ export const MAX_BULK_NOTIFICATIONS = 25;
 // the distinction at the call site when the object is spread.
 const changesSchema = z
   .object({
-    status: issueStatus.optional(),
+    // A status id, not a category (30_workflow BR-1). The service refuses any
+    // selected issue that belongs to a different project — statuses are
+    // per-project, so one id cannot mean anything to two of them.
+    statusId: z.string().trim().min(1).optional(),
     priority: issuePriority.optional(),
     assigneeId: z.string().trim().min(1).nullable().optional(),
     sprintId: z.string().trim().min(1).nullable().optional(),

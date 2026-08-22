@@ -49,6 +49,7 @@ const ctx = {
   key: "P",
   name: "P",
   status: "ACTIVE" as const,
+  enforceTransitions: false,
 };
 
 beforeEach(() => {

@@ -5,7 +5,7 @@ import { BoardService } from "@/features/board/services/board.service";
 import { ConflictError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { IssueStatusDto } from "@/features/issues/types/issue.types";
-import { createProjectWithStatuses } from "./helpers/workflow";
+import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
 // Integration — real Postgres. Proves the ADR-0009 rank writes end to end:
 // a reorder computes a key strictly between the destination neighbours, writes
@@ -56,8 +56,10 @@ async function createTodo(actor: Actor, projectId: string, titles: string[], ass
   return made;
 }
 
+// A column is a STATUS now (30_workflow BR-5); the seeded four are one per
+// category, so looking one up by category still identifies exactly one column.
 function column(board: Awaited<ReturnType<typeof BoardService.getBoard>>, status: IssueStatusDto) {
-  return board.columns.find((c) => c.status === status)!;
+  return board.columns.find((c) => c.status.category === status)!;
 }
 
 // Reorder helper that reads the card's current version first (ADR-0011) — the
@@ -65,7 +67,7 @@ function column(board: Awaited<ReturnType<typeof BoardService.getBoard>>, status
 async function reorder(
   actor: Actor,
   id: string,
-  opts: { status?: IssueStatusDto; beforeId?: string | null; afterId?: string | null },
+  opts: { statusId?: string; beforeId?: string | null; afterId?: string | null },
 ) {
   const row = await prisma.issue.findUnique({ where: { id }, select: { version: true } });
   return IssueService.reorder(actor, id, { ...opts, expectedVersion: row!.version });
@@ -108,7 +110,7 @@ describe("Board reorder (rank) integration", () => {
     const [a] = await createTodo(actor, project.id, ["A"]);
 
     const moved = await reorder(actor, a!.id, {
-      status: "IN_PROGRESS",
+      statusId: await statusFor(project.id, "IN_PROGRESS"),
       beforeId: null,
       afterId: null,
     });
@@ -119,16 +121,28 @@ describe("Board reorder (rank) integration", () => {
     expect(column(board, "IN_PROGRESS").items.map((i) => i.title)).toEqual(["A"]);
   });
 
-  it("rejects an illegal column move (TODO → DONE) and writes nothing", async () => {
+  // Was "rejects an illegal column move (TODO → DONE)". That rule is gone with
+  // ADR-0049: it was stricter than ClickUp, Asana AND Jira's default workflow,
+  // and it could not survive per-project statuses. Restriction is opt-in now,
+  // so the DEFAULT behaviour to pin is that the move succeeds.
+  it("allows To Do → Done directly when the project has not restricted transitions", async () => {
     const { actor, project } = await seed("ill");
     const [a] = await createTodo(actor, project.id, ["A"]);
 
-    await expect(
-      reorder(actor, a!.id, { status: "DONE", beforeId: null, afterId: null }),
-    ).rejects.toThrow();
+    const moved = await reorder(actor, a!.id, {
+      statusId: await statusFor(project.id, "DONE"),
+      beforeId: null,
+      afterId: null,
+    });
+    expect(moved.status).toBe("DONE");
 
-    const fresh = await prisma.issue.findUnique({ where: { id: a!.id }, select: { status: true } });
-    expect(fresh?.status).toBe("TODO");
+    const fresh = await prisma.issue.findUnique({
+      where: { id: a!.id },
+      select: { status: true, statusId: true },
+    });
+    // The invariant holds through a board drag (30_workflow BR-2).
+    expect(fresh?.status).toBe("DONE");
+    expect(fresh?.statusId).toBe(await statusFor(project.id, "DONE"));
   });
 
   it("BR-7: a filtered reorder positions relative to visible neighbours; a hidden card between keeps its rank", async () => {

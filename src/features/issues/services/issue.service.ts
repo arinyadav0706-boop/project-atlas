@@ -10,7 +10,7 @@ import {
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
 // One card shape + mapper for every list surface (ADR-0018/0026).
 import { toIssueCardDto } from "@/features/issues/services/issue-card.mapper";
-import { allowedTransitions, canTransition } from "@/features/issues/services/issue-workflow";
+import { WorkflowService } from "@/features/workflow/services/workflow.service";
 import { rankBetween } from "@/shared/lib/rank";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
 import { NotificationService } from "@/features/notifications/services/notification.service";
@@ -119,14 +119,23 @@ function rollUp(
   };
 }
 
-function toDetailDto(
+/**
+ * Build the detail DTO, including where this issue may move to.
+ *
+ * Async because the answer is per-project data now, not a constant: a project
+ * defines its own statuses and may restrict the moves between them
+ * (30_workflow BR-10). One extra query per detail render, and the alternative —
+ * letting the client guess from a hardcoded table — is how a picker starts
+ * offering statuses the server will refuse.
+ */
+async function toDetailDto(
   row: IssueRow,
   actor: Actor,
   role: ProjectRoleDto | null,
   children: IssueChildDto[] = [],
   subtasks: SubtaskDto[] = [],
   dependencies: IssueLinksDto = { links: [], openBlockerKeys: [] },
-): IssueDetailDto {
+): Promise<IssueDetailDto> {
   const canDelete =
     role === "LEAD" || row.reporterId === actor.userId || row.assigneeId === actor.userId;
   const epic: EpicSummaryDto | null = row.epic
@@ -159,7 +168,8 @@ function toDetailDto(
     createdAt: row.createdAt.toISOString(),
     canEdit: canWrite(role),
     canDelete: canWrite(role) && canDelete,
-    allowedStatuses: [row.status, ...allowedTransitions(row.status)],
+    workflowStatus: row.workflowStatus,
+    allowedStatuses: await WorkflowService.reachableStatuses(row.projectId, row.statusId),
   };
 }
 
@@ -247,7 +257,7 @@ export const IssueService = {
     ]);
     // Best-effort engagement signal for Home's "Continue working" (ADR-0012).
     await RecentItemService.record(actor, "ISSUE", issueId, "VIEWED");
-    return toDetailDto(
+    return await toDetailDto(
       row,
       actor,
       role,
@@ -384,7 +394,7 @@ export const IssueService = {
       issueTitle: row.title,
       assigneeId: row.assigneeId,
     });
-    return toDetailDto(row, actor, role);
+    return await toDetailDto(row, actor, role);
   },
 
   async update(
@@ -546,14 +556,22 @@ export const IssueService = {
         assigneeId: input.assigneeId,
       });
     }
-    return toDetailDto(row, actor, role);
+    return await toDetailDto(row, actor, role);
   },
 
-  // BR-5 (fixed workflow) + BR-6 (audit the transition for cycle-time).
+  /**
+   * Move an issue to one of its project's statuses (30_workflow BR-10) and
+   * audit it for cycle-time (BR-6).
+   *
+   * Takes a STATUS ID, not a category. Statuses are per-project data now, and
+   * a project can have three of them in the same category — "In QA", "In
+   * review", "Waiting on customer" are all IN_REVIEW — so a category could not
+   * name where the issue is going.
+   */
   async transition(
     actor: Actor,
     issueId: string,
-    to: IssueStatusDto,
+    toStatusId: string,
     expectedVersion: number,
   ): Promise<IssueDetailDto> {
     const existing = await IssueRepository.findDetail(issueId);
@@ -565,21 +583,29 @@ export const IssueService = {
     if (context.status === "ARCHIVED") {
       throw new ConflictError("Archived projects are read-only.");
     }
-    if (!canTransition(existing.status, to)) {
-      throw new ValidationError(
-        `Cannot move from ${existing.status} to ${to} — it must pass through the workflow in order.`,
-      );
+    const target = await WorkflowService.requireStatus(existing.projectId, toStatusId);
+    if (existing.statusId === target.id) {
+      return await toDetailDto(existing, actor, role);
     }
-    if (existing.status === to) {
-      return toDetailDto(existing, actor, role);
-    }
-    await this.assertSubtasksAllowDone(existing.id, existing.type as IssueTypeDto, to);
+    // The project's own rules, when it has opted into them. Unrestricted by
+    // default — ClickUp and Asana let you move anything anywhere, and so does
+    // Jira's default workflow (30_workflow BR-10).
+    await WorkflowService.assertTransitionAllowed(
+      existing.projectId,
+      existing.statusId,
+      target.id,
+    );
+    await this.assertSubtasksAllowDone(
+      existing.id,
+      existing.type as IssueTypeDto,
+      target.category,
+    );
 
     // Optimistic concurrency (ADR-0011): reject if the issue changed since read.
     const row = await IssueRepository.setStatusWithVersion(
       issueId,
       expectedVersion,
-      to,
+      { id: target.id, category: target.category },
       actor.userId,
     );
     if (!row) {
@@ -594,23 +620,29 @@ export const IssueService = {
       action: "ISSUE_STATUS_CHANGED",
       entityType: "Issue",
       entityId: issueId,
-      beforeData: { status: existing.status },
-      afterData: { status: to },
+      // The NAME, not the category — an audit line reading "IN_REVIEW ->
+      // IN_REVIEW" is useless on a project with three review statuses.
+      beforeData: { status: existing.workflowStatus.name, category: existing.status },
+      afterData: { status: target.name, category: target.category },
     });
     // Notify the assignee + reporter of the status change (ADR-0019).
     await NotificationService.issueStatusChanged(actor, {
       issueId,
       issueKey: existing.key,
-      status: to,
+      // The name a human recognises, not the category behind it.
+      status: target.name,
       recipientIds: [existing.assigneeId, existing.reporterId],
     });
     // …and anyone this issue was blocking (ADR-0046 §6). Best-effort inside
     // the service it belongs to, so a notification failure can never fail the
     // transition that triggered it.
-    if (to === "DONE") {
+    // The CATEGORY decides, not the name: a project may call its finished
+    // column "Shipped" or "Closed", and anything waiting on this issue is
+    // unblocked either way (30_workflow BR-3).
+    if (target.category === "DONE") {
       await DependencyService.notifyUnblocked(actor, { id: issueId, key: existing.key });
     }
-    return toDetailDto(row, actor, role);
+    return await toDetailDto(row, actor, role);
   },
 
   // Board/Backlog reorder (05_board.md BR-3/BR-4, 06_backlog.md, ADR-0009,
@@ -650,22 +682,27 @@ export const IssueService = {
     role: ProjectRoleDto | null,
     input: ReorderIssueInput,
   ): Promise<IssueDetailDto> {
-    const destStatus = input.status ?? existing.status;
-    const statusChanged = destStatus !== existing.status;
-    // A column move runs the same workflow check as any transition (BR-3).
-    if (statusChanged && !canTransition(existing.status, destStatus)) {
-      throw new ValidationError(
-        `Cannot move from ${existing.status} to ${destStatus} — it must pass through the workflow in order.`,
-      );
-    }
-    // A drag into the Done column is a transition, so it answers to BR-7 too.
-    // Guarding only the status endpoint would leave the board as the way round
-    // the rule, which is worse than not having the rule.
+    // A board column is a STATUS now, not a category (30_workflow BR-5): a
+    // project can have three columns that are all IN_PROGRESS.
+    const destStatusId = input.statusId ?? existing.statusId;
+    const statusChanged = destStatusId !== existing.statusId;
+    const destStatus = statusChanged
+      ? await WorkflowService.requireStatus(existing.projectId, destStatusId)
+      : { id: existing.statusId, category: existing.status, name: "" };
+
     if (statusChanged) {
+      // A column drag runs the SAME guard as the status endpoint. Guarding only
+      // one of them leaves the board as the way round the rule, which is worse
+      // than not having the rule.
+      await WorkflowService.assertTransitionAllowed(
+        existing.projectId,
+        existing.statusId,
+        destStatus.id,
+      );
       await this.assertSubtasksAllowDone(
         existing.id,
         existing.type as IssueTypeDto,
-        destStatus,
+        destStatus.category,
       );
     }
 
@@ -673,10 +710,10 @@ export const IssueService = {
     // DESTINATION column — validated here, never trusted from the client (BR-4).
     const [before, after] = await Promise.all([
       input.beforeId
-        ? IssueRepository.findRankInColumn(input.beforeId, existing.projectId, destStatus)
+        ? IssueRepository.findRankInColumn(input.beforeId, existing.projectId, destStatus.id)
         : Promise.resolve(null),
       input.afterId
-        ? IssueRepository.findRankInColumn(input.afterId, existing.projectId, destStatus)
+        ? IssueRepository.findRankInColumn(input.afterId, existing.projectId, destStatus.id)
         : Promise.resolve(null),
     ]);
     if (input.beforeId && !before) {
@@ -693,7 +730,12 @@ export const IssueService = {
     const row = await IssueRepository.reorderWithVersion(
       existing.id,
       input.expectedVersion,
-      { rank, status: statusChanged ? destStatus : undefined },
+      {
+        rank,
+        status: statusChanged
+          ? { id: destStatus.id, category: destStatus.category }
+          : undefined,
+      },
       actor.userId,
     );
     if (!row) {
@@ -708,20 +750,20 @@ export const IssueService = {
         action: "ISSUE_STATUS_CHANGED",
         entityType: "Issue",
         entityId: existing.id,
-        beforeData: { status: existing.status },
-        afterData: { status: destStatus },
+        beforeData: { status: existing.workflowStatus.name, category: existing.status },
+        afterData: { status: destStatus.name, category: destStatus.category },
       });
       // A drag into Done unblocks people exactly as the status menu does
       // (ADR-0046 §6). Wiring only the menu would make the notification depend
       // on which control someone happened to use.
-      if (destStatus === "DONE") {
+      if (destStatus.category === "DONE") {
         await DependencyService.notifyUnblocked(actor, {
           id: existing.id,
           key: existing.key,
         });
       }
     }
-    return toDetailDto(row, actor, role);
+    return await toDetailDto(row, actor, role);
   },
 
   // Backlog reorder (ADR-0013): a single flat list of unscheduled issues across
@@ -733,7 +775,7 @@ export const IssueService = {
     role: ProjectRoleDto | null,
     input: ReorderIssueInput,
   ): Promise<IssueDetailDto> {
-    if (input.status && input.status !== existing.status) {
+    if (input.statusId && input.statusId !== existing.statusId) {
       throw new ValidationError("Backlog reordering cannot change an issue's status.");
     }
     // The issue itself must be in the backlog to be reordered within it.
@@ -788,7 +830,7 @@ export const IssueService = {
         "This item was changed by someone else — refresh the backlog and try the move again.",
       );
     }
-    return toDetailDto(row, actor, role);
+    return await toDetailDto(row, actor, role);
   },
 
   /**
