@@ -1,0 +1,738 @@
+openapi: 3.1.0
+
+# The PUBLIC contract (ADR-0052, docs/02_Modules/33_public_api.md).
+#
+# A separate document from `openapi.yaml` on purpose, and for the same reason
+# `/api/v1` is a separate route layer: that file describes the app's own
+# endpoints, which change whenever a component does. This one describes a
+# promise. Keeping them in one file would make it far too easy for an internal
+# tweak to edit a public commitment by accident.
+
+info:
+  title: EAGLES API
+  version: "1.0.0"
+  description: |
+    A stable, versioned REST API over EAGLES.
+
+    ## Authenticating
+
+    Create a token in **Profile → Developer**, then send it as a bearer token:
+
+    ```
+    curl -H "Authorization: Bearer eag_…" https://your-eagles/api/v1/me
+    ```
+
+    A token **acts as the person who created it and can never do more than they
+    can**. Scopes narrow that further; they never widen it. Revoking a token, or
+    deactivating its owner, stops it immediately.
+
+    ## Shape
+
+    Every success is `{ "data": … }`. Every list adds `pagination`. Every
+    failure is `{ "error": { "code", "message" } }`, where `code` is stable and
+    `message` is prose that may be reworded — branch on `code`.
+
+    ## Paging
+
+    Cursor, not offset. Read `pagination.nextCursor` and pass it back as
+    `?cursor=`; stop when it is `null`. There is no total count: on a filtered,
+    permission-scoped query it is a second expensive aggregate most callers
+    ignore.
+
+    ## Rate limits
+
+    120 requests per minute **per token**. `X-RateLimit-Limit`,
+    `X-RateLimit-Remaining` and `X-RateLimit-Reset` are on *every* response, not
+    only on a 429 — so a well-behaved client never has to discover the limit by
+    hitting it. A 429 also carries `Retry-After` in seconds.
+
+    ## Concurrency
+
+    Every issue carries a `version`. Send it back as `expectedVersion` when you
+    write; if the issue changed in between you get `409 conflict` instead of
+    silently overwriting somebody. Read it, decide, write it back.
+
+servers:
+  - url: https://your-eagles.example.com/api/v1
+    description: Replace the host with your deployment.
+
+security:
+  - bearerToken: []
+
+tags:
+  - name: identity
+  - name: projects
+  - name: issues
+  - name: comments
+  - name: webhooks
+
+paths:
+  /me:
+    get:
+      tags: [identity]
+      summary: Who this token acts as
+      description: >
+        No scope needed. The call to make first when checking that credentials
+        work.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      email: { type: string }
+                      organizationId: { type: string }
+                      orgRole: { type: string, enum: [ADMIN, MEMBER] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /projects:
+    get:
+      tags: [projects]
+      summary: Projects this token's owner can see
+      description: Scope `projects:read`. Never the whole organization — the same set the UI shows them.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+
+  /projects/{projectId}:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [projects]
+      summary: One project
+      description: Scope `projects:read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Project" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /projects/{projectId}/issues:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [issues]
+      summary: A project's issues
+      description: >
+        Scope `issues:read`. Blank filter values are read as absent, so a
+        cleared filter behaves like no filter rather than like a filter on the
+        empty string.
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE] }
+          description: Filters on the status CATEGORY, so it works whatever a project calls its columns.
+        - name: type
+          in: query
+          schema: { type: string, enum: [EPIC, STORY, TASK, BUG, SUBTASK] }
+        - name: assigneeId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Issue" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [issues]
+      summary: Create an issue
+      description: >
+        Scope `issues:write`. Goes through the same path the UI does, so
+        required custom fields, assignee validation and the assignment
+        notification all apply — and a rule set up in Automations will see this
+        issue exactly as it would one created by hand.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Issue" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
+  /issues/{issueRef}:
+    parameters:
+      - $ref: "#/components/parameters/IssueRef"
+    get:
+      tags: [issues]
+      summary: One issue, by id or key
+      description: Scope `issues:read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Issue" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [issues]
+      summary: Update an issue
+      description: >
+        Scope `issues:write`. `expectedVersion` is required — read the issue,
+        decide, and send its `version` back. A `409 conflict` means somebody
+        else changed it first; re-read and reapply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Issue" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+    delete:
+      tags: [issues]
+      summary: Delete an issue
+      description: >
+        Scope `issues:write`, AND the caller must be a project lead or the
+        issue's reporter or assignee — a scope cannot buy a permission its owner
+        does not have.
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /issues/{issueRef}/comments:
+    parameters:
+      - $ref: "#/components/parameters/IssueRef"
+    get:
+      tags: [comments]
+      summary: An issue's comments
+      description: Scope `issues:read`.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Comment" }
+    post:
+      tags: [comments]
+      summary: Post a comment
+      description: >
+        Scope `comments:write`, separate from `issues:write` because "read our
+        tickets" and "talk to our customers" are different decisions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 20000 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Comment" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+
+  /users:
+    get:
+      tags: [identity]
+      summary: People in the organization
+      description: Scope `projects:read`. For resolving an assignee id.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/User" }
+
+  /webhooks:
+    get:
+      tags: [webhooks]
+      summary: This organization's webhooks
+      description: Scope `webhooks:manage`, and the owner must be an org admin.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Webhook" }
+    post:
+      tags: [webhooks]
+      summary: Register a webhook
+      description: >
+        The response contains `secret` — the ONLY time it is ever returned.
+        Store it; you need it to verify every delivery. Private and local
+        addresses are refused.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { $ref: "#/components/schemas/WebhookEvent" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/WebhookWithSecret" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
+  /webhooks/{webhookId}:
+    parameters:
+      - name: webhookId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [webhooks]
+      summary: One webhook
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Webhook" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [webhooks]
+      summary: Change a webhook, or re-enable one that was auto-disabled
+      description: Re-enabling clears the failure count as well as the reason.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri }
+                events:
+                  type: array
+                  items: { $ref: "#/components/schemas/WebhookEvent" }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Webhook" }
+    delete:
+      tags: [webhooks]
+      summary: Delete a webhook
+      responses:
+        "204": { description: Deleted }
+
+  /webhooks/{webhookId}/deliveries:
+    parameters:
+      - name: webhookId
+        in: path
+        required: true
+        schema: { type: string }
+      - $ref: "#/components/parameters/Limit"
+    get:
+      tags: [webhooks]
+      summary: Recent delivery attempts
+      description: >
+        What actually happened to each event — status, attempts, the response
+        code and the error. The first thing to look at when an integration is
+        not receiving something.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/WebhookDelivery" }
+
+components:
+  securitySchemes:
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: >
+        A personal access token, `eag_<publicId>_<secret>`. Created in
+        Profile → Developer and shown exactly once.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+      description: From the previous response's `pagination.nextCursor`.
+    IssueRef:
+      name: issueRef
+      in: path
+      required: true
+      schema: { type: string }
+      description: >
+        An issue id, or its key (`VWP-1301`). The key is what appears in a Slack
+        message, a commit and a support ticket, so both work.
+
+  responses:
+    Unauthorized:
+      description: Missing, malformed, unknown, revoked or expired token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InsufficientScope:
+      description: The token is valid but lacks the scope this route needs.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The token's OWNER may not do this. A scope cannot grant it.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: >
+        No such resource — or it belongs to another organization, which is
+        deliberately indistinguishable.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: The resource changed since you read it. Re-read and reapply.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ValidationFailed:
+      description: The body or query is not valid; `details` names each field.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - unauthorized
+                - insufficient_scope
+                - forbidden
+                - not_found
+                - validation_failed
+                - conflict
+                - rate_limited
+                - internal_error
+              description: Stable. Branch on this, never on `message`.
+            message:
+              type: string
+              description: For a human. May be reworded at any time.
+            details:
+              type: array
+              description: On `validation_failed`, one entry per offending field.
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+
+    Page:
+      type: object
+      required: [data, pagination]
+      properties:
+        pagination:
+          type: object
+          required: [nextCursor, hasMore]
+          properties:
+            nextCursor:
+              type: string
+              nullable: true
+              description: Pass as `?cursor=`. `null` means this is the last page.
+            hasMore: { type: boolean }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        orgRole: { type: string }
+        isActive: { type: boolean }
+
+    Issue:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string, description: "e.g. VWP-1301" }
+        projectId: { type: string }
+        type: { type: string, enum: [EPIC, STORY, TASK, BUG, SUBTASK] }
+        title: { type: string }
+        description: { type: string, nullable: true, description: On a single issue; omitted from a list. }
+        status:
+          type: object
+          description: The project's own status, plus the category every report reasons about.
+          properties:
+            id: { type: string }
+            name: { type: string }
+            category: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE] }
+        priority: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] }
+        assignee:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/User" }]
+        reporter:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/User" }]
+        storyPoints: { type: integer, nullable: true }
+        parentId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        dueDate: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version:
+          type: integer
+          description: Send back as `expectedVersion` when writing, or risk overwriting somebody.
+
+    IssueCreate:
+      type: object
+      required: [type, title]
+      properties:
+        type: { type: string, enum: [EPIC, STORY, TASK, BUG] }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string }
+        priority: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST], default: MEDIUM }
+        assigneeId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        storyPoints: { type: integer, nullable: true }
+        dueDate: { type: string, format: date-time, nullable: true }
+
+    IssueUpdate:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        priority: { type: string, enum: [LOWEST, LOW, MEDIUM, HIGH, HIGHEST] }
+        assigneeId: { type: string, nullable: true }
+        epicId: { type: string, nullable: true }
+        storyPoints: { type: integer, nullable: true }
+        dueDate: { type: string, format: date-time, nullable: true }
+
+    Comment:
+      type: object
+      properties:
+        id: { type: string }
+        issueId: { type: string }
+        body: { type: string }
+        author:
+          nullable: true
+          description: Null when an automation rule posted it — see `automated`.
+          allOf: [{ $ref: "#/components/schemas/User" }]
+        automated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    WebhookEvent:
+      type: string
+      enum: [issue.created, issue.updated, issue.deleted, comment.created]
+      description: >
+        A status change arrives as `issue.updated` carrying the new status — a
+        separate event would make every subscriber handle two things to learn
+        one.
+
+    Webhook:
+      type: object
+      properties:
+        id: { type: string }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/WebhookEvent" }
+        active: { type: boolean }
+        consecutiveFailures: { type: integer }
+        disabledReason:
+          type: string
+          nullable: true
+          description: Set when auto-disabled after 10 consecutive failed deliveries.
+        createdAt: { type: string, format: date-time }
+
+    WebhookWithSecret:
+      allOf:
+        - $ref: "#/components/schemas/Webhook"
+        - type: object
+          properties:
+            secret:
+              type: string
+              description: Returned once, on creation. There is no way to read it back.
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: string }
+        event: { type: string }
+        status: { type: string, enum: [PENDING, SUCCEEDED, FAILED] }
+        attempts: { type: integer }
+        nextAttemptAt: { type: string, format: date-time, nullable: true }
+        responseCode: { type: integer, nullable: true }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+  # ── Webhook payloads (not an HTTP path — this is what WE send YOU) ─────────
+  # Documented here rather than as a `webhooks:` block so the shape and the
+  # verification recipe sit together; the recipe is the part people get wrong.
+  examples:
+    WebhookPayload:
+      summary: What arrives at your endpoint
+      value:
+        event: issue.updated
+        deliveryId: cly8x…
+        occurredAt: "2026-08-22T14:03:00.000Z"
+        organizationId: org_…
+        data:
+          id: cly7…
+          key: VWP-1301
+          title: Login fails on Safari
+          status: { id: st_…, name: In Review, category: IN_REVIEW }
+    WebhookVerification:
+      summary: Verify it — Node
+      value: |
+        const crypto = require("node:crypto");
+
+        // Use the RAW body. Re-serialising a parsed object will not match.
+        function verify(rawBody, headers, secret) {
+          const timestamp = headers["x-eagles-timestamp"];
+          const expected =
+            "sha256=" +
+            crypto.createHmac("sha256", secret)
+                  .update(`${timestamp}.${rawBody}`)
+                  .digest("hex");
+
+          const a = Buffer.from(headers["x-eagles-signature"] ?? "");
+          const b = Buffer.from(expected);
+          if (a.length !== b.length) return false;
+          if (!crypto.timingSafeEqual(a, b)) return false;
+
+          // Reject anything outside five minutes. Without this a captured
+          // request stays valid forever.
+          return Math.abs(Date.now() / 1000 - Number(timestamp)) <= 300;
+        }

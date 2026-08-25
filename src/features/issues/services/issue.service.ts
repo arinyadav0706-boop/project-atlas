@@ -51,6 +51,8 @@ import { CustomFieldService } from "@/features/custom-fields/services/custom-fie
 import { DependencyService } from "@/features/dependencies/services/dependency.service";
 import { AutomationService } from "@/features/automations/services/automation.service";
 import { RecurrenceService } from "@/features/recurrence/services/recurrence.service";
+import { WebhookService } from "@/features/public-api/services/webhook.service";
+import { toPublicIssue } from "@/features/public-api/services/public-mapper";
 import type { IssueLinksDto } from "@/features/dependencies/types/dependency.types";
 import type { AutomationTriggerDto } from "@/features/automations/types/automation.types";
 
@@ -422,7 +424,14 @@ export const IssueService = {
     // Re-read only when a rule actually wrote, so an unautomated project pays
     // nothing: `row` was fetched before the rules ran and would otherwise show
     // the priority the issue held for the millisecond before it was escalated.
-    return await toDetailDto(await refreshed(row, automated), actor, role);
+    const finalRow = await refreshed(row, automated);
+    const dto = await toDetailDto(finalRow, actor, role);
+    // After the write commits, never inside it, and best-effort: a webhook may
+    // not slow or fail the action a person took (ADR-0052 §8). Emitted AFTER
+    // the automation dispatch so subscribers see the issue as it ended up,
+    // not as it was for the millisecond before a rule escalated it.
+    await WebhookService.emit(context.organizationId, "issue.created", toPublicIssue(dto));
+    return dto;
   },
 
   async update(
@@ -605,7 +614,9 @@ export const IssueService = {
           issueId,
         })) || automated;
     }
-    return await toDetailDto(await refreshed(row, automated), actor, role);
+    const dto = await toDetailDto(await refreshed(row, automated), actor, role);
+    await WebhookService.emit(context.organizationId, "issue.updated", toPublicIssue(dto));
+    return dto;
   },
 
   /**
@@ -704,7 +715,12 @@ export const IssueService = {
       organizationId: context.organizationId,
       issueId,
     });
-    return await toDetailDto(await refreshed(row, automated), actor, role);
+    const dto = await toDetailDto(await refreshed(row, automated), actor, role);
+    // A status change is an update, not an event of its own: `issue.updated`
+    // carries the new status, and a separate `issue.status_changed` would make
+    // every subscriber handle two events to learn one thing.
+    await WebhookService.emit(context.organizationId, "issue.updated", toPublicIssue(dto));
+    return dto;
   },
 
   // Board/Backlog reorder (05_board.md BR-3/BR-4, 06_backlog.md, ADR-0009,
@@ -838,7 +854,9 @@ export const IssueService = {
         organizationId: context.organizationId,
         issueId: existing.id,
       });
-      return await toDetailDto(await refreshed(row, automated), actor, role);
+      const dto = await toDetailDto(await refreshed(row, automated), actor, role);
+      await WebhookService.emit(context.organizationId, "issue.updated", toPublicIssue(dto));
+      return dto;
     }
     return await toDetailDto(row, actor, role);
   },
@@ -975,5 +993,10 @@ export const IssueService = {
       await IssueRepository.softDeleteSubtasks(existing.id, actor.userId);
     }
     await IssueRepository.softDelete(issueId, actor.userId);
+    await WebhookService.emit(context.organizationId, "issue.deleted", {
+      id: existing.id,
+      key: existing.key,
+      projectId: existing.projectId,
+    });
   },
 };

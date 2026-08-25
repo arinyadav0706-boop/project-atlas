@@ -27,6 +27,8 @@ import type {
   MentionableListDto,
 } from "@/features/comments/types/comment.types";
 import { parseMentions, plainPreview } from "@/features/comments/lib/mentions";
+import { WebhookService } from "@/features/public-api/services/webhook.service";
+import { toPublicComment } from "@/features/public-api/services/public-mapper";
 import type {
   CreateCommentInput,
   UpdateCommentInput,
@@ -330,7 +332,10 @@ export const CommentService = {
         participantIds: [target.assigneeId, target.reporterId, ...participants],
       });
     }
-    return toDto(row, actor, role, context.status);
+    const dto = toDto(row, actor, role, context.status);
+    // After the write commits, best-effort (ADR-0052 §8).
+    await WebhookService.emit(context.organizationId, "comment.created", toPublicComment(dto));
+    return dto;
   },
 
   // BR-3: only the author may edit; OCC (ADR-0011) rejects a stale edit.

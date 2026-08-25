@@ -85,6 +85,27 @@ export const IssueRepository = {
     });
   },
 
+  /**
+   * An issue's id from the key a human has in front of them (`VWP-1301`).
+   *
+   * For the public API, where the key is what appears in a Slack message, a
+   * commit and a support ticket — an integration that can only address issues
+   * by cuid forces every caller to look one up first.
+   *
+   * Org-scoped rather than global: keys are unique per project, and two
+   * organizations may both have a project keyed `OPS` (F-1).
+   */
+  findIdByKey(organizationId: string, key: string) {
+    return prisma.issue.findFirst({
+      where: {
+        key: { equals: key, mode: "insensitive" },
+        deletedAt: null,
+        project: { organizationId },
+      },
+      select: { id: true },
+    });
+  },
+
   // A project's epics for selectors + the board Epic filter (ADR-0026). Lean
   // summary, newest first so recent epics surface at the top of the picker.
   listEpics(projectId: string) {

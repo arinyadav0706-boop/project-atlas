@@ -186,6 +186,8 @@ model Organization {
   auditLogs    AuditLog[]
   featureFlags FeatureFlag[]
   teams        Team[]
+  apiTokens    ApiToken[]
+  webhooks     Webhook[]
 
   @@map("organizations")
 }
@@ -270,6 +272,7 @@ model User {
   managedTeams       Team[]           @relation("TeamManager")
   teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
   recurrences        RecurringIssue[] @relation("RecurrenceReporter")
+  apiTokens          ApiToken[]       @relation("ApiTokenOwner")
   recurrenceTargets  RecurringIssue[] @relation("RecurrenceAssignee")
 
   @@index([organizationId])
@@ -390,6 +393,113 @@ model WorkflowStatus {
 /// Per project, like statuses, and for the same reasons — no scheme
 /// indirection, no join to answer "what automates this project", and a nullable
 /// scope can widen it later without moving a row (backlog AUT-4).
+/// A personal access token for the public API (ADR-0052 §2).
+///
+/// Acts as its owner and can never exceed them (BR-2): every call resolves an
+/// Actor and goes through the permission engine, so scopes narrow and never
+/// widen what the person could already do.
+model ApiToken {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  /// The token acts as this person.
+  userId         String
+  user           User         @relation("ApiTokenOwner", fields: [userId], references: [id])
+  name           String
+  /// The lookup half of `eag_<publicId>_<secret>`. Indexed, not secret: without
+  /// it, verifying a token means hashing against every row in the table.
+  publicId       String       @unique
+  /// SHA-256 of the secret half, shown exactly once at creation and
+  /// unrecoverable after (BR-4). A token store that can display its own secrets
+  /// is a breach waiting for one bad export.
+  secretHash     String
+  scopes         String[]
+  /// An API surface with no way to answer "is this still in use" cannot be
+  /// safely cleaned up (BR-14).
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("api_tokens")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+/// An outbound webhook (ADR-0052 §7-§9). Per organization, managed by an org
+/// ADMIN.
+model Webhook {
+  id                  String       @id @default(cuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  url                 String
+  /// The receiver's half of the HMAC. Shown once, like a token secret — but
+  /// stored in the clear because signing REQUIRES the original bytes, unlike a
+  /// token which only ever needs to be compared.
+  secret              String
+  /// `resource.action` names (BR-11).
+  events              String[]
+  active              Boolean      @default(true)
+  /// Reset on any success. Ten in a row switches the webhook off (BR-10).
+  consecutiveFailures Int          @default(0)
+  /// Why it was auto-disabled. Disabled rather than deleted, so the
+  /// configuration survives to be fixed and re-enabled.
+  disabledReason      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  deliveries WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhooks")
+}
+
+/// One attempt-tracked delivery (BR-9).
+///
+/// A row rather than an in-process retry loop: the request that produced the
+/// event has already returned, and the retry has to survive the process ending.
+/// The existing scheduler tick (ADR-0051) drains this.
+model WebhookDelivery {
+  id            String                @id @default(cuid())
+  webhookId     String
+  /// Cascade, explicitly: a delivery is meaningless without the webhook it
+  /// belongs to, and Prisma's default for a required relation is Restrict —
+  /// which would not match the SQL and would block a hard delete forever.
+  /// Webhooks are soft-deleted anyway, so this only ever fires on a manual one.
+  webhook       Webhook               @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event         String
+  payload       Json
+  status        WebhookDeliveryStatus @default(PENDING)
+  attempts      Int                   @default(0)
+  /// When the scheduler should try again; null once settled.
+  nextAttemptAt DateTime?
+  responseCode  Int?
+  error         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The scheduler's only read: what is pending and due.
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+  @@map("webhook_deliveries")
+}
+
 enum RecurrenceMode {
   /// Fires on the calendar regardless of the last instance.
   FIXED_SCHEDULE

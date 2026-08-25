@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Camera, Trash2, UserRound } from "lucide-react";
+import { Camera, KeyRound, Trash2, UserRound } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
@@ -152,6 +152,16 @@ export function ProfileView({ profile }: { profile: ProfileDto }) {
         icon={<UserRound />}
         title="Profile"
         subtitle="Manage how you appear across EAGLES and your personal preferences."
+        actions={
+          // Tokens are personal, so Developer belongs beside the rest of a
+          // person's own settings rather than in the admin console.
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/developer">
+              <KeyRound className="h-4 w-4" />
+              Developer
+            </Link>
+          </Button>
+        }
       />
 
       {/* Identity */}

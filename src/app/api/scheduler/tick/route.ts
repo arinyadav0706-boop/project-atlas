@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
 import { RecurrenceService } from "@/features/recurrence/services/recurrence.service";
+import { WebhookService } from "@/features/public-api/services/webhook.service";
 import { schedulerSecret } from "@/shared/lib/env";
 import { UnauthorizedError } from "@/shared/lib/errors";
 
@@ -14,9 +15,13 @@ import { UnauthorizedError } from "@/shared/lib/errors";
 // is unset every request is refused: an unauthenticated scheduler endpoint is
 // an unauthenticated issue factory.
 //
-// Idempotent by construction (BR-5): each due recurrence is claimed with a
-// conditional update, so two overlapping ticks create one issue between them
-// and a retry after a timeout is safe.
+// Idempotent by construction: both drains claim each row with a conditional
+// update before acting, so two overlapping ticks share the work rather than
+// duplicating it, and a retry after a timeout is safe.
+//
+// Two jobs, one endpoint (ADR-0052 §8): recurring issues that are due, and
+// webhook deliveries waiting to be retried. A second cron for the second job
+// would be a second thing to configure and forget.
 
 /** Never cached, never prerendered — it has to observe the clock. */
 export const dynamic = "force-dynamic";
@@ -42,10 +47,26 @@ function assertScheduler(request: NextRequest): void {
   }
 }
 
+/** Both drains. Independent, so one failing does not starve the other. */
+async function runTick() {
+  const [recurrences, webhooks] = await Promise.allSettled([
+    RecurrenceService.runDue(),
+    WebhookService.runDue(),
+  ]);
+  return {
+    recurrences:
+      recurrences.status === "fulfilled"
+        ? recurrences.value
+        : { error: String(recurrences.reason) },
+    webhooks:
+      webhooks.status === "fulfilled" ? webhooks.value : { error: String(webhooks.reason) },
+  };
+}
+
 export async function POST(request: NextRequest) {
   return handleRoute(async () => {
     assertScheduler(request);
-    return NextResponse.json(await RecurrenceService.runDue());
+    return NextResponse.json(await runTick());
   });
 }
 
@@ -61,6 +82,6 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   return handleRoute(async () => {
     assertScheduler(request);
-    return NextResponse.json(await RecurrenceService.runDue());
+    return NextResponse.json(await runTick());
   });
 }
