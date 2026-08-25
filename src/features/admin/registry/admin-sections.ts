@@ -1,5 +1,6 @@
 import {
   Building2,
+  GitBranch,
   Flag,
   ScrollText,
   SlidersHorizontal,
@@ -55,6 +56,14 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
     capability: AdminCapability.MANAGE_CUSTOM_FIELDS,
     icon: SlidersHorizontal,
     order: 19,
+  },
+  {
+    id: "code",
+    label: "Code",
+    href: "/admin/code",
+    capability: AdminCapability.MANAGE_CODE_CONNECTIONS,
+    icon: GitBranch,
+    order: 20,
   },
   {
     id: "feature-flags",

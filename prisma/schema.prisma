@@ -176,18 +176,19 @@ model Organization {
   updatedBy String?
   deletedAt DateTime?
 
-  users        User[]
-  projects     Project[]
-  savedViews   SavedView[]
-  customFields CustomFieldDefinition[]
-  dashboards   Dashboard[]
-  issueLinks   IssueLink[]
-  labels       Label[]
-  auditLogs    AuditLog[]
-  featureFlags FeatureFlag[]
-  teams        Team[]
-  apiTokens    ApiToken[]
-  webhooks     Webhook[]
+  users           User[]
+  projects        Project[]
+  savedViews      SavedView[]
+  customFields    CustomFieldDefinition[]
+  dashboards      Dashboard[]
+  issueLinks      IssueLink[]
+  labels          Label[]
+  auditLogs       AuditLog[]
+  featureFlags    FeatureFlag[]
+  teams           Team[]
+  apiTokens       ApiToken[]
+  webhooks        Webhook[]
+  codeConnections CodeConnection[]
 
   @@map("organizations")
 }
@@ -500,6 +501,96 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+/// Git hosts EAGLES can receive events from (ADR-0053).
+///
+/// One value today. Adding GITHUB is this line plus one adapter file — the
+/// provider interface, not this enum, is what makes that true (BR-1).
+enum CodeProvider {
+  GITLAB
+}
+
+enum CodeLinkKind {
+  BRANCH
+  COMMIT
+  MERGE_REQUEST
+}
+
+enum CodeLinkState {
+  OPEN
+  MERGED
+  CLOSED
+  /// Branches and commits have no lifecycle of their own.
+  NONE
+}
+
+/// A connection to one git host, per organization (ADR-0053 §8).
+model CodeConnection {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  name            String
+  provider        CodeProvider @default(GITLAB)
+  /// Self-managed GitLab is the common case, so the host is data rather than
+  /// configuration. Also what the panel builds outbound links from.
+  baseUrl         String
+  /// Verified per provider (BR-1): GitLab compares it verbatim, GitHub would
+  /// HMAC the body with it. Shown to a human exactly once, at creation.
+  secret          String
+  active          Boolean      @default(true)
+  /// The status an issue moves to when its merge request merges (BR-7). Null —
+  /// the default — means do nothing, because a team that reviews after merge
+  /// would otherwise find its board wrong every day.
+  onMergeStatusId String?
+  /// Answers "is this hook actually wired up", which is the first question
+  /// anybody asks when nothing is appearing.
+  lastEventAt     DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  links CodeLink[]
+
+  @@index([organizationId])
+  @@map("code_connections")
+}
+
+/// A branch, commit or merge request attached to an issue.
+///
+/// Deliberately provider-neutral: nothing here says GitLab, so the panel and
+/// every future consumer work unchanged when a second adapter lands (BR-4).
+model CodeLink {
+  id             String         @id @default(cuid())
+  issueId        String
+  issue          Issue          @relation(fields: [issueId], references: [id])
+  connectionId   String
+  connection     CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  provider       CodeProvider
+  kind           CodeLinkKind
+  /// Provider-side identity — a merge-request iid, a commit sha, a branch name.
+  externalId     String
+  title          String
+  url            String
+  state          CodeLinkState  @default(NONE)
+  authorName     String?
+  repository     String
+  /// Latest pipeline/check status for this ref, when the provider reports one.
+  pipelineStatus String?
+  occurredAt     DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The natural key that makes redelivery free (BR-5). Providers retry, and a
+  /// panel listing the same merge request four times is one nobody trusts.
+  @@unique([issueId, provider, kind, externalId])
+  @@index([issueId])
+  @@index([connectionId])
+  @@map("code_links")
+}
+
 enum RecurrenceMode {
   /// Fires on the calendar regardless of the last instance.
   FIXED_SCHEDULE
@@ -778,6 +869,7 @@ model Issue {
   /// The recurrence that created this issue (ADR-0051 §9). A back-pointer
   /// rather than a log table: a recurrence that fires produces an issue, and
   /// the issue IS the record.
+  codeLinks       CodeLink[]
   recurrenceId    String?
   recurrence      RecurringIssue? @relation("RecurrenceIssues", fields: [recurrenceId], references: [id])
 

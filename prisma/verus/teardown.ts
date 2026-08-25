@@ -70,8 +70,32 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
   //     AND ccu.table_name = ANY (ARRAY['issues','projects','organizations'])
   //     AND tc.table_name <> ccu.table_name;
   await prisma.customFieldValue.deleteMany({ where: inOrgIssue });
+  // Code links (ADR-0053) hang off issues with RESTRICT, so they go before the
+  // issues do — and before their connection, which cascades but is cheaper to
+  // clear explicitly.
+  await prisma.codeLink.deleteMany({ where: inOrgIssue });
   await prisma.issueLink.deleteMany({ where: { organizationId: orgId } });
   await prisma.issue.deleteMany({ where: { project: { organizationId: orgId } } });
+  // ── Modules 30-34, added after the block above was last corrected ─────────
+  //
+  // Every one of these was missed when it shipped, exactly as the comment
+  // above predicted. A re-seed only survived because the tables happened to be
+  // empty; the first VERUS automation rule or code link would have broken it
+  // with a bare P2003 again.
+  //
+  // Ordering is by dependency, not by module: transitions point at statuses,
+  // statuses are pointed at by issues (already gone), runs point at rules, and
+  // everything points at the project.
+  await prisma.statusTransition.deleteMany({
+    where: { project: { organizationId: orgId } },
+  });
+  await prisma.workflowStatus.deleteMany({ where: { organizationId: orgId } });
+  await prisma.automationRun.deleteMany({
+    where: { project: { organizationId: orgId } },
+  });
+  // Comments reference a rule with RESTRICT (ADR-0050 §4) and are already gone.
+  await prisma.automationRule.deleteMany({ where: { organizationId: orgId } });
+  await prisma.recurringIssue.deleteMany({ where: { organizationId: orgId } });
   await prisma.component.deleteMany({ where: { project: { organizationId: orgId } } });
   await prisma.sprint.deleteMany({ where: { project: { organizationId: orgId } } });
   await prisma.projectMember.deleteMany({ where: { project: { organizationId: orgId } } });
@@ -94,6 +118,15 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
   await prisma.team.deleteMany({ where: { organizationId: orgId } });
   await prisma.featureFlag.deleteMany({ where: { organizationId: orgId } });
   await prisma.label.deleteMany({ where: { organizationId: orgId } });
+  // Org-level integration tables (ADR-0052, ADR-0053). Deliveries and links
+  // cascade from their parent, but clearing them explicitly keeps the delete
+  // one statement each rather than a cascade nobody can see in this file.
+  await prisma.webhookDelivery.deleteMany({
+    where: { webhook: { organizationId: orgId } },
+  });
+  await prisma.webhook.deleteMany({ where: { organizationId: orgId } });
+  await prisma.codeConnection.deleteMany({ where: { organizationId: orgId } });
+  await prisma.apiToken.deleteMany({ where: { organizationId: orgId } });
 
   if (adoptedIds.length > 0) {
     const home = await prisma.organization.findFirst({

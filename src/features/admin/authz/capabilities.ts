@@ -19,6 +19,10 @@ export const AdminCapability = {
   // this governs the DEFINITIONS only; enabling a field on a project is a
   // project-LEAD action, and setting a value is an ordinary issue edit.
   MANAGE_CUSTOM_FIELDS: "MANAGE_CUSTOM_FIELDS",
+  // Code integration (module 34, ADR-0053) — connections to a git host. Org
+  // level rather than project level because a connection holds a secret and
+  // spans every project the organization has.
+  MANAGE_CODE_CONNECTIONS: "MANAGE_CODE_CONNECTIONS",
 } as const;
 
 export type AdminCapability = (typeof AdminCapability)[keyof typeof AdminCapability];

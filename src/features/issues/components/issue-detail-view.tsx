@@ -41,6 +41,7 @@ import { IssueDescription } from "./issue-description";
 import { SubtaskPanel } from "./subtask-panel";
 import { ConvertIssueDialog } from "./convert-issue-dialog";
 import { LinkPanel } from "@/features/dependencies/components/link-panel";
+import { DevelopmentPanel } from "@/features/code-integration/components/development-panel";
 import { StatusSwatch } from "@/features/workflow/components/status-swatch";
 import {
   blankRecurrence,
@@ -175,6 +176,11 @@ export function IssueDetailView({
         )}
 
         <LinkPanel issueId={issue.id} links={issue.links} canEdit={issue.canEdit} />
+
+        {/* Branches, commits and merge requests (34_code_integration.md §6).
+            Below Linked issues, because a dependency is a decision somebody
+            made and this is evidence of work — the decision reads first. */}
+        <DevelopmentPanel issueId={issue.id} />
       </div>
 
       {/* One sheet for the whole metadata rail, with hairline rules between
