@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/shared/lib/err
 import { logSwallowed } from "@/shared/lib/swallowed";
 import { automationActor, type Actor } from "@/shared/types/actor";
 import { adapterFor } from "@/features/code-integration/lib/registry";
+import { providerSetup } from "@/features/code-integration/lib/provider-catalog";
 import { findIssueKeysIn } from "@/features/code-integration/lib/issue-keys";
 import {
   searchableText,
@@ -29,14 +30,14 @@ function toConnectionDto(row: CodeConnectionRow, appUrl?: string): CodeConnectio
   return {
     id: row.id,
     name: row.name,
-    provider: row.provider,
+    provider: row.provider as CodeProviderId,
     baseUrl: row.baseUrl,
     active: row.active,
     onMergeStatusId: row.onMergeStatusId,
     lastEventAt: row.lastEventAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     webhookUrl: appUrl ? `${appUrl}/api/integrations/code/${row.id}` : null,
-    eventsToEnable: adapterFor(row.provider as CodeProviderId).webhookEventsToEnable,
+    eventsToEnable: providerSetup(row.provider as CodeProviderId).eventsToEnable,
   };
 }
 

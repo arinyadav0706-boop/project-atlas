@@ -9,7 +9,7 @@ export type CodeLinkStateDto = "OPEN" | "MERGED" | "CLOSED" | "NONE";
 export interface CodeConnectionDto {
   id: string;
   name: string;
-  provider: string;
+  provider: CodeProviderId;
   baseUrl: string;
   active: boolean;
   /** Null means "do nothing when a merge request merges" — the default (BR-7). */

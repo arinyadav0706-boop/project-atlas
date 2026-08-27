@@ -503,10 +503,12 @@ model WebhookDelivery {
 
 /// Git hosts EAGLES can receive events from (ADR-0053).
 ///
-/// One value today. Adding GITHUB is this line plus one adapter file — the
-/// provider interface, not this enum, is what makes that true (BR-1).
+/// A third value is this line plus one adapter file — the provider interface,
+/// not this enum, is what makes that true (BR-1). ADR-0053 §9 scores that claim
+/// against what adding GITHUB actually cost.
 enum CodeProvider {
   GITLAB
+  GITHUB
 }
 
 enum CodeLinkKind {
@@ -530,11 +532,12 @@ model CodeConnection {
   organization    Organization @relation(fields: [organizationId], references: [id])
   name            String
   provider        CodeProvider @default(GITLAB)
-  /// Self-managed GitLab is the common case, so the host is data rather than
-  /// configuration. Also what the panel builds outbound links from.
+  /// Self-managed GitLab and GitHub Enterprise are both common, so the host is
+  /// data rather than configuration. Also the fallback the panel builds links
+  /// from when a payload carries no absolute URL.
   baseUrl         String
-  /// Verified per provider (BR-1): GitLab compares it verbatim, GitHub would
-  /// HMAC the body with it. Shown to a human exactly once, at creation.
+  /// Verified per provider (BR-1): GitLab compares it verbatim, GitHub HMACs
+  /// the raw body with it. Shown to a human exactly once, at creation.
   secret          String
   active          Boolean      @default(true)
   /// The status an issue moves to when its merge request merges (BR-7). Null —

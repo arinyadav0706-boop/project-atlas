@@ -1,7 +1,7 @@
 # ADR-0053 — Code integration (GitLab first, provider-agnostic)
 
 - **Status:** Accepted
-- **Date:** 2026-08-22
+- **Date:** 2026-08-22 (amended 2026-08-27 — §9 adds GitHub)
 - **Module:** `docs/02_Modules/34_code_integration.md`
 - **Relates to:** ADR-0052 (public API and webhooks), ADR-0024 (permission
   engine), ADR-0049 (statuses), ADR-0050 (automations), ADR-0004 (portability)
@@ -117,26 +117,75 @@ A connection carries a webhook secret and, later, a token. A project lead
 configuring one would be a lead of one project opening a channel into the whole
 organization's data — the same reasoning as webhooks in ADR-0052 §12.
 
+### 9. GitHub (added 2026-08-27), and what the seam actually cost
+
+The claim in §1 was that a second provider would be a new file rather than a
+rewrite. It was tested five days later. The honest accounting:
+
+**What was a new file.** `lib/github.ts` — 1 adapter, `verify` + `parse`. Plus
+one enum value, one line in the registry, and a provider picker in the admin
+dialog. No change to the linking service, the repository, the endpoint, the
+Development panel, the key parser, or any type outside the adapter. The seam
+held.
+
+**Where the two providers genuinely disagree**, all of it absorbed inside the
+adapter:
+
+| | GitLab | GitHub |
+|---|---|---|
+| Auth | secret verbatim in `X-Gitlab-Token` | HMAC-SHA256 of the raw body in `X-Hub-Signature-256` |
+| Event name | `object_kind` **in the body** | `X-GitHub-Event` **header only** — the body says nothing |
+| Merge request | `state: "merged"` | `state: "closed"` + `merged: true` |
+| Branch deletion | ref present, no commits | `deleted: true`, `after` all zeroes |
+| CI | `Pipeline Hook`, `status` | `check_suite`, `status` *and* `conclusion` |
+| Repo path | `path_with_namespace` | `full_name` |
+| Branch URL | `/-/tree/x` | `/tree/x` |
+
+**The one that would have been a silent bug.** GitHub has no merged state. A
+merged pull request arrives as `state: "closed"` with `merged: true`. An adapter
+that read `state` alone would mark every merged PR **Closed** on the panel and
+would never fire the on-merge transition in §6 — and it would look correct in
+review, because `closed` is a real GitHub state that maps to a real link state.
+It is only wrong for the one case anybody cares about. This is covered by a test
+that asserts MERGED, not by a reviewer's attention.
+
+**What the header-only event name cost.** The GitLab adapter prefers
+`object_kind` from the body and falls back to the header, because a proxy may
+drop the header. GitHub has no body equivalent, so `X-GitHub-Event` is
+load-bearing: a proxy that strips it makes every delivery unparseable. That is
+GitHub's design; the adapter answers 200 with "nothing to link" rather than
+failing, which per BR-8 is right but is also indistinguishable from a hook that
+is simply quiet. The `lastEventAt` field is what tells the difference.
+
+**Still no outbound calls** (§7). This adds a second provider to receive from,
+not the ability to call either one. Create-branch, backfill and posting back
+remain out.
+
 ## Consequences
 
 **Good.** The manual bookkeeping goes away, and the panel answers "is this
 actually done" with evidence rather than a status somebody remembered to change.
-No configuration to drift. Self-managed GitLab works, because the connection
-carries its own base URL. Adding GitHub is one adapter plus one enum value.
+No configuration to drift. Self-managed GitLab and GitHub Enterprise both work,
+because the connection carries its own base URL. A company can run both hosts at
+once — during a migration, or after an acquisition — and the panel shows links
+from both on the same issue without knowing they came from different products.
 
 **Costs.** One implementation does not prove an abstraction — see below. Nothing
 appears until somebody types a key, so adoption depends on a habit. Without
 outbound calls we cannot backfill history: a repository connected today shows
 nothing that happened yesterday. No smart-commit commands (`#close`, `#time`).
 
-**How proven is the seam, honestly.** The interface was shaped by two providers'
-documented behaviour, not one, and the verification split above is a real
-difference it already accommodates. But it has exactly one implementation, and
-the parts most likely to move when GitHub lands are: the repository identity
-shape (GitLab has numeric ids and a namespaced path; GitHub has `owner/repo`),
-pipeline/check-run semantics, which differ more than merge requests do, and
-pagination if outbound calls are ever added. Those are extensions, not rewrites —
-but claiming the seam is proven would be claiming something untested.
+**How proven is the seam — answered.** This paragraph originally said the
+interface had one implementation and that calling it proven would be claiming
+something untested. It now has two, and the prediction can be scored: it named
+repository identity, pipeline/check semantics and pagination as the parts most
+likely to move. Two of the three were right and both were absorbed inside the
+adapter (`full_name` vs `path_with_namespace`; `check_suite`'s split of `status`
+and `conclusion`). Pagination did not arise, because §7 still holds. The one it
+missed entirely is the merge-request state mapping in §9 — the difference that
+would actually have shipped a bug. Two implementations is not proof for a third,
+but the interface absorbed a provider it was not written against without a
+signature change, which is the strongest evidence available short of a third.
 
 **Not decided here.** Smart-commit commands, posting back to the provider,
 backfilling history, linking a repository to a project as first-class metadata,

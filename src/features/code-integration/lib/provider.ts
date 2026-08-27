@@ -4,7 +4,7 @@
 // word "gitlab" appears anywhere except an adapter and the registry, the
 // abstraction has leaked and the next provider is a rewrite rather than a file.
 
-export const CODE_PROVIDERS = ["GITLAB"] as const;
+export const CODE_PROVIDERS = ["GITLAB", "GITHUB"] as const;
 export type CodeProviderId = (typeof CODE_PROVIDERS)[number];
 
 export interface CodeRepository {
@@ -97,8 +97,6 @@ export interface ParseInput {
  */
 export interface CodeProviderAdapter {
   id: CodeProviderId;
-  /** What a human should tick when creating the hook on the other side. */
-  webhookEventsToEnable: string[];
   verify(input: VerifyInput): boolean;
   /**
    * Normalise, or `null` for an event kind this module does not model.

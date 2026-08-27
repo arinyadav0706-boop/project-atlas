@@ -15,6 +15,11 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import {
+  PROVIDER_LIST,
+  providerSetup,
+} from "@/features/code-integration/lib/provider-catalog";
+import type { CodeProviderId } from "@/features/code-integration/lib/provider";
 import type { CodeConnectionDto } from "@/features/code-integration/types/code-integration.types";
 
 // Admin → Code (34_code_integration.md §6).
@@ -23,6 +28,10 @@ import type { CodeConnectionDto } from "@/features/code-integration/types/code-i
 // product's UI. So the two things they need to paste — the webhook URL and the
 // secret — appear together, at the moment they are needed, alongside the exact
 // checkboxes to tick on the other side.
+//
+// Note what is NOT in this file: the word GitLab, the word GitHub, and any
+// branch on which one is selected. Every provider-specific string comes from
+// the catalog, so a third provider adds itself to the picker (BR-4).
 
 function Copyable({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -70,11 +79,29 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
   const [connections, setConnections] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("GitLab");
-  const [baseUrl, setBaseUrl] = useState("https://gitlab.com");
+  const [provider, setProvider] = useState<CodeProviderId>(PROVIDER_LIST[0]!.id);
+  const [name, setName] = useState(PROVIDER_LIST[0]!.label);
+  const [baseUrl, setBaseUrl] = useState(PROVIDER_LIST[0]!.defaultBaseUrl);
   const [revealed, setRevealed] = useState<
     (CodeConnectionDto & { secret: string }) | null
   >(null);
+
+  const setup = providerSetup(provider);
+
+  // Switching provider re-fills the two fields, because a host URL for the
+  // previous one is never right for the next. Only if they are still untouched
+  // defaults, though — silently discarding a name somebody typed to save them
+  // one edit is a bad trade.
+  const chooseProvider = (next: CodeProviderId) => {
+    const chosen = providerSetup(next);
+    setProvider(next);
+    setName((current) =>
+      PROVIDER_LIST.some((p) => p.label === current) ? chosen.label : current,
+    );
+    setBaseUrl((current) =>
+      PROVIDER_LIST.some((p) => p.defaultBaseUrl === current) ? chosen.defaultBaseUrl : current,
+    );
+  };
 
   const load = useCallback(async () => {
     try {
@@ -124,10 +151,14 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
         <h2 className="text-sm font-semibold text-foreground">How it works</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
           Put an issue key — <code className="font-mono text-xs">VWP-123</code> — in a
-          branch name, a commit message, or a merge request title or description. It shows
-          up on that issue&apos;s Development panel. Nothing to link by hand, and no
+          branch name, a commit message, or a pull/merge request title or description. It
+          shows up on that issue&apos;s Development panel. Nothing to link by hand, and no
           mapping between repositories and projects to maintain: the key already says
           which project it belongs to.
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          {PROVIDER_LIST.map((p) => p.label).join(" and ")} both work, including
+          self-hosted, and both at once — during a migration, or after an acquisition.
         </p>
       </section>
 
@@ -153,7 +184,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">{connection.name}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {connection.provider} · {connection.baseUrl} ·{" "}
+                    {providerSetup(connection.provider).label} · {connection.baseUrl} ·{" "}
                     <span
                       className={cn(
                         !connection.lastEventAt && "text-amber-600 dark:text-amber-400",
@@ -204,7 +235,8 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                 <div className="mt-4 space-y-3 border-t border-border pt-4">
                   <Copyable label="Webhook URL" value={connection.webhookUrl} />
                   <p className="text-[11px] text-muted-foreground">
-                    In {connection.provider}, add a webhook with this URL and tick:{" "}
+                    In {providerSetup(connection.provider).where}, add a webhook with this
+                    URL and tick:{" "}
                     <span className="text-foreground">
                       {connection.eventsToEnable.join(", ")}
                     </span>
@@ -230,10 +262,46 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
         <DialogContent className="w-[min(520px,94vw)]">
           <DialogTitle>Add a code connection</DialogTitle>
           <DialogDescription>
-            GitLab today, self-managed or gitlab.com. The provider is a plug-in point, so
-            others can be added without changing anything else.
+            Pick the host your code lives on. Everything after this is the same either
+            way.
           </DialogDescription>
           <div className="mt-4 space-y-4">
+            <div>
+              <p className="mb-1.5 text-xs font-medium">Provider</p>
+              <div
+                role="radiogroup"
+                aria-label="Provider"
+                className="grid grid-cols-2 gap-2"
+              >
+                {PROVIDER_LIST.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={provider === option.id}
+                    onClick={() => chooseProvider(option.id)}
+                    className={cn(
+                      "rounded-xl border px-3 py-2.5 text-left transition-colors",
+                      // `accent` is the token this design system actually has.
+                      // `primary` is not defined anywhere, so a selected state
+                      // written with it renders identically to an unselected
+                      // one — which is what this picker did until somebody
+                      // looked at it (backlog UI-3).
+                      provider === option.id
+                        ? "border-accent bg-accent/10 ring-1 ring-accent"
+                        : "border-border hover:bg-muted",
+                    )}
+                  >
+                    <span className="block text-[13px] font-medium text-foreground">
+                      {option.label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                      {option.baseUrlHint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label htmlFor="conn-name" className="mb-1.5 block text-xs font-medium">
                 Name
@@ -248,11 +316,9 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                 id="conn-url"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://gitlab.yourcompany.com"
+                placeholder={setup.defaultBaseUrl}
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Your GitLab instance. Self-managed is fine.
-              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{setup.baseUrlHint}</p>
             </div>
           </div>
           <div className="mt-5 flex justify-end gap-2">
@@ -268,7 +334,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                       "/api/admin/code-connections",
                       {
                         method: "POST",
-                        body: { name: name.trim(), provider: "GITLAB", baseUrl: baseUrl.trim() },
+                        body: { name: name.trim(), provider, baseUrl: baseUrl.trim() },
                       },
                     ),
                   "Connection created.",
@@ -289,9 +355,11 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
           the same form on the other side, within the same minute. */}
       <Dialog open={revealed !== null} onOpenChange={(o) => !o && setRevealed(null)}>
         <DialogContent className="w-[min(620px,94vw)]">
-          <DialogTitle>Finish the setup in {revealed?.provider}</DialogTitle>
+          <DialogTitle>
+            Finish the setup in {revealed ? providerSetup(revealed.provider).label : ""}
+          </DialogTitle>
           <DialogDescription>
-            Add a webhook there with these two values.
+            {revealed ? providerSetup(revealed.provider).where : ""}
           </DialogDescription>
           <div className="mt-4 space-y-3">
             <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
@@ -302,13 +370,31 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
               </p>
             </div>
             {revealed?.webhookUrl && (
-              <Copyable label="URL" value={revealed.webhookUrl} />
+              <Copyable label="Payload URL" value={revealed.webhookUrl} />
             )}
-            {revealed && <Copyable label="Secret token" value={revealed.secret} />}
+            {revealed && (
+              <Copyable
+                label={providerSetup(revealed.provider).secretFieldLabel}
+                value={revealed.secret}
+              />
+            )}
             <p className="text-xs text-muted-foreground">
               Tick these triggers:{" "}
               <span className="text-foreground">{revealed?.eventsToEnable.join(", ")}</span>
             </p>
+            {/* Settings whose absence breaks the integration in silence — the
+                only failure mode this screen can prevent and the endpoint
+                cannot report, because there is nothing to report. */}
+            {revealed && providerSetup(revealed.provider).mustDo.length > 0 && (
+              <ul className="space-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+                {providerSetup(revealed.provider).mustDo.map((note) => (
+                  <li key={note} className="flex items-start gap-1.5 text-xs text-foreground">
+                    <Check className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="mt-5 flex justify-end">
             <Button onClick={() => setRevealed(null)}>Done</Button>

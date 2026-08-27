@@ -135,7 +135,7 @@ function Chips<T extends string | null>({
             className={cn(
               "rounded-full border px-2.5 py-1 text-xs transition-colors",
               on
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-accent bg-accent/10 text-accent"
                 : "border-border text-muted-foreground hover:bg-muted",
             )}
           >

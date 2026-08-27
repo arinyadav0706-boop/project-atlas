@@ -153,13 +153,13 @@ function Chips<T extends string>({
             }
             className={cn(
               "flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors",
-              on ? "border-primary bg-primary/5" : "border-border hover:bg-muted",
+              on ? "border-accent bg-accent/10" : "border-border hover:bg-muted",
             )}
           >
             <span
               className={cn(
                 "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
-                on ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                on ? "border-accent bg-accent text-accent-foreground" : "border-border",
               )}
             >
               {on && <Check className="size-3" />}

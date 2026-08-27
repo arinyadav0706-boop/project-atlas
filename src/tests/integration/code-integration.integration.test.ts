@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/db";
 import { CodeIntegrationService } from "@/features/code-integration/services/code-integration.service";
@@ -421,5 +422,290 @@ describe("administration (AC-10)", () => {
 
     const listed = await CodeIntegrationService.list(s.adminActor);
     expect(listed[0]!.lastEventAt).not.toBeNull();
+  });
+});
+
+// ── GitHub ──────────────────────────────────────────────────────────────────
+//
+// The same service, the same tables, a different provider (ADR-0053 §9). These
+// tests deliberately go through `ingest` rather than the adapter, because the
+// question here is not "does the adapter parse GitHub" — `github.test.ts`
+// answers that — but "does a real GitHub delivery land in the database
+// identically to a GitLab one, with nothing between them that knows which".
+
+/** Seed an org whose connection is GitHub rather than GitLab. */
+async function seedGitHub(tag: string, projectKey = "VWP") {
+  const s = await seed(tag, projectKey);
+  const connection = await CodeIntegrationService.create(s.adminActor, {
+    name: "GitHub",
+    provider: "GITHUB",
+    baseUrl: "https://github.com",
+  });
+  return { ...s, connection };
+}
+
+const ghRepository = {
+  full_name: "team/service",
+  html_url: "https://github.com/team/service",
+};
+
+/** Post a delivery the way GitHub does: signed over the exact bytes sent. */
+function deliverGitHub(
+  s: Seeded,
+  event: string,
+  body: unknown,
+  options: { secret?: string; rawBody?: string } = {},
+) {
+  const rawBody = options.rawBody ?? JSON.stringify(body);
+  const signature = `sha256=${createHmac("sha256", options.secret ?? s.connection.secret)
+    .update(rawBody, "utf8")
+    .digest("hex")}`;
+  return CodeIntegrationService.ingest({
+    connectionId: s.connection.id,
+    headers: new Headers({ "x-github-event": event, "x-hub-signature-256": signature }),
+    rawBody,
+  });
+}
+
+const ghPush = (branch: string, commits: { id: string; message: string }[] = []) => ({
+  ref: `refs/heads/${branch}`,
+  repository: ghRepository,
+  pusher: { name: "priya" },
+  commits: commits.map((c) => ({ ...c, timestamp: "2026-08-27T10:00:00Z" })),
+});
+
+const ghPull = (over: Record<string, unknown> = {}) => ({
+  repository: ghRepository,
+  pull_request: {
+    number: 42,
+    title: "VWP-1 Add login",
+    body: null,
+    html_url: "https://github.com/team/service/pull/42",
+    state: "open",
+    merged: false,
+    head: { ref: "feature/VWP-1" },
+    user: { login: "priya" },
+    updated_at: "2026-08-27T11:00:00Z",
+    ...over,
+  },
+});
+
+describe("GitHub deliveries", () => {
+  it("accepts a correctly signed push and links the branch (AC-12)", async () => {
+    const s = await seedGitHub("ga");
+    const issue = await newIssue(s);
+
+    const outcome = await deliverGitHub(s, "push", ghPush("feature/VWP-1"));
+    expect(outcome.ok).toBe(true);
+
+    const links = await linksOf(issue.id);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ kind: "BRANCH", provider: "GITHUB", externalId: "feature/VWP-1" });
+  });
+
+  it.each([
+    ["a body changed after signing", { tampered: true }],
+    ["a signature from another secret", { secret: "someone-elses-secret" }],
+  ])("refuses %s with 401 (AC-12)", async (_label, how) => {
+    const s = await seedGitHub(_label === "a body changed after signing" ? "gb" : "gc");
+    await newIssue(s);
+    const body = ghPush("feature/VWP-1");
+
+    const outcome =
+      "tampered" in how
+        ? await CodeIntegrationService.ingest({
+            connectionId: s.connection.id,
+            headers: new Headers({
+              "x-github-event": "push",
+              "x-hub-signature-256": `sha256=${createHmac("sha256", s.connection.secret)
+                .update(JSON.stringify(body), "utf8")
+                .digest("hex")}`,
+            }),
+            // Signed one body, sent another.
+            rawBody: JSON.stringify(ghPush("feature/VWP-999")),
+          })
+        : await deliverGitHub(s, "push", body, { secret: how.secret });
+
+    expect(outcome).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("refuses a delivery with no signature header at all (AC-12)", async () => {
+    const s = await seedGitHub("gd");
+    const outcome = await CodeIntegrationService.ingest({
+      connectionId: s.connection.id,
+      headers: new Headers({ "x-github-event": "push" }),
+      rawBody: JSON.stringify(ghPush("feature/VWP-1")),
+    });
+    expect(outcome).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("refuses a GitLab-style verbatim token on a GitHub connection (AC-12)", async () => {
+    // The proof that verification is per-provider and not shared: the exact
+    // credential that works next door is rejected here.
+    const s = await seedGitHub("ge");
+    const outcome = await CodeIntegrationService.ingest({
+      connectionId: s.connection.id,
+      headers: new Headers({ "x-github-event": "push", "x-gitlab-token": s.connection.secret }),
+      rawBody: JSON.stringify(ghPush("feature/VWP-1")),
+    });
+    expect(outcome).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("links only the commits whose OWN message names the issue", async () => {
+    const s = await seedGitHub("gf");
+    const issue = await newIssue(s);
+
+    await deliverGitHub(
+      s,
+      "push",
+      ghPush("feature/VWP-1", [
+        { id: "aaaa1111", message: "VWP-1 add the form" },
+        { id: "bbbb2222", message: "chore: UTF-8 and ISO-8601 handling" },
+      ]),
+    );
+
+    const links = await linksOf(issue.id);
+    expect(links.filter((l) => l.kind === "COMMIT").map((l) => l.externalId)).toEqual([
+      "aaaa1111",
+    ]);
+  });
+
+  it("shows a merged pull request as MERGED, not CLOSED (AC-13, BR-14)", async () => {
+    const s = await seedGitHub("gg");
+    const issue = await newIssue(s);
+
+    await deliverGitHub(s, "pull_request", ghPull());
+    expect((await linksOf(issue.id))[0]).toMatchObject({ state: "OPEN" });
+
+    // GitHub's merged PR: state closed, merged true. Reading `state` alone
+    // would put "Closed" on the panel for every merged pull request.
+    await deliverGitHub(s, "pull_request", ghPull({ state: "closed", merged: true }));
+
+    const links = await linksOf(issue.id);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ state: "MERGED", externalId: "42" });
+  });
+
+  it("fires the on-merge transition for a merged pull request (AC-13)", async () => {
+    const s = await seedGitHub("gh");
+    const issue = await newIssue(s);
+    await CodeIntegrationService.update(s.adminActor, s.connection.id, {
+      onMergeStatusId: s.byCategory.DONE!.id,
+    });
+
+    await deliverGitHub(s, "pull_request", ghPull({ state: "closed", merged: true }));
+
+    const after = await prisma.issue.findUniqueOrThrow({ where: { id: issue.id } });
+    expect(after.statusId).toBe(s.byCategory.DONE!.id);
+  });
+
+  it("does NOT transition for a pull request closed without merging", async () => {
+    const s = await seedGitHub("gi");
+    const issue = await newIssue(s);
+    await CodeIntegrationService.update(s.adminActor, s.connection.id, {
+      onMergeStatusId: s.byCategory.DONE!.id,
+    });
+
+    await deliverGitHub(s, "pull_request", ghPull({ state: "closed", merged: false }));
+
+    const after = await prisma.issue.findUniqueOrThrow({ where: { id: issue.id } });
+    expect(after.statusId).not.toBe(s.byCategory.DONE!.id);
+  });
+
+  it("attaches a check_suite conclusion to the branch link", async () => {
+    const s = await seedGitHub("gj");
+    const issue = await newIssue(s);
+    await deliverGitHub(s, "push", ghPush("feature/VWP-1"));
+
+    await deliverGitHub(s, "check_suite", {
+      repository: ghRepository,
+      check_suite: {
+        head_branch: "feature/VWP-1",
+        head_sha: "aaaa1111",
+        status: "completed",
+        conclusion: "failure",
+        updated_at: "2026-08-27T12:00:00Z",
+      },
+    });
+
+    const branch = (await linksOf(issue.id)).find((l) => l.kind === "BRANCH");
+    expect(branch?.pipelineStatus).toBe("failure");
+  });
+
+  it("replays a delivery without duplicating anything (AC-14)", async () => {
+    const s = await seedGitHub("gk");
+    const issue = await newIssue(s);
+    const body = ghPush("feature/VWP-1", [{ id: "aaaa1111", message: "VWP-1 add the form" }]);
+
+    await deliverGitHub(s, "push", body);
+    await deliverGitHub(s, "push", body);
+
+    expect(await linksOf(issue.id)).toHaveLength(2); // one branch, one commit
+  });
+
+  it.each([
+    ["a ping on hook creation", "ping", { zen: "Keep it logically awesome." }],
+    ["a branch deletion", "push", { ...ghPush("feature/VWP-1"), deleted: true }],
+    ["an issues event", "issues", { repository: ghRepository, issue: { number: 1 } }],
+  ])("accepts %s and links nothing (AC-14)", async (label, event, body) => {
+    const s = await seedGitHub(`gl-${event}-${label.length}`);
+    const issue = await newIssue(s);
+
+    const outcome = await deliverGitHub(s, event, body);
+    expect(outcome.ok).toBe(true);
+    expect(await linksOf(issue.id)).toHaveLength(0);
+  });
+
+  it("reads a form-encoded body, GitHub's default content type", async () => {
+    const s = await seedGitHub("gm");
+    const issue = await newIssue(s);
+
+    const json = JSON.stringify(ghPush("feature/VWP-1"));
+    // GitHub signs whatever bytes it sends, so this verifies either way — which
+    // is exactly why leaving the default would fail in total silence.
+    await deliverGitHub(s, "push", null, { rawBody: `payload=${encodeURIComponent(json)}` });
+
+    expect(await linksOf(issue.id)).toHaveLength(1);
+  });
+
+  it("does not reach into another organization's issues", async () => {
+    const mine = await seedGitHub("gn");
+    const theirs = await seedGitHub("go");
+    const theirIssue = await newIssue(theirs);
+
+    await deliverGitHub(mine, "push", ghPush(`feature/${theirIssue.key}`));
+
+    expect(await linksOf(theirIssue.id)).toHaveLength(0);
+  });
+
+  it("puts GitLab and GitHub links on the SAME issue, side by side (AC-15)", async () => {
+    // The migration case: both hosts live at once, and the panel does not care.
+    const s = await seedGitHub("gp");
+    const issue = await newIssue(s);
+
+    const gitlab = await CodeIntegrationService.create(s.adminActor, {
+      name: "GitLab",
+      provider: "GITLAB",
+      baseUrl: "https://gitlab.example.com",
+    });
+    await CodeIntegrationService.ingest({
+      connectionId: gitlab.id,
+      headers: new Headers({ "x-gitlab-token": gitlab.secret }),
+      rawBody: JSON.stringify(pushBody("feature/VWP-1")),
+    });
+    await deliverGitHub(s, "pull_request", ghPull());
+
+    const links = await CodeIntegrationService.linksForIssue(issue.id);
+    expect(links).toHaveLength(2);
+    expect(new Set((await linksOf(issue.id)).map((l) => l.provider))).toEqual(
+      new Set(["GITLAB", "GITHUB"]),
+    );
+  });
+
+  it("offers GitHub's own wording for the events to tick", async () => {
+    const s = await seedGitHub("gq");
+    const listed = await CodeIntegrationService.list(s.adminActor);
+    const github = listed.find((c) => c.provider === "GITHUB");
+    expect(github?.eventsToEnable).toContain("Pull requests");
   });
 });

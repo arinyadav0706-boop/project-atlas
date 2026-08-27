@@ -80,8 +80,6 @@ function repositoryOf(payload: GitLabPayload, baseUrl: string) {
 export const GitLabAdapter: CodeProviderAdapter = {
   id: "GITLAB",
 
-  webhookEventsToEnable: ["Push events", "Merge request events", "Pipeline events"],
-
   /**
    * GitLab sends the secret VERBATIM — there is no HMAC to recompute.
    *

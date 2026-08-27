@@ -358,7 +358,7 @@ export function RecurrenceBuilder({
                               className={cn(
                                 "size-8 rounded-full border text-xs transition-colors",
                                 on
-                                  ? "border-primary bg-primary/10 font-medium text-primary"
+                                  ? "border-accent bg-accent/10 font-medium text-accent"
                                   : "border-border text-muted-foreground hover:bg-muted",
                               )}
                             >
