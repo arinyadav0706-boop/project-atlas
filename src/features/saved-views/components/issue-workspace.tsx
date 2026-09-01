@@ -387,6 +387,9 @@ export function IssueWorkspace({
             onToggleAll: () =>
               setSelected(allOnPageSelected ? new Set() : new Set(items.map((i) => i.id))),
             label: "Select all issues on this page",
+            // The KEY, not the row id — what the old row announced, and what a
+            // person would say out loud.
+            rowLabel: (row) => row.key,
           }}
           sort={{
             key: activeSortColumn,

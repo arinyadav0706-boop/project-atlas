@@ -48,8 +48,18 @@ export interface DataTableProps<T> {
     selected: Set<string>;
     onToggle: (id: string) => void;
     onToggleAll: () => void;
-    /** Sentence under the header — "Select all 50 on this page" (ADR-0041 §3). */
+    /** Accessible name for the header checkbox — "Select all 50 on this page" (ADR-0041 §3). */
     label: string;
+    /**
+     * Accessible name for a ROW checkbox.
+     *
+     * Required, not optional, and not defaulted to `rowKey`. The first version
+     * of this component fell back to the row id, so every checkbox announced
+     * "Select cmtj1cpk80007i2tgmxgmahcj" — a regression against the row it
+     * replaced, which said "Select DEMO-1". Caught by an E2E locator, which is
+     * the only reason anyone noticed; nothing else looks at an accessible name.
+     */
+    rowLabel: (row: T) => string;
   };
   /**
    * Controlled sort. Deliberately `(key, direction)` rather than an encoded
@@ -199,7 +209,7 @@ export function DataTable<T>({
                   >
                     <Checkbox
                       checked={isSelected}
-                      aria-label={`Select ${id}`}
+                      aria-label={`Select ${selection.rowLabel(row)}`}
                       onClick={() => selection.onToggle(id)}
                     />
                   </div>
