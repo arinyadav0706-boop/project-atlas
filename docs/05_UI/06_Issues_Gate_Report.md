@@ -2,7 +2,7 @@
 
 - **Status:** Awaiting approval. **Stopped here by instruction** — no other page
   has been migrated.
-- **Date:** 2026-08-27
+- **Date:** 2026-09-01
 - **Covers:** Phase 0 (regression safety), dependency decision, design tokens,
   layout primitives, and the `/issues` rebuild.
 
@@ -19,12 +19,16 @@ Measured on the same machine, same seed, same browser as the audit.
 | Row height | 44–45px | **32px** | ✅ |
 | Rows visible @1080 | ~15 | **~28** | **+87%** |
 | Document scroll @1080 | 2567px | **1080px** | no document scroll |
-| Chrome above first row | n/a (2 filter rows, wrapped) | **176px** | one toolbar row |
+| Chrome above first row | n/a (2 filter rows, wrapped) | **180px** | one toolbar row |
 | Content width @1440 / @1280 | 1136 / 1136 | **1200 / 1040** | full-bleed |
 
-Chrome breaks down as: top bar 56 + page header 44 + toolbar 40 + column
+Chrome breaks down as: top bar 56 + page header 44 + toolbar 44 + column
 header 36. The 56px top bar is the **only** part still on the old shell; it
 drops to 48 when the global flip happens after this gate.
+
+Measured against the VERUS demo org (7,300 issues across four projects), not
+the five-issue demo project — a dense table is only honestly measured on dense
+data. Page size is 50; 28 rows are visible at 1080 without scrolling.
 
 ## 2. Two defects Phase 0 found that have nothing to do with the UI
 
@@ -66,12 +70,38 @@ rule, `applyBulk`'s per-failure toasts, saved-view dirty detection, and the
 
 | Preserved | Where it moved |
 |---|---|
-| Search, 6 filter facets, clear | Wrapped two rows → one toolbar row |
+| Search | Stays inline in the toolbar |
+| 6 filter facets + "Assigned to me" | Wrapped two rows → a **Filters panel**, with a chip per active facet (§4a) |
+| Clear | Toolbar, beside the chips; "Clear all" also in the panel |
 | Saved views: select, clear, delete | 15rem left rail → toolbar `ViewSwitcher` |
 | Selection + bulk action bar | Unchanged logic; count strip now appears only when something is selected |
-| Load more | Toolbar trailing edge |
-| Custom-field predicates | Toolbar |
+| Load more | Toolbar → the end of the rows, inside the scroller |
+| Custom-field predicates | Toolbar → the Filters panel |
 | Corrupt-filter warning | Full-width strip under the toolbar |
+
+### 4a. The correction the screenshots forced
+
+The first build of this toolbar put all eight controls in one `flex-nowrap`
+row. Measured at 1920 it **still overflowed**: "Blocked or not" wrapped inside
+its own trigger, "Assigned to me" was clipped, and **"Clear" was off-screen
+entirely**. At 1280 five of the eight controls were unreachable. The row had an
+`overflow-x-auto`, so nothing was technically lost — but a filter you can only
+reach by horizontally scrolling a strip with no scrollbar is a filter nobody
+finds.
+
+Arithmetic that should have been done before the first version: the controls
+need ~1,400px, the toolbar has 1,008px at 1280 and 1,648px at 1920 once the
+view switcher and the count are placed. **Eight dropdowns do not fit at any
+width this product targets.**
+
+So `/issues` now does what Jira, ClickUp and Linear all do: one **Filters**
+button with an active count, a panel holding every facet, and a **removable
+chip per active filter** in the toolbar. The chips matter more than the button
+— a bare "Filters (3)" tells you a filter exists but not which one is hiding
+the issue you came looking for.
+
+No facet was removed, no query parameter changed, and `layout="wrap"` (timeline,
+calendar, the dashboard widget dialog) is untouched.
 
 **New capability: sortable column headers.** Not new functionality — `sort`
 state and every token (`UPDATED_DESC`, `PRIORITY_ASC`, …) already existed and
@@ -112,12 +142,63 @@ background). Both were invisible to typecheck, lint and build.
 - **The top bar is still 56px** and the global `<main>` padding is unchanged;
   `AppFrame` cancels it with negative margins for this page only. That is
   deliberate for the island phase and is removed by the global flip.
-- **No virtualization.** 36 rows render today; `Load more` appends. Fine now,
-  and `react-virtual` has a named trigger (>500 rows in one DOM).
+- **No virtualization.** 50 rows render per page; `Load more` appends at the
+  end of the list. Fine now, and `react-virtual` has a named trigger (>500 rows
+  in one DOM).
 - **Density is not user-selectable.** One good default, as instructed.
 - **`/issues` is the only migrated page.** Nine remain.
 
 ## 8. Regression evidence
 
-See §9 of this file for the run recorded at gate time: unit, integration, E2E,
-build, typecheck, lint, and screenshots at 1920 / 1440 / 1280.
+Recorded at gate time, in this order, on a database re-seeded from scratch
+(`prisma:seed` + `seed:verus`) because the integration suite truncates it.
+
+| Check | Result |
+|---|---|
+| Unit (`npm test`) | **1222 passed**, 83 files, 7.2s |
+| Integration (`npm run test:integration`) | **355 passed**, 31 files, 74s |
+| E2E (`npx playwright test`) | **35 passed, 2 failed, 1 flaky, 1 skipped**, 3.5 min |
+| `/issues` + shell specs on their own | **11 passed, 1 skipped** |
+| `npm run build` | clean |
+| `npx tsc --noEmit` | clean |
+| `npx eslint` on changed areas | clean (one pre-existing warning in `theme-toggle.tsx`, untouched) |
+
+**The two E2E failures are pre-existing and unrelated to this work.** Both were
+reproduced on a pristine database, so neither is test-data accumulation:
+
+- `profile.spec.ts` — a new avatar updates the profile page but **not the
+  header**. `updateSession()` is called and the JWT callback has a
+  `trigger === "update"` branch that re-reads `avatarUrl`, so the chain exists
+  and does not complete. Localised, not root-caused. → backlog **UI-12**.
+- `labels-components.spec.ts` — the component-owner dropdown offers no members
+  on a newly created project, even though `ProjectRepository.create` does add
+  the creator as LEAD (first hypothesis disproved). → backlog **UI-13**.
+
+`sprint-drag.spec.ts` failed once and passed on retry — the dnd-kit pointer
+timing the config's single retry exists for. Not counted as a pass.
+
+**Skipped:** "Load more appends rather than replacing" skips itself when the
+seed fits on one page. It runs against VERUS (7,300 issues) and is skipped
+against the demo org (12).
+
+### 8a. The safety net no longer depends on test ordering
+
+`prisma/seed.ts` created a project with **no issues in it**. Every `/issues`
+assertion that needs a populated list was therefore passing only because
+*other* specs had created issues earlier in the run — a coincidence, not a
+safety net, and it broke the moment the specs were run on their own. The seed
+now creates 12 demo issues spanning every type, every priority, all four
+statuses, assigned and unassigned, overdue and undated. A fresh checkout also
+now opens on a populated board and list rather than four empty states.
+
+## 9. Screenshots
+
+Captured after the final build and attached to the review rather than committed
+(binaries do not belong in the docs tree): `/issues` at 1920×1080, 1440×900 and
+1280×800, plus the Filters panel and the chip row. The 1280 capture is the one
+that matters — it is the width at which the previous toolbar lost five
+controls.
+
+Reproduce with `node verify.mjs <storageState.json>` against a running build;
+the script prints gutter, content width, row height, rows rendered, chrome
+height and scroll state at all three widths.

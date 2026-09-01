@@ -176,11 +176,104 @@ async function main() {
     });
   }
 
+  await seedDemoIssues(project.id, admin.id, usersByEmail);
+
   console.log(`Demo team (password: ${DEMO_PASSWORD}):`);
   for (const t of DEMO_TEAM) {
     const role = DEMO_ROLES[t.email] ?? "non-member";
     console.log(`  - ${t.name} <${t.email}> — org ${t.orgRole}, demo project: ${role}`);
   }
+}
+
+// Sample issues for the demo project.
+//
+// The seed used to create a project with no issues in it, which meant /issues,
+// the board and every report opened empty on a fresh checkout — and the E2E
+// specs that assert on a populated list only passed because OTHER specs had
+// created issues first. A test that depends on another test's side effects is
+// not a safety net; it is a coincidence that holds until someone runs one spec
+// on its own.
+//
+// Deliberately small and deliberately varied: every type, every priority, all
+// four statuses, some assigned and some not, some overdue and some with no due
+// date — enough for the filters to have something to do.
+const DEMO_ISSUES: {
+  type: "EPIC" | "STORY" | "TASK" | "BUG" | "SUBTASK";
+  title: string;
+  status: "To Do" | "In Progress" | "In Review" | "Done";
+  priority: "HIGHEST" | "HIGH" | "MEDIUM" | "LOW" | "LOWEST";
+  assignee?: string;
+  dueInDays?: number;
+  points?: number;
+}[] = [
+  { type: "EPIC", title: "Onboarding for new joiners", status: "In Progress", priority: "HIGH" },
+  { type: "STORY", title: "As a new joiner, I can see my first-week checklist", status: "In Progress", priority: "HIGH", assignee: "kavya.iyer@consint.ai", dueInDays: 5, points: 5 },
+  { type: "STORY", title: "As an admin, I can invite a teammate by email", status: "To Do", priority: "MEDIUM", assignee: "ananya.reddy@consint.ai", points: 3 },
+  { type: "TASK", title: "Write the welcome email copy", status: "Done", priority: "LOW", assignee: "aditi.sharma@consint.ai", dueInDays: -6 },
+  { type: "TASK", title: "Add an index on issues(assigneeId, status)", status: "Done", priority: "MEDIUM", assignee: "kavya.iyer@consint.ai", points: 2 },
+  { type: "BUG", title: "Due date shows a day early in the IST timezone", status: "In Review", priority: "HIGHEST", assignee: "ananya.reddy@consint.ai", dueInDays: -2 },
+  { type: "BUG", title: "Saved view loses its sort after a refresh", status: "To Do", priority: "HIGH", dueInDays: 3 },
+  { type: "BUG", title: "Avatar upload fails silently over 5 MB", status: "To Do", priority: "MEDIUM", assignee: "aditi.sharma@consint.ai" },
+  { type: "TASK", title: "Document the local Postgres setup", status: "To Do", priority: "LOWEST" },
+  { type: "STORY", title: "As a lead, I can reorder the backlog by drag", status: "In Progress", priority: "HIGH", assignee: "kavya.iyer@consint.ai", points: 8 },
+  { type: "TASK", title: "Retire the legacy status enum from reports", status: "In Review", priority: "LOW", assignee: "aditi.sharma@consint.ai", points: 3 },
+  { type: "BUG", title: "Bulk edit reports zero updated when nothing changed", status: "Done", priority: "LOW", dueInDays: -12 },
+];
+
+async function seedDemoIssues(
+  projectId: string,
+  adminId: string,
+  usersByEmail: Map<string, string>,
+) {
+  // Idempotent by presence, not by upsert-per-row: re-running the seed on a
+  // project someone has been clicking around in must not resurrect issues they
+  // deleted or reset the ones they edited.
+  const existing = await prisma.issue.count({ where: { projectId } });
+  if (existing > 0) return;
+
+  const statuses = await prisma.workflowStatus.findMany({
+    where: { projectId, deletedAt: null },
+    select: { id: true, name: true, category: true },
+  });
+  const byName = new Map(statuses.map((s) => [s.name, s]));
+
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  for (const [i, seed] of DEMO_ISSUES.entries()) {
+    const status = byName.get(seed.status);
+    if (!status) continue;
+    await prisma.issue.create({
+      data: {
+        projectId,
+        key: `DEMO-${i + 1}`,
+        type: seed.type,
+        title: seed.title,
+        statusId: status.id,
+        // Denormalised category, written in the same statement as `statusId` —
+        // the invariant module 30 pins.
+        status: status.category,
+        priority: seed.priority,
+        assigneeId: seed.assignee ? (usersByEmail.get(seed.assignee) ?? null) : null,
+        reporterId: adminId,
+        storyPoints: seed.points ?? null,
+        dueDate: seed.dueInDays === undefined ? null : new Date(now + seed.dueInDays * day),
+        // Ranks only have to be unique within (project, status) and sort
+        // sensibly; a zero-padded ordinal satisfies both without pulling the
+        // fractional-indexing generator into the seed.
+        rank: `a${String(i).padStart(4, "0")}`,
+        createdBy: adminId,
+        updatedBy: adminId,
+      },
+    });
+  }
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { issueKeyCounter: DEMO_ISSUES.length },
+  });
+
+  console.log(`Seeded ${DEMO_ISSUES.length} demo issues.`);
 }
 
 main()

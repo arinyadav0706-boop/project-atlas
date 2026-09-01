@@ -305,17 +305,10 @@ export function IssueWorkspace({
 
       <Toolbar
         trailing={
-          <>
-            <span className="whitespace-nowrap text-meta text-muted-foreground">
-              {items.length} shown · {result?.projectsInScope ?? 0}{" "}
-              {result?.projectsInScope === 1 ? "project" : "projects"}
-            </span>
-            {result?.nextCursor && (
-              <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
-                Load more
-              </Button>
-            )}
-          </>
+          <span className="whitespace-nowrap text-meta text-muted-foreground">
+            {items.length} shown · {result?.projectsInScope ?? 0}{" "}
+            {result?.projectsInScope === 1 ? "project" : "projects"}
+          </span>
         }
       >
         {/* Saved views move from a 15rem left rail into the toolbar. Same
@@ -329,24 +322,33 @@ export function IssueWorkspace({
           onClear={clearView}
           onDelete={deleteView}
         />
+        {/* Custom-field predicates render INSIDE the filter panel rather than
+            beside it. Each predicate is a three-part control (field · operator
+            · value) and a toolbar cannot hold even one of them next to the
+            standard facets. */}
         <IssueFilterBar
           layout="row"
           filter={filter}
           projects={projects}
           currentUserId={currentUserId}
           onChange={(next) => setFilter(next)}
-        />
-        <CustomFieldFilters
-          layout="row"
-          fields={filterableFields}
-          predicates={filter.customFields ?? []}
-          onChange={(customFields) =>
-            setFilter({
-              ...filter,
-              customFields: customFields.length ? customFields : undefined,
-            })
-          }
-        />
+        >
+          {/* `false`, not an element that renders null: the panel draws a
+              divider above its extra controls and would otherwise draw one
+              above nothing in an org with no filterable fields. */}
+          {filterableFields.length > 0 && (
+            <CustomFieldFilters
+              fields={filterableFields}
+              predicates={filter.customFields ?? []}
+              onChange={(customFields) =>
+                setFilter({
+                  ...filter,
+                  customFields: customFields.length ? customFields : undefined,
+                })
+              }
+            />
+          )}
+        </IssueFilterBar>
       </Toolbar>
 
       {activeView?.filterCorrupt && (
@@ -418,6 +420,18 @@ export function IssueWorkspace({
             />
           }
         />
+
+        {/* At the END of the rows, where the list runs out — not in the
+            toolbar, where it sat next to the filters and read as one of them.
+            It also scrolls with the list, so it appears exactly when you have
+            reached the last loaded issue. */}
+        {result?.nextCursor && !loading && (
+          <div className="flex justify-center border-t border-border-subtle p-3">
+            <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
+              Load more
+            </Button>
+          </div>
+        )}
       </Workspace>
 
       {selected.size > 0 && (

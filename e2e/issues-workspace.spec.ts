@@ -65,21 +65,49 @@ test("each filter facet applies and can be cleared", async ({ page }) => {
   await signIn(page, DEMO_USERS.admin);
   await openIssues(page);
 
-  // Type is the safest facet to assert on: every seed has bugs, and the label
-  // appears on the control once chosen.
-  await page.getByLabel("Type").click();
+  // The facets live in the Filters panel, not in the toolbar: eight dropdowns
+  // did not fit in a single row at any width, so /issues follows the same
+  // pattern as Jira, ClickUp and Linear. The URL contract is unchanged, which
+  // is what this test is really about.
+  await page.getByRole("button", { name: "Filters" }).click();
+
+  await page.getByLabel("Type", { exact: true }).click();
   await page.getByRole("option", { name: /^bug$/i }).click();
-  await expect.poll(async () => rows(page).count(), { timeout: 20000 }).toBeGreaterThanOrEqual(0);
   await expect(page).toHaveURL(/type=BUG/);
 
-  await page.getByLabel("Priority").click();
+  await page.getByLabel("Priority", { exact: true }).click();
   await page.getByRole("option", { name: /^high$/i }).click();
   await expect(page).toHaveURL(/priority=HIGH/);
 
+  await page.getByRole("button", { name: /^done$/i }).click();
+
+  // Closing the panel must leave the applied filters visible as chips —
+  // otherwise the page shows a filtered list with no on-screen reason why.
+  await expect(page.getByText("Type:")).toBeVisible();
+  await expect(page.getByText("Priority:")).toBeVisible();
+
   // "Clear" must reset every facet, not just the last one touched.
-  await page.getByRole("button", { name: /clear/i }).click();
+  await page.getByRole("button", { name: /^clear$/i }).click();
   await expect(page).not.toHaveURL(/type=BUG/);
   await expect(page).not.toHaveURL(/priority=HIGH/);
+});
+
+test("a chip removes only its own facet", async ({ page }) => {
+  await signIn(page, DEMO_USERS.admin);
+  await openIssues(page);
+
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByLabel("Type", { exact: true }).click();
+  await page.getByRole("option", { name: /^bug$/i }).click();
+  await page.getByLabel("Priority", { exact: true }).click();
+  await page.getByRole("option", { name: /^high$/i }).click();
+  await page.getByRole("button", { name: /^done$/i }).click();
+
+  await page.getByRole("button", { name: /remove the type filter/i }).click();
+  await expect(page).not.toHaveURL(/type=BUG/);
+  // The other facet survives — the whole reason a chip exists rather than one
+  // "Clear" for everything.
+  await expect(page).toHaveURL(/priority=HIGH/);
 });
 
 test("selection and the bulk action bar appear and clear", async ({ page }) => {

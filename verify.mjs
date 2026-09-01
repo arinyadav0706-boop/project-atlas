@@ -1,7 +1,7 @@
 import { chromium } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
-const state = JSON.parse(readFileSync("e2e/.auth/aditi_sharma_consint_ai.json", "utf8"));
+const state = JSON.parse(readFileSync(process.argv[2] ?? "e2e/.auth/aditi_sharma_consint_ai.json", "utf8"));
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
 
 for (const vp of [
