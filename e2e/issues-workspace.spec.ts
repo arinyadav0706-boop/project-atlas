@@ -28,14 +28,20 @@ async function openIssues(page: Page) {
 }
 
 function rows(page: Page) {
-  return page.getByRole("checkbox", { name: /^select [A-Z]+-\d+$/i });
+  // `[A-Z][A-Z0-9]*` — a project key may contain digits (PMTJ1721Y), which the
+  // app's own key parser allows and my first version of this regex did not.
+  return page.getByRole("checkbox", { name: /^select [A-Z][A-Z0-9]*-\d+$/i });
 }
 
 test("the list loads issues from more than one project", async ({ page }) => {
   await signIn(page, DEMO_USERS.admin);
   await openIssues(page);
   expect(await rows(page).count()).toBeGreaterThan(0);
-  await expect(page.getByText(/across \d+ project/i)).toBeVisible();
+  // The FACT — how many rows, across how many projects — not the sentence.
+  // The wording changed in the redesign ("shown across N projects" → "N shown ·
+  // M projects") and a test that pins phrasing fails on every copy edit.
+  await expect(page.getByText(/\d+ shown/i)).toBeVisible();
+  await expect(page.getByText(/\d+ projects?/i).first()).toBeVisible();
 });
 
 test("searching by title narrows the list, and clearing restores it", async ({ page }) => {
@@ -92,7 +98,9 @@ test("selection and the bulk action bar appear and clear", async ({ page }) => {
   // Select-all applies to THIS PAGE and says so — deliberately not "all 3,600
   // matching" (ADR-0041 §3). The wording is the guarantee.
   await page.getByRole("checkbox", { name: /select all issues on this page/i }).click();
-  await expect(page.getByText(/select all \d+ on this page|\d+ selected/i)).toBeVisible();
+  // `.first()` for the same reason as above: the count appears in both the
+  // selection strip and the bulk bar, which is correct.
+  await expect(page.getByText(/\d+ selected/i).first()).toBeVisible();
 });
 
 test("Load more appends rather than replacing", async ({ page }) => {
