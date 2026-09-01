@@ -21,6 +21,51 @@ export interface CodeConnectionDto {
   webhookUrl: string | null;
   /** What to tick on the other side, in that provider's own words. */
   eventsToEnable: string[];
+  /** WEBHOOK_ONLY until a provider app is installed (ADR-0054 §1). */
+  authMode: "WEBHOOK_ONLY" | "APP";
+  /** How far back a backfill reaches (35/BR-9). */
+  backfillDays: number;
+  /** Whose account the app is installed on, when there is one. */
+  connectedAccount?: string | null;
+}
+
+export interface CodeRepositoryDto {
+  id: string;
+  path: string;
+  defaultBranch: string | null;
+  enabled: boolean;
+  lastBackfillAt: string | null;
+}
+
+/**
+ * Mirrors the Prisma enums, declared here rather than imported.
+ *
+ * `@prisma/client` is confined to `*.repository.ts` (Feature Architecture §4),
+ * and a service that needs to name a phase should not be the exception that
+ * drags the ORM into the service layer. An integration test compares these
+ * against the database's own enum values so the pair cannot drift.
+ */
+export type BackfillStatusDto =
+  | "QUEUED"
+  | "RUNNING"
+  | "PAUSED"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "CANCELLED";
+export type BackfillPhaseDto = "MERGE_REQUESTS" | "BRANCHES" | "COMMITS" | "DONE";
+
+export interface BackfillRunDto {
+  id: string;
+  repositoryId: string;
+  status: BackfillStatusDto;
+  phase: BackfillPhaseDto;
+  scanned: number;
+  linked: number;
+  /** Set while rate-limited, so the UI says when rather than showing red. */
+  resumeAfter: string | null;
+  error: string | null;
+  since: string;
+  finishedAt: string | null;
 }
 
 export interface CodeLinkDto {

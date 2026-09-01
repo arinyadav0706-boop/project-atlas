@@ -100,7 +100,15 @@ explicitly rather than inferred — a project may have three statuses in the DON
 category (ADR-0049). The move goes through `IssueService`, so transition rules,
 the subtask-done guard and notifications all still apply.
 
-### 7. **No outbound calls to the provider in V1**
+### 7. **No outbound calls to the provider in V1** — ⚠️ SUPERSEDED by ADR-0054
+
+> Reversed on 2026-08-27. The paragraph below said this would get its own
+> decision when something genuinely needed it; backfill did, and ADR-0054 is
+> that decision. Outbound reads now happen, authenticated by a provider app
+> install rather than the stored token this section was worried about. The
+> reasoning here is kept because it is still why we do not hold a PAT, and why
+> posting *back* to the provider is still out.
+
 
 Webhook payloads carry the branch, the commits, the merge request, its state and
 its URL — everything the panel shows. Fetching more would mean storing an access

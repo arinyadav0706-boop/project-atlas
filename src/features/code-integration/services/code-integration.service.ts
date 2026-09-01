@@ -38,6 +38,8 @@ function toConnectionDto(row: CodeConnectionRow, appUrl?: string): CodeConnectio
     createdAt: row.createdAt.toISOString(),
     webhookUrl: appUrl ? `${appUrl}/api/integrations/code/${row.id}` : null,
     eventsToEnable: providerSetup(row.provider as CodeProviderId).eventsToEnable,
+    authMode: row.authMode,
+    backfillDays: row.backfillDays,
   };
 }
 
@@ -67,7 +69,20 @@ export const CodeIntegrationService = {
   async list(actor: Actor, appUrl?: string): Promise<CodeConnectionDto[]> {
     requireAdmin(actor);
     const rows = await CodeIntegrationRepository.list(actor.organizationId);
-    return rows.map((row) => toConnectionDto(row, appUrl));
+    return Promise.all(
+      rows.map(async (row) => {
+        const dto = toConnectionDto(row, appUrl);
+        if (row.authMode !== "APP") return dto;
+        // Whose account the app is installed on. Read from the summary query,
+        // which selects the label and NOT the tokens — a connection list is the
+        // last place a credential should be one spread away from a response.
+        const { BackfillRepository } = await import(
+          "@/features/code-integration/repositories/backfill.repository"
+        );
+        const summary = await BackfillRepository.credentialSummary(row.id);
+        return { ...dto, connectedAccount: summary?.externalAccount ?? null };
+      }),
+    );
   },
 
   async create(

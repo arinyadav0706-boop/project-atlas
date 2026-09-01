@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleRoute } from "@/shared/lib/api";
 import { RecurrenceService } from "@/features/recurrence/services/recurrence.service";
 import { WebhookService } from "@/features/public-api/services/webhook.service";
+import { BackfillService } from "@/features/code-integration/services/backfill.service";
 import { schedulerSecret } from "@/shared/lib/env";
 import { UnauthorizedError } from "@/shared/lib/errors";
 
@@ -19,9 +20,10 @@ import { UnauthorizedError } from "@/shared/lib/errors";
 // update before acting, so two overlapping ticks share the work rather than
 // duplicating it, and a retry after a timeout is safe.
 //
-// Two jobs, one endpoint (ADR-0052 §8): recurring issues that are due, and
-// webhook deliveries waiting to be retried. A second cron for the second job
-// would be a second thing to configure and forget.
+// Three jobs, one endpoint (ADR-0052 §8, ADR-0054 §6): recurring issues that
+// are due, webhook deliveries waiting to be retried, and code backfill slices.
+// A second cron for the second job would be a second thing to configure and
+// forget — and by the third, certain to be forgotten.
 
 /** Never cached, never prerendered — it has to observe the clock. */
 export const dynamic = "force-dynamic";
@@ -47,11 +49,14 @@ function assertScheduler(request: NextRequest): void {
   }
 }
 
-/** Both drains. Independent, so one failing does not starve the other. */
+/** Every drain. Independent, so one failing does not starve the others. */
 async function runTick() {
-  const [recurrences, webhooks] = await Promise.allSettled([
+  const [recurrences, webhooks, backfill] = await Promise.allSettled([
     RecurrenceService.runDue(),
     WebhookService.runDue(),
+    // Module 35. Deliberately the same endpoint again rather than a third cron:
+    // one thing to configure is one thing to forget.
+    BackfillService.runDue(),
   ]);
   return {
     recurrences:
@@ -60,6 +65,8 @@ async function runTick() {
         : { error: String(recurrences.reason) },
     webhooks:
       webhooks.status === "fulfilled" ? webhooks.value : { error: String(webhooks.reason) },
+    backfill:
+      backfill.status === "fulfilled" ? backfill.value : { error: String(backfill.reason) },
   };
 }
 

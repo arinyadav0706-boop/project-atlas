@@ -125,7 +125,24 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
     where: { webhook: { organizationId: orgId } },
   });
   await prisma.webhook.deleteMany({ where: { organizationId: orgId } });
+  // Module 35's three tables — credentials, repositories, backfill runs — all
+  // cascade from the connection below, so they need no statement here. Checked
+  // with the query above rather than assumed, which is the whole point of GIT-7.
+  const goingAway = await prisma.codeConnection.findMany({
+    where: { organizationId: orgId },
+    select: { id: true },
+  });
   await prisma.codeConnection.deleteMany({ where: { organizationId: orgId } });
+  // `code_auth_states` is the exception: it holds a connectionId as a plain
+  // column with no foreign key (it has to survive being written before the
+  // handshake completes), so nothing cascades it away. A stale row is harmless
+  // — it expires — but leaving rows pointing at a deleted connection is exactly
+  // the kind of debris that makes the next person doubt the teardown.
+  if (goingAway.length > 0) {
+    await prisma.codeAuthState.deleteMany({
+      where: { connectionId: { in: goingAway.map((c) => c.id) } },
+    });
+  }
   await prisma.apiToken.deleteMany({ where: { organizationId: orgId } });
 
   if (adoptedIds.length > 0) {

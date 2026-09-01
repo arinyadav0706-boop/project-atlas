@@ -37,6 +37,14 @@ const envSchema = z.object({
   // as an alias so a Vercel deployment needs one variable, not two that must be
   // kept equal.
   CRON_SECRET: z.string().optional().default(""),
+  // Base64 of 32 random bytes — `openssl rand -base64 32`. Encrypts the git-host
+  // credentials module 35 stores (ADR-0054 §3).
+  //
+  // Optional so a dev machine boots without one, and validated where it is used
+  // rather than here: an installed app whose key later goes missing must fail
+  // with "the key is gone", not with the whole app refusing to start. Connecting
+  // a git host is refused up front while it is unset.
+  CREDENTIAL_ENCRYPTION_KEY: z.string().optional().default(""),
 });
 
 /** The token `POST|GET /api/scheduler/tick` accepts. Empty means "refuse all". */

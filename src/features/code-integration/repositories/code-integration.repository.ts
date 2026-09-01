@@ -14,6 +14,11 @@ const connectionSelect = {
   onMergeStatusId: true,
   lastEventAt: true,
   createdAt: true,
+  // Module 35. Deliberately NOT the credential: this select feeds every admin
+  // screen, and a token has no business being one careless spread away from a
+  // response body.
+  authMode: true,
+  backfillDays: true,
 } as const;
 
 const linkSelect = {
@@ -89,6 +94,11 @@ export const CodeIntegrationRepository = {
       data: { ...data, updatedBy: actorId },
       select: connectionSelect,
     });
+  },
+
+  /** Flipped by the install flow, not by an admin form (ADR-0054 §1). */
+  setAuthMode(id: string, authMode: "WEBHOOK_ONLY" | "APP") {
+    return prisma.codeConnection.updateMany({ where: { id }, data: { authMode } });
   },
 
   softDelete(id: string, actorId: string) {

@@ -517,6 +517,32 @@ enum CodeLinkKind {
   MERGE_REQUEST
 }
 
+/// How a connection talks to its git host (ADR-0054 §1).
+enum CodeAuthMode {
+  /// Inbound webhooks only — every connection before module 35.
+  WEBHOOK_ONLY
+  /// A provider app is installed and a credential exists, so we can read.
+  APP
+}
+
+enum BackfillStatus {
+  QUEUED
+  RUNNING
+  /// Rate-limited, or out of tick budget. NOT an error (35/BR-11) — the cursor
+  /// is intact and the next tick continues.
+  PAUSED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum BackfillPhase {
+  MERGE_REQUESTS
+  BRANCHES
+  COMMITS
+  DONE
+}
+
 enum CodeLinkState {
   OPEN
   MERGED
@@ -547,6 +573,13 @@ model CodeConnection {
   /// Answers "is this hook actually wired up", which is the first question
   /// anybody asks when nothing is appearing.
   lastEventAt     DateTime?
+  /// WEBHOOK_ONLY until a provider app is installed (ADR-0054 §1). Every
+  /// pre-module-35 connection stays exactly as it was.
+  authMode        CodeAuthMode @default(WEBHOOK_ONLY)
+  /// How far back a backfill reaches, in days (35/BR-9). Bounded by default
+  /// because unbounded is not something a monorepo survives; settable because
+  /// 90 days is wrong for somebody in both directions.
+  backfillDays    Int          @default(90)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -554,10 +587,136 @@ model CodeConnection {
   updatedBy String?
   deletedAt DateTime?
 
-  links CodeLink[]
+  links        CodeLink[]
+  credential   CodeCredential?
+  repositories CodeRepository[]
 
   @@index([organizationId])
   @@map("code_connections")
+}
+
+/// The credential a provider app install produced (ADR-0054 §2, §3).
+///
+/// Its own table rather than columns on the connection: a credential has a
+/// different lifecycle (granted, refreshed, revoked) and a different blast
+/// radius, and keeping it separate means the connection queries that feed the
+/// admin screen cannot select it by accident.
+model CodeCredential {
+  id           String         @id @default(cuid())
+  connectionId String         @unique
+  connection   CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  /// CIPHERTEXT, never a token (35/BR-4). Version-prefixed so the encryption
+  /// key can be rotated without a migration.
+  accessToken  String
+  /// GitLab only, and it ROTATES on every use (35/BR-3) — the new pair is
+  /// persisted before the access token is used for anything, because a lost
+  /// write here is a permanently dead connection, not a retryable error.
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+  /// GitHub: the installation the app was added to, which is what installation
+  /// tokens are minted against. GitLab: null.
+  installationId  String?
+  /// The org/group/user the install belongs to, so the UI can say whose it is.
+  externalAccount String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@map("code_credentials")
+}
+
+/// A repository a backfill may scan.
+///
+/// **A work list, NOT a repo→project mapping** (ADR-0054 §4). It says "scan
+/// this"; it never says which EAGLES project the repo belongs to, and nothing
+/// reads it while linking — routing is still by issue key. Adding `projectId`
+/// here would break the decision this whole design rests on.
+model CodeRepository {
+  id            String         @id @default(cuid())
+  connectionId  String
+  connection    CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  /// Provider-side id, which survives a rename where the path does not.
+  externalId    String
+  /// `owner/repo` or `group/project` — display, and the base for URLs.
+  path          String
+  defaultBranch String?
+  /// Off until somebody ticks it. Installing an app on a 400-repo org must not
+  /// start 400 walks.
+  enabled       Boolean        @default(false)
+  lastBackfillAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  runs CodeBackfillRun[]
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId])
+  @@map("code_repositories")
+}
+
+/// One walk of one repository (ADR-0054 §6).
+model CodeBackfillRun {
+  id           String         @id @default(cuid())
+  repositoryId String
+  repository   CodeRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  status       BackfillStatus @default(QUEUED)
+  phase        BackfillPhase  @default(MERGE_REQUESTS)
+  /// Where to resume (35/BR-8). Opaque here — its shape is the API client's
+  /// business, and a run that restarted from zero on every container recycle
+  /// would never finish a large repository.
+  cursor       Json?
+  /// The window's start; everything older is out of scope (35/BR-9).
+  since        DateTime
+  scanned      Int            @default(0)
+  linked       Int            @default(0)
+  /// Set while rate-limited so the UI can say when it resumes rather than
+  /// showing a failure for a healthy run (35/BR-11).
+  resumeAfter  DateTime?
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  /// The conditional-update claim (ADR-0011): two overlapping ticks share the
+  /// work instead of duplicating it.
+  version      Int            @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status, resumeAfter])
+  @@index([repositoryId, createdAt])
+  @@map("code_backfill_runs")
+}
+
+/// A pending OAuth handshake (35/BR-14).
+///
+/// A row rather than a signed cookie: the callback arrives on a redirect the
+/// provider controls, and a single-use row that can be DELETED is the only way
+/// to make replay actually impossible rather than merely detectable.
+model CodeAuthState {
+  /// The `state` parameter itself — random, and the primary key so a second
+  /// use is a unique-constraint failure rather than a race.
+  state        String   @id
+  connectionId String
+  /// PKCE (GitLab). GitHub App installs do not use it; null there.
+  codeVerifier String?
+  /// Where to send the browser afterwards, so the admin lands back where they
+  /// started rather than on a bare JSON response.
+  returnTo     String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  createdBy    String?
+
+  @@index([expiresAt])
+  @@map("code_auth_states")
 }
 
 /// A branch, commit or merge request attached to an issue.

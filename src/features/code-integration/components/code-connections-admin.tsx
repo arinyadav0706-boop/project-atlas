@@ -20,6 +20,7 @@ import {
   providerSetup,
 } from "@/features/code-integration/lib/provider-catalog";
 import type { CodeProviderId } from "@/features/code-integration/lib/provider";
+import { BackfillPanel } from "@/features/code-integration/components/backfill-panel";
 import type { CodeConnectionDto } from "@/features/code-integration/types/code-integration.types";
 
 // Admin → Code (34_code_integration.md §6).
@@ -253,6 +254,8 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                   key to check the wiring.
                 </p>
               )}
+
+              <BackfillPanel connection={connection} />
             </li>
           ))}
         </ul>
