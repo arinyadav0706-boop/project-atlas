@@ -35,3 +35,7 @@ tsconfig.tsbuildinfo
 # Playwright saved sessions (e2e/support/session.ts)
 e2e/.auth/
 test-results/
+
+# Local StorageAdapter file store (ADR-0017) — runtime data, not source.
+# Created by attachment/avatar uploads when STORAGE_PROVIDER=local.
+.data/
