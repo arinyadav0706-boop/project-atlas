@@ -32,6 +32,29 @@ const config: Config = {
         // `-foreground` pair until something actually sets text on the fill.
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
+        // ── Modernization tokens (04_Modernization_Audit.md §E) ────────────
+        // Additive: no existing key is changed, so no existing screen moves.
+        //
+        // `primary` is an alias of accent. It exists because four components
+        // shipped `bg-primary`/`text-primary` against nothing, Tailwind
+        // dropped the utilities in silence, and their selected states rendered
+        // identically to unselected (UI-3). Now the class resolves.
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        "surface-sunken": "hsl(var(--surface-sunken))",
+        "surface-raised": "hsl(var(--surface-raised))",
+        "border-subtle": "hsl(var(--border-subtle))",
+        "border-strong": "hsl(var(--border-strong))",
+        info: "hsl(var(--info))",
+        // Already referenced by epic-select and comment-composer against
+        // nothing; see globals.css.
+        input: "hsl(var(--input))",
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
       },
       borderRadius: {
         lg: "0.75rem",
@@ -39,6 +62,44 @@ const config: Config = {
         // Surface radius. Cards read softer than controls on purpose — the
         // container should feel like paper, the control like a button.
         "2xl": "1.25rem",
+        // ── Modernization radii (04_Modernization_Audit.md §E4) ───────────
+        //
+        // NEW NAMES rather than new values for lg/xl/2xl, deliberately.
+        // Re-valuing `rounded-2xl` from 20px to 8px would restyle every panel
+        // in the app in one commit — the big-bang the brief forbids, and the
+        // opposite of gating on /issues. These three are used only by the new
+        // primitives; the old names are migrated page by page after the gate.
+        chip: "4px",
+        control: "6px",
+        panel: "8px",
+      },
+      // Semantic type scale (§E3). Six roles, replacing the nine ad-hoc sizes
+      // measured on a single page. 11px is the floor — the 9px and 10px labels
+      // found in the audit are below legibility, not merely small.
+      fontSize: {
+        "page-title": ["20px", { lineHeight: "26px", fontWeight: "600", letterSpacing: "-0.014em" }],
+        section: ["15px", { lineHeight: "20px", fontWeight: "600", letterSpacing: "-0.006em" }],
+        body: ["13px", { lineHeight: "18px" }],
+        label: ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        meta: ["11px", { lineHeight: "15px" }],
+      },
+      // Component sizing (§E5), so a row height is a token and not a guess
+      // re-made in six table implementations.
+      height: {
+        topbar: "48px",
+        // 44, not 40: the existing Input is 40px tall, and a 40px bar left it
+        // flush against both edges. Four pixels is the difference between a
+        // toolbar and a seam.
+        toolbar: "44px",
+        "row-compact": "32px",
+        "row-comfy": "40px",
+        "col-head": "36px",
+        "ctl-sm": "24px",
+        "ctl-md": "28px",
+        "ctl-lg": "32px",
+      },
+      ringColor: {
+        focus: "hsl(var(--focus-ring))",
       },
       // Elevation, as three named steps rather than ad-hoc shadow utilities.
       //

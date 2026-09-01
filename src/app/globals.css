@@ -28,6 +28,49 @@
      silently falls back to a hard-coded colour and stops following the theme. */
   --success: 142 71% 40%;
   --warning: 38 92% 46%;
+
+  /* ── Modernization tokens (docs/05_UI/04_Modernization_Audit.md §E) ──────
+     Purely ADDITIVE. Nothing above is renamed or re-valued, so every existing
+     screen renders byte-identically until it is explicitly migrated. The new
+     names exist so /issues can be rebuilt as an island behind the gate.
+
+     `--primary` is an alias of accent and exists for one reason: four
+     components shipped `border-primary` / `bg-primary` / `text-primary`
+     against a token that did not exist, Tailwind dropped the utilities
+     silently, and their selected states rendered identically to unselected
+     (backlog UX-1). The alias makes that class of mistake inert; the lint
+     rule in UX-2 makes it loud. */
+  --primary: 217 91% 55%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Surfaces, as a three-step ladder rather than two. A toolbar and a table
+     header need a ground that is neither the page nor a card. */
+  --surface-sunken: 240 12% 97%;
+  --surface-raised: 0 0% 100%;
+
+  /* Two borders: the outline of a panel, and the hairline between its rows.
+     One value for both is why dense tables read as a grey mesh. */
+  --border-subtle: 240 6% 93%;
+  --border-strong: 240 7% 84%;
+
+  /* The fourth semantic tone. success/warning/destructive existed; the
+     neutral-informative case was being spelled with accent, which made every
+     hint look like a call to action. */
+  --info: 213 82% 52%;
+
+  /* One focus colour, used by every interactive element. */
+  --focus-ring: 217 91% 55%;
+
+  /* Two more tokens the codebase was ALREADY using and this project never
+     defined — found by the UX-2 guardrail on its first run, not by review:
+       `border-input`  in features/issues/components/epic-select.tsx
+       `bg-popover`    in features/comments/components/comment-composer.tsx
+     Both are shadcn vocabulary. Both resolved to nothing, so the select had no
+     visible border and the composer's popover had no background. Same failure
+     mode as UX-1, shipped, and invisible to every other check. */
+  --input: 240 6% 90%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 4% 12%;
 }
 
 /* Dark theme — applied only when the `dark` class is set on <html>
@@ -50,6 +93,21 @@
   /* Lifted for contrast against the dark surface, as accent and destructive are. */
   --success: 142 64% 48%;
   --warning: 38 92% 56%;
+
+  /* Modernization tokens, dark. Not a naive inversion: the sunken surface has
+     to sit BELOW the card in dark just as it sits below in light, which means
+     going darker than the page rather than lighter. */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --surface-sunken: 222 44% 9%;
+  --surface-raised: 222 38% 14%;
+  --border-subtle: 222 20% 18%;
+  --border-strong: 222 18% 28%;
+  --info: 213 84% 62%;
+  --focus-ring: 217 91% 60%;
+  --input: 222 20% 22%;
+  --popover: 222 38% 14%;
+  --popover-foreground: 210 40% 96%;
 }
 
 * {

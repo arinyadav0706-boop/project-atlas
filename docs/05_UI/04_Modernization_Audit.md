@@ -229,8 +229,8 @@ But there is **no `--primary` token**, and four components wrote their selected
 state as `border-primary` / `bg-primary` / `text-primary`. Tailwind silently
 drops unknown utilities, so those selected states rendered **identically to
 unselected** — including the API-token scope checkboxes, where a ticked box
-showed empty. Fixed on 2026-08-27 (backlog UI-3). The systemic gap — nothing
-fails when a component names a token that does not exist — is **UI-4** and is
+showed empty. Fixed on 2026-08-27 (backlog UX-1). The systemic gap — nothing
+fails when a component names a token that does not exist — is **UX-2** and is
 part of this plan.
 
 ---
@@ -477,7 +477,7 @@ Plus a manual pass at **1920×1080, 1440×900 and 1280×800**, in light and dark
 The reason a design system existed and was bypassed is that nothing enforced
 it. Three lint rules, added in Phase 2:
 
-1. **Colour utilities restricted to defined tokens** — closes UI-4; `bg-primary`
+1. **Colour utilities restricted to defined tokens** — closes UX-2; `bg-primary`
    with no `--primary` would have failed at write time.
 2. **Spacing/radius restricted to the scale** — no `p-[13px]`, no `rounded-3xl`.
 3. **`max-w-*` and `mx-auto` banned outside `AppFrame`** — makes A1/A2

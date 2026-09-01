@@ -1,16 +1,16 @@
 import { test, expect, type Page } from "@playwright/test";
+import { signInAs } from "./support/session";
 
 // Sprint UI flows against a real browser. Kavya is an org member who becomes
 // LEAD of any project she creates. All seeded users share the password
 // Passw0rd!. Each test creates its OWN project, so tests never share sprint
 // state (no cross-test pollution).
 
-async function signIn(page: Page, email: string, password = "Passw0rd!") {
-  await page.goto("/sign-in");
-  await page.locator("#email").fill(email);
-  await page.locator("#password").fill(password);
-  await page.getByRole("button", { name: /sign in with email/i }).click();
-  await page.waitForURL(/\/(home|dashboard|projects)/);
+async function signIn(page: Page, email: string) {
+  // Restores a session saved once by e2e/auth.setup.ts. Posting
+  // credentials here would trip the 8-per-15-min auth limiter across a
+  // full run (see e2e/support/session.ts).
+  await signInAs(page, email);
 }
 
 // Create a fresh project and land on its Issues tab. The creator is its LEAD.

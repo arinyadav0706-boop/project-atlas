@@ -21,7 +21,18 @@ export default defineConfig({
     trace: "retain-on-failure",
     ...(CHROME ? { launchOptions: { executablePath: CHROME } } : {}),
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    // Signs in each demo user ONCE and saves the session (e2e/auth.setup.ts).
+    // Without this the suite posts credentials in every test, trips the
+    // 8-per-15-minutes brute-force limiter, and eleven tests fail with
+    // `error=CredentialsSignin` — measured, not hypothetical.
+    { name: "setup", testMatch: /.*\.setup\.ts$/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+  ],
   webServer: {
     // Production build, not `next dev` — avoids on-demand route compilation,
     // which makes the first navigation flaky under a tight timeout.

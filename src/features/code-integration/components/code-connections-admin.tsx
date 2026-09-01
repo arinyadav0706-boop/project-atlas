@@ -289,7 +289,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                       // `primary` is not defined anywhere, so a selected state
                       // written with it renders identically to an unselected
                       // one — which is what this picker did until somebody
-                      // looked at it (backlog UI-3).
+                      // looked at it (backlog UX-1).
                       provider === option.id
                         ? "border-accent bg-accent/10 ring-1 ring-accent"
                         : "border-border hover:bg-muted",

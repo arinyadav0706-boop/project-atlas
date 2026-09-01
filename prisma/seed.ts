@@ -11,6 +11,7 @@
 // (omit SEED_ADMIN_PASSWORD for an SSO-only admin.)
 import { PrismaClient, type OrgRole, type ProjectRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_STATUSES } from "../src/features/workflow/lib/defaults";
 
 const prisma = new PrismaClient();
 
@@ -136,6 +137,34 @@ async function main() {
       createdBy: admin.id,
     },
   });
+
+  // Workflow statuses for the demo project (30_workflow BR-7).
+  //
+  // This was missing, and the consequence was not subtle: statuses became data
+  // in module 30, `ProjectRepository.create` seeds them for every project made
+  // through the app, and this seed writes the project row directly — so the
+  // demo project had none. Creating an issue on it returned a 500 with
+  // "Project seed-demo-project has no default status", which is exactly what
+  // anyone following the local-dev instructions would hit on their first click,
+  // and what made the E2E suite's most important test fail.
+  //
+  // Reuses DEFAULT_STATUSES rather than restating the four, for the reason that
+  // module's own comment gives: the migration that seeded existing projects and
+  // the code that seeds new ones must agree by construction, not by memory.
+  const statusCount = await prisma.workflowStatus.count({
+    where: { projectId: project.id, deletedAt: null },
+  });
+  if (statusCount === 0) {
+    await prisma.workflowStatus.createMany({
+      data: DEFAULT_STATUSES.map((status) => ({
+        ...status,
+        projectId: project.id,
+        organizationId: org.id,
+        createdBy: admin.id,
+        updatedBy: admin.id,
+      })),
+    });
+  }
 
   for (const [email, role] of Object.entries(DEMO_ROLES)) {
     const userId = usersByEmail.get(email);

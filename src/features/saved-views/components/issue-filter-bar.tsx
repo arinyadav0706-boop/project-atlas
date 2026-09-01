@@ -39,11 +39,20 @@ const ESTIMATE_OPTIONS = [
 ] as const;
 
 export function IssueFilterBar({
+  layout = "wrap",
   filter,
   projects,
   currentUserId,
   onChange,
 }: {
+  /**
+   * `row` forbids wrapping, for the fixed-height toolbar on /issues where a
+   * second line would be clipped behind the table header.
+   *
+   * Opt-in rather than a changed default: timeline and calendar render this in
+   * containers where wrapping is the right behaviour.
+   */
+  layout?: "wrap" | "row";
   filter: IssueFilter;
   projects: ProjectOption[];
   currentUserId: string;
@@ -61,8 +70,17 @@ export function IssueFilterBar({
   const mineOnly = filter.assigneeId === currentUserId;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative w-full sm:w-64">
+    <div
+      className={cn(
+        "flex items-center gap-2",
+        // `row` is for the fixed-height toolbar on /issues, where wrapping
+        // would push controls behind the table header. Every other caller
+        // (timeline, calendar, the dashboard widget dialog) keeps the
+        // wrapping default, so none of them change.
+        layout === "row" ? "flex-nowrap" : "flex-wrap",
+      )}
+    >
+      <div className={cn("relative", layout === "row" ? "w-56 shrink-0" : "w-full sm:w-64")}>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={filter.search ?? ""}

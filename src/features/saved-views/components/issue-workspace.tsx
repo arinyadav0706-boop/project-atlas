@@ -5,27 +5,29 @@ import { ListFilter, Save, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
-import { Card } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { PageHeader } from "@/shared/components/ui/page-header";
-import { PageShell } from "@/shared/components/ui/page-shell";
-import { Skeleton } from "@/shared/components/ui/skeleton";
+import {
+  AppFrame,
+  Toolbar,
+  Workspace,
+  WorkspaceHeader,
+} from "@/shared/components/layout/app-frame";
+import { DataTable } from "@/shared/components/data/data-table";
+import { issueColumns, SORT_BY_COLUMN } from "@/features/saved-views/components/issue-columns";
+import { ViewSwitcher } from "@/features/saved-views/components/view-switcher";
 import { issueFilterToQuery } from "@/features/issues/lib/issue-filter-query";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
 import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { BulkEditResultDto } from "@/features/bulk-edit/types/bulk-edit.types";
 import { CustomFieldFilters } from "@/features/custom-fields/components/custom-field-filters";
 import type { CustomFieldDefinitionDto } from "@/features/custom-fields/types/custom-field.types";
-import { CrossProjectRow } from "@/features/saved-views/components/cross-project-row";
 import {
   IssueFilterBar,
   type ProjectOption,
 } from "@/features/saved-views/components/issue-filter-bar";
 import { SaveViewDialog } from "@/features/saved-views/components/save-view-dialog";
-import { ViewRail } from "@/features/saved-views/components/view-rail";
 import {
   DEFAULT_SORT,
   type CrossProjectIssueDto,
@@ -269,148 +271,164 @@ export function IssueWorkspace({
     ? !sameFilter(activeView.filter, filter) || activeView.sort !== sort
     : buildQuery(filter, sort).toString().length > 0;
 
+  // Columns are memoised because `DataTable` compares them per render and a
+  // fresh array every keystroke in the search box would rebuild the header.
+  const columns = useMemo(() => issueColumns(), []);
+
+  // Column sort ↔ the API's own vocabulary. The table speaks
+  // (key, direction); the service speaks `UPDATED_DESC`. Translating here keeps
+  // both honest and adds no new sort capability — every token below was already
+  // accepted by `/api/issues`.
+  const activeSortColumn =
+    Object.entries(SORT_BY_COLUMN).find(
+      ([, tokens]) => tokens.asc === sort || tokens.desc === sort,
+    )?.[0] ?? null;
+  const activeSortDirection =
+    activeSortColumn && SORT_BY_COLUMN[activeSortColumn]?.desc === sort ? "desc" : "asc";
+
   return (
-    <PageShell width="wide">
-      <PageHeader
-        icon={<ListFilter />}
+    <AppFrame>
+      <WorkspaceHeader
         title="Issues"
-        subtitle="Every project you can see, in one list."
+        // The subtitle used to occupy its own line under a 26px title, costing
+        // ~92px of vertical chrome. It is not deleted — it is one hover away.
+        description="Every project you can see, in one list."
         actions={
           dirty && (
             <Button size="sm" onClick={() => setSaveOpen(true)}>
-              <Save className="h-3.5 w-3.5" />
+              <Save className="size-3.5" />
               Save view
             </Button>
           )
         }
-        className="mb-5"
       />
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[15rem_1fr]">
-        <ViewRail
+      <Toolbar
+        trailing={
+          <>
+            <span className="whitespace-nowrap text-meta text-muted-foreground">
+              {items.length} shown · {result?.projectsInScope ?? 0}{" "}
+              {result?.projectsInScope === 1 ? "project" : "projects"}
+            </span>
+            {result?.nextCursor && (
+              <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
+                Load more
+              </Button>
+            )}
+          </>
+        }
+      >
+        {/* Saved views move from a 15rem left rail into the toolbar. Same
+            feature, same handlers — but the rail was a second sidebar beside
+            the global one, and on a 1920px screen it cost 240px to show a list
+            that is usually three items long. */}
+        <ViewSwitcher
           views={views}
-          activeId={activeView?.id ?? null}
+          activeView={activeView}
           onSelect={selectView}
           onClear={clearView}
           onDelete={deleteView}
         />
+        <IssueFilterBar
+          layout="row"
+          filter={filter}
+          projects={projects}
+          currentUserId={currentUserId}
+          onChange={(next) => setFilter(next)}
+        />
+        <CustomFieldFilters
+          layout="row"
+          fields={filterableFields}
+          predicates={filter.customFields ?? []}
+          onChange={(customFields) =>
+            setFilter({
+              ...filter,
+              customFields: customFields.length ? customFields : undefined,
+            })
+          }
+        />
+      </Toolbar>
 
-        <div className="min-w-0 space-y-4">
-          <IssueFilterBar
-            filter={filter}
-            projects={projects}
-            currentUserId={currentUserId}
-            onChange={(next) => setFilter(next)}
-          />
-
-          {/* Custom-field predicates get their own row: each is a compound
-              control (field · operator · value) and mixing them into the fixed
-              filter bar would make both harder to read. */}
-          <CustomFieldFilters
-            fields={filterableFields}
-            predicates={filter.customFields ?? []}
-            onChange={(customFields) =>
-              setFilter({
-                ...filter,
-                customFields: customFields.length ? customFields : undefined,
-              })
-            }
-          />
-
-          {activeView?.filterCorrupt && (
-            <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning/[0.07] px-4 py-3">
-              <TriangleAlert className="mt-px h-4 w-4 shrink-0 text-warning" aria-hidden />
-              <p className="text-[13px] leading-relaxed text-foreground">
-                <span className="font-medium">This view&apos;s saved filter couldn&apos;t be read</span>
-                , so it is showing everything. Set the filter you want and save the
-                view again to repair it.
-              </p>
-            </div>
-          )}
-
-          {loading ? (
-            <Card className="overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
-              ))}
-            </Card>
-          ) : items.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<ListFilter />}
-                title={
-                  result?.projectsInScope === 0
-                    ? "No projects in scope"
-                    : "Nothing matches this filter"
-                }
-                // BR-3: "zero results" and "you are in none of these projects"
-                // are different answers, and conflating them makes a shared
-                // view look broken to the person who cannot see its projects.
-                description={
-                  result?.projectsInScope === 0
-                    ? "You're not a member of any project this view covers. Ask a project lead to add you."
-                    : "Try widening the filter, or clear it to see everything."
-                }
-              />
-            </Card>
-          ) : (
-            <>
-              <Card className="overflow-hidden">
-                {/* Selects this PAGE, and says so. Deliberately not "select all
-                    3,600 matching" — see ADR-0041 §3. */}
-                <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
-                  <Checkbox
-                    checked={allOnPageSelected}
-                    aria-label="Select all issues on this page"
-                    onClick={() =>
-                      setSelected(allOnPageSelected ? new Set() : new Set(items.map((i) => i.id)))
-                    }
-                  />
-                  <span className="text-[12px] text-muted-foreground">
-                    {selected.size > 0
-                      ? `${selected.size} selected`
-                      : `Select all ${items.length} on this page`}
-                  </span>
-                </div>
-                <ul className="divide-y divide-border">
-                  {items.map((item) => (
-                    <li key={item.id}>
-                      <CrossProjectRow
-                        item={item}
-                        selected={selected.has(item.id)}
-                        onToggle={toggleRow}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-
-              {selected.size > 0 && (
-                <BulkActionBar
-                  count={selected.size}
-                  currentUserId={currentUserId}
-                  statuses={bulkStatuses}
-                  applying={applying}
-                  onApply={applyBulk}
-                  onClear={() => setSelected(new Set())}
-                />
-              )}
-
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  {items.length} shown across {result?.projectsInScope ?? 0}{" "}
-                  {result?.projectsInScope === 1 ? "project" : "projects"}
-                </p>
-                {result?.nextCursor && (
-                  <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
-                    Load more
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
+      {activeView?.filterCorrupt && (
+        <div className="flex shrink-0 items-start gap-2 border-b border-warning/30 bg-warning/[0.07] px-4 py-2">
+          <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
+          <p className="text-body text-foreground">
+            <span className="font-medium">This view&apos;s saved filter couldn&apos;t be read</span>
+            , so it is showing everything. Set the filter you want and save the view again
+            to repair it.
+          </p>
         </div>
-      </div>
+      )}
+
+      {/* Shown only while something is ticked. A permanent "Select all 50 on
+          this page" strip cost 32px of every screen to state a fact the header
+          checkbox already offers — and the scope caveat only matters once a
+          selection exists (ADR-0041 §3). */}
+      {selected.size > 0 && (
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border-subtle bg-accent/[0.06] px-4 text-meta text-foreground">
+          <span className="font-medium">{selected.size} selected</span>
+          <span className="text-muted-foreground">
+            on this page ({items.length} loaded)
+          </span>
+        </div>
+      )}
+
+      <Workspace>
+        <DataTable
+          rows={items}
+          columns={columns}
+          rowKey={(row) => row.id}
+          loading={loading}
+          selection={{
+            selected: selected as Set<string>,
+            // Shift-click range selection is preserved: the table hands back
+            // the id, the workspace's own `toggleRow` still owns the anchor.
+            onToggle: (id) => toggleRow(id, false),
+            onToggleAll: () =>
+              setSelected(allOnPageSelected ? new Set() : new Set(items.map((i) => i.id))),
+            label: "Select all issues on this page",
+          }}
+          sort={{
+            key: activeSortColumn,
+            direction: activeSortDirection,
+            onChange: (key, direction) => {
+              const tokens = SORT_BY_COLUMN[key];
+              if (tokens) setSort(direction === "asc" ? tokens.asc : tokens.desc);
+            },
+          }}
+          empty={
+            <EmptyState
+              icon={<ListFilter />}
+              title={
+                result?.projectsInScope === 0
+                  ? "No projects in scope"
+                  : "Nothing matches this filter"
+              }
+              // BR-3: "zero results" and "you are in none of these projects"
+              // are different answers, and conflating them makes a shared view
+              // look broken to the person who cannot see its projects.
+              description={
+                result?.projectsInScope === 0
+                  ? "You're not a member of any project this view covers. Ask a project lead to add you."
+                  : "Try widening the filter, or clear it to see everything."
+              }
+            />
+          }
+        />
+      </Workspace>
+
+      {selected.size > 0 && (
+        <div className="shrink-0 border-t border-border px-4 py-2">
+          <BulkActionBar
+            count={selected.size}
+            currentUserId={currentUserId}
+            statuses={bulkStatuses}
+            applying={applying}
+            onApply={applyBulk}
+            onClear={() => setSelected(new Set())}
+          />
+        </div>
+      )}
 
       <SaveViewDialog
         open={saveOpen}
@@ -425,6 +443,6 @@ export function IssueWorkspace({
           setActiveView(view);
         }}
       />
-    </PageShell>
+    </AppFrame>
   );
 }

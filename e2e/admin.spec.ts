@@ -1,14 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
+import { signInAs } from "./support/session";
 
 // Admin control plane (13_admin.md, ADR-0022/0023). Seeded: Aditi is org ADMIN,
 // Kavya is org MEMBER. Password: Passw0rd!.
 
 async function signIn(page: Page, email: string) {
-  await page.goto("/sign-in");
-  await page.locator("#email").fill(email);
-  await page.locator("#password").fill("Passw0rd!");
-  await page.getByRole("button", { name: /sign in with email/i }).click();
-  await page.waitForURL(/\/(home|dashboard|projects)/);
+  // Restores a session saved once by e2e/auth.setup.ts. Posting
+  // credentials here would trip the 8-per-15-min auth limiter across a
+  // full run (see e2e/support/session.ts).
+  await signInAs(page, email);
 }
 
 test("an ADMIN sees the console, all tabs, and can toggle a feature flag", async ({ page }) => {

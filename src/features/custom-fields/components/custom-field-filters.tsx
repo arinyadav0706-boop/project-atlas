@@ -19,6 +19,7 @@ import type {
   CustomFieldDefinitionDto,
   CustomFieldTypeDto,
 } from "@/features/custom-fields/types/custom-field.types";
+import { cn } from "@/shared/lib/utils";
 
 // Custom-field filter chips on /issues (ADR-0043).
 //
@@ -47,10 +48,19 @@ export function CustomFieldFilters({
   fields,
   predicates,
   onChange,
+  layout = "wrap",
 }: {
   fields: CustomFieldDefinitionDto[];
   predicates: CustomFieldPredicate[];
   onChange: (next: CustomFieldPredicate[]) => void;
+  /**
+   * `row` forbids wrapping, for the fixed-height toolbar on /issues where a
+   * second line would be clipped behind the table header.
+   *
+   * Opt-in rather than a changed default: timeline, calendar and the dashboard
+   * widget dialog all render this in narrow containers where wrapping is right.
+   */
+  layout?: "wrap" | "row";
 }) {
   if (fields.length === 0) return null;
 
@@ -63,7 +73,12 @@ export function CustomFieldFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      className={cn(
+        "flex items-center gap-2",
+        layout === "row" ? "flex-nowrap" : "flex-wrap",
+      )}
+    >
       {predicates.map((predicate, i) => {
         const field = fields.find((f) => f.id === predicate.fieldId);
         // A predicate whose field has since been deleted: shown as removable
