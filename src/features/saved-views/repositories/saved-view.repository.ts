@@ -2,14 +2,19 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/lib/db";
 import { issueFilterWhere } from "@/features/issues/repositories/issue-filter.repository";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
-import type { SavedViewSortDto } from "@/features/saved-views/types/saved-view.types";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  type SavedViewSortDto,
+} from "@/features/saved-views/types/saved-view.types";
 import type { ResolvedPredicate } from "@/features/custom-fields/lib/field-predicate";
 
 // Saved views + the cross-project issue query (ADR-0040). Prisma lives only in
 // `*.repository.ts` (Feature Architecture §4).
 
-export const DEFAULT_PAGE_SIZE = 50;
-export const MAX_PAGE_SIZE = 100;
+// Re-exported so existing importers keep working; defined in the types
+// module (client components need them too).
+export { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE };
 
 const ownerSelect = { select: { id: true, name: true } } as const;
 

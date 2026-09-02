@@ -13,6 +13,8 @@ import {
   WorkspaceHeader,
 } from "@/shared/components/layout/app-frame";
 import { DataTable } from "@/shared/components/data/data-table";
+import { Pagination } from "@/shared/components/data/pagination";
+import { PAGE_SIZE_OPTIONS } from "@/shared/lib/pagination";
 import { issueColumns, SORT_BY_COLUMN } from "@/features/saved-views/components/issue-columns";
 import { ViewSwitcher } from "@/features/saved-views/components/view-switcher";
 import { issueFilterToQuery } from "@/features/issues/lib/issue-filter-query";
@@ -29,6 +31,7 @@ import {
 } from "@/features/saved-views/components/issue-filter-bar";
 import { SaveViewDialog } from "@/features/saved-views/components/save-view-dialog";
 import {
+  DEFAULT_PAGE_SIZE,
   DEFAULT_SORT,
   type CrossProjectIssueDto,
   type IssueQueryResultDto,
@@ -43,11 +46,32 @@ import {
 // naming — which is the distinction Jira blurs by making every filter a stored
 // object.
 
-function buildQuery(filter: IssueFilter, sort: SavedViewSortDto, cursor?: string) {
+function buildQuery(
+  filter: IssueFilter,
+  sort: SavedViewSortDto,
+  page: { cursor?: string; pageSize?: number } = {},
+) {
   const q = issueFilterToQuery(filter);
   if (sort !== DEFAULT_SORT) q.set("sort", sort);
-  if (cursor) q.set("cursor", cursor);
+  if (page.cursor) q.set("cursor", page.cursor);
+  if (page.pageSize && page.pageSize !== DEFAULT_PAGE_SIZE) q.set("take", String(page.pageSize));
   return q;
+}
+
+/**
+ * The URL for the current question — filter, sort and page size, but NOT the
+ * page position.
+ *
+ * `/api/issues` paginates by cursor, and a cursor is an opaque row id, not an
+ * ordinal: `?page=3` cannot be resolved without walking pages 1 and 2 first.
+ * Putting a cursor in the URL would make a shared link show the right rows and
+ * an unusable Previous button. So a link reopens the same filtered, sorted list
+ * at its first page, and the page position stays in memory. Offset addressing
+ * would fix this; see 06_Issues_Gate_Report.md §3.
+ */
+function shareableUrl(filter: IssueFilter, sort: SavedViewSortDto, pageSize: number) {
+  const q = buildQuery(filter, sort, { pageSize }).toString();
+  return q ? `/issues?${q}` : "/issues";
 }
 
 /** Same filter, ignoring key order — decides whether "Save" is offered. */
@@ -61,6 +85,7 @@ export function IssueWorkspace({
   initialViews,
   filterableFields,
   initialFilter,
+  initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   projects: ProjectOption[];
   currentUserId: string;
@@ -69,6 +94,8 @@ export function IssueWorkspace({
   filterableFields: CustomFieldDefinitionDto[];
   /** Parsed from the URL server-side, so a shared link opens filtered. */
   initialFilter: IssueFilter;
+  /** `?take=` from the URL, so a shared link keeps the sender's page size. */
+  initialPageSize?: number;
 }) {
   const [views, setViews] = useState(initialViews);
   const [activeView, setActiveView] = useState<SavedViewDto | null>(null);
@@ -78,8 +105,21 @@ export function IssueWorkspace({
   const [result, setResult] = useState<IssueQueryResultDto | null>(null);
   const [items, setItems] = useState<CrossProjectIssueDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(initialPageSize);
+  /**
+   * The cursor that opened each page after the first — so `cursors.length + 1`
+   * is the page number and `cursors.at(-1)` is what the current page was
+   * fetched with.
+   *
+   * A stack rather than an offset because the API is keyset-paginated: going
+   * back means re-using the cursor you arrived with, not subtracting 50 from
+   * something. It costs one array of strings and no extra requests, and it is
+   * the standard way to give a cursor API a Previous button without loading
+   * rows the user cannot see.
+   */
+  const [cursors, setCursors] = useState<string[]>([]);
+  const scroller = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [applying, setApplying] = useState(false);
   // Anchor for shift-click range selection — the behaviour every list of
@@ -90,12 +130,17 @@ export function IssueWorkspace({
   // overwriting it — the classic filter-as-you-type race.
   const requestId = useRef(0);
 
-  const run = useCallback(async (nextFilter: IssueFilter, nextSort: SavedViewSortDto) => {
+  const run = useCallback(
+    async (
+      nextFilter: IssueFilter,
+      nextSort: SavedViewSortDto,
+      page: { cursor?: string; pageSize: number },
+    ) => {
     const id = ++requestId.current;
     setLoading(true);
     try {
       const data = await apiRequest<IssueQueryResultDto>(
-        `/api/issues?${buildQuery(nextFilter, nextSort).toString()}`,
+        `/api/issues?${buildQuery(nextFilter, nextSort, page).toString()}`,
       );
       if (id !== requestId.current) return;
       setResult(data);
@@ -111,30 +156,66 @@ export function IssueWorkspace({
     }
   }, []);
 
-  // Re-query whenever the question changes, and keep the URL in step so the
-  // current list is always copy-pasteable. `replaceState` rather than a router
-  // push: typing in the search box should not add a history entry per keystroke.
+  // Re-query whenever the question or the page changes, and keep the URL in
+  // step so the current list is always copy-pasteable. `replaceState` rather
+  // than a router push: typing in the search box should not add a history entry
+  // per keystroke.
   useEffect(() => {
-    void run(filter, sort);
-    const query = buildQuery(filter, sort).toString();
-    window.history.replaceState(null, "", query ? `/issues?${query}` : "/issues");
-  }, [filter, sort, run]);
+    void run(filter, sort, { cursor: cursors.at(-1), pageSize });
+    window.history.replaceState(null, "", shareableUrl(filter, sort, pageSize));
+  }, [filter, sort, pageSize, cursors, run]);
 
-  const loadMore = useCallback(async () => {
-    if (!result?.nextCursor) return;
-    setLoadingMore(true);
-    try {
-      const data = await apiRequest<IssueQueryResultDto>(
-        `/api/issues?${buildQuery(filter, sort, result.nextCursor).toString()}`,
-      );
-      setResult(data);
-      setItems((prev) => [...prev, ...data.items]);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't load more.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [filter, sort, result]);
+  /**
+   * Any change to the QUESTION returns to page one.
+   *
+   * Staying on page 4 of a filter you just replaced shows rows 151–200 of a
+   * different result set, which is the classic table bug. The functional
+   * update keeps the existing empty array when there is nothing to reset, so a
+   * keystroke in the search box does not re-fire the effect twice with a new
+   * `[]` identity.
+   */
+  const resetPage = useCallback(() => {
+    setCursors((prev) => (prev.length === 0 ? prev : []));
+  }, []);
+
+  /**
+   * The only two ways the question changes.
+   *
+   * Wrappers rather than a `resetPage()` remembered at each of the six call
+   * sites — the seventh is the one that ships on page 4 of the wrong result
+   * set. Nothing calls `setFilter`/`setSort` directly below this line.
+   */
+  const applyFilter = useCallback(
+    (next: IssueFilter) => {
+      setFilter(next);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  const applySort = useCallback(
+    (next: SavedViewSortDto) => {
+      setSort(next);
+      resetPage();
+    },
+    [resetPage],
+  );
+
+  const goToTop = useCallback(() => {
+    scroller.current?.scrollTo({ top: 0 });
+  }, []);
+
+  const nextPage = useCallback(() => {
+    const cursor = result?.nextCursor;
+    if (!cursor) return;
+    setCursors((prev) => [...prev, cursor]);
+    goToTop();
+  }, [result, goToTop]);
+
+  const prevPage = useCallback(() => {
+    setCursors((prev) => prev.slice(0, -1));
+    goToTop();
+  }, [goToTop]);
 
   const toggleRow = useCallback(
     (id: string, shiftKey: boolean) => {
@@ -234,7 +315,9 @@ export function IssueWorkspace({
       }
 
       setSelected(new Set());
-      await run(filter, sort);
+      // Re-read the SAME page, not page one: a bulk edit should leave you
+      // looking at the rows you just edited.
+      await run(filter, sort, { cursor: cursors.at(-1), pageSize });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't apply the changes.");
     } finally {
@@ -244,14 +327,14 @@ export function IssueWorkspace({
 
   function selectView(view: SavedViewDto) {
     setActiveView(view);
-    setFilter(view.filter);
-    setSort(view.sort);
+    applyFilter(view.filter);
+    applySort(view.sort);
   }
 
   function clearView() {
     setActiveView(null);
-    setFilter({});
-    setSort(DEFAULT_SORT);
+    applyFilter({});
+    applySort(DEFAULT_SORT);
   }
 
   async function deleteView(view: SavedViewDto) {
@@ -303,10 +386,14 @@ export function IssueWorkspace({
         }
       />
 
+      {/* The toolbar's trailing slot says SCOPE, not size. "1–50" moved to the
+          pagination bar where it belongs; what stays here is how wide the
+          question is, because "no results" means something different when the
+          answer is "across zero projects" (BR-3). */}
       <Toolbar
         trailing={
           <span className="whitespace-nowrap text-meta text-muted-foreground">
-            {items.length} shown · {result?.projectsInScope ?? 0}{" "}
+            {result?.projectsInScope ?? 0}{" "}
             {result?.projectsInScope === 1 ? "project" : "projects"}
           </span>
         }
@@ -331,7 +418,7 @@ export function IssueWorkspace({
           filter={filter}
           projects={projects}
           currentUserId={currentUserId}
-          onChange={(next) => setFilter(next)}
+          onChange={applyFilter}
         >
           {/* `false`, not an element that renders null: the panel draws a
               divider above its extra controls and would otherwise draw one
@@ -341,7 +428,7 @@ export function IssueWorkspace({
               fields={filterableFields}
               predicates={filter.customFields ?? []}
               onChange={(customFields) =>
-                setFilter({
+                applyFilter({
                   ...filter,
                   customFields: customFields.length ? customFields : undefined,
                 })
@@ -375,7 +462,7 @@ export function IssueWorkspace({
         </div>
       )}
 
-      <Workspace>
+      <Workspace ref={scroller}>
         <DataTable
           rows={items}
           columns={columns}
@@ -398,7 +485,7 @@ export function IssueWorkspace({
             direction: activeSortDirection,
             onChange: (key, direction) => {
               const tokens = SORT_BY_COLUMN[key];
-              if (tokens) setSort(direction === "asc" ? tokens.asc : tokens.desc);
+              if (tokens) applySort(direction === "asc" ? tokens.asc : tokens.desc);
             },
           }}
           empty={
@@ -421,18 +508,33 @@ export function IssueWorkspace({
           }
         />
 
-        {/* At the END of the rows, where the list runs out — not in the
-            toolbar, where it sat next to the filters and read as one of them.
-            It also scrolls with the list, so it appears exactly when you have
-            reached the last loaded issue. */}
-        {result?.nextCursor && !loading && (
-          <div className="flex justify-center border-t border-border-subtle p-3">
-            <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
-              Load more
-            </Button>
-          </div>
-        )}
       </Workspace>
+
+      {/* Pagination, not "Load more". An operational list is not a feed: the
+          questions are "where am I", "how many are there" and "take me back",
+          and an append-only button answers none of them. Pinned below the
+          scroller so it does not move as you page. */}
+      <Pagination
+        page={cursors.length + 1}
+        pageSize={pageSize}
+        count={items.length}
+        // The API cannot count the matching set (06_Issues_Gate_Report.md §3),
+        // so the bar shows the range without a denominator rather than
+        // fetching 7,300 rows into the browser to invent one. The numbered
+        // control appears the day this stops being null.
+        total={null}
+        hasPrev={cursors.length > 0}
+        hasNext={result?.nextCursor != null}
+        onPrev={prevPage}
+        onNext={nextPage}
+        onPageSize={(size) => {
+          setPageSize(size);
+          resetPage();
+          goToTop();
+        }}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        busy={loading}
+      />
 
       {selected.size > 0 && (
         <div className="shrink-0 border-t border-border px-4 py-2">

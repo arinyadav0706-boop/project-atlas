@@ -15,8 +15,8 @@ async function signIn(page: Page, email: string) {
   await signInAs(page, email);
 }
 
-async function openIssues(page: Page) {
-  await page.goto("/issues");
+async function openIssues(page: Page, query = "") {
+  await page.goto(`/issues${query}`);
   await expect(page.getByRole("heading", { name: /issues/i }).first()).toBeVisible({
     timeout: 20000,
   });
@@ -37,10 +37,11 @@ test("the list loads issues from more than one project", async ({ page }) => {
   await signIn(page, DEMO_USERS.admin);
   await openIssues(page);
   expect(await rows(page).count()).toBeGreaterThan(0);
-  // The FACT — how many rows, across how many projects — not the sentence.
-  // The wording changed in the redesign ("shown across N projects" → "N shown ·
-  // M projects") and a test that pins phrasing fails on every copy edit.
-  await expect(page.getByText(/\d+ shown/i)).toBeVisible();
+  // The FACT — a visible row range, and how many projects are in scope — not
+  // the sentence. Wording has already changed twice here; a test that pins
+  // phrasing fails on every copy edit.
+  await expect(page.getByRole("navigation", { name: /pagination/i })).toBeVisible();
+  await expect(page.getByText(/\d+–\d+/)).toBeVisible();
   await expect(page.getByText(/\d+ projects?/i).first()).toBeVisible();
 });
 
@@ -131,18 +132,60 @@ test("selection and the bulk action bar appear and clear", async ({ page }) => {
   await expect(page.getByText(/\d+ selected/i).first()).toBeVisible();
 });
 
-test("Load more appends rather than replacing", async ({ page }) => {
+test("paging forward and back replaces the rows and moves the range", async ({ page }) => {
+  await signIn(page, DEMO_USERS.admin);
+  // `take=25` against a 30-issue seed guarantees two pages. The default 50
+  // would make this test skip itself, which is how the old "Load more" test
+  // managed to never run.
+  await openIssues(page, "?take=25");
+
+  const next = page.getByRole("button", { name: "Next page" });
+  const prev = page.getByRole("button", { name: "Previous page" });
+
+  // On page one, Previous is present but disabled — a control that vanishes at
+  // the edges moves everything beside it.
+  await expect(prev).toBeDisabled();
+  await expect(next).toBeEnabled();
+
+  const firstKey = async () =>
+    (await rows(page).first().getAttribute("aria-label")) ?? "";
+  const pageOneKey = await firstKey();
+
+  await next.click();
+  await expect(page.getByText(/Page\s*2/)).toBeVisible({ timeout: 20000 });
+  // REPLACES rather than appends — the difference between pagination and a
+  // feed, and the whole reason this changed.
+  await expect.poll(firstKey, { timeout: 20000 }).not.toBe(pageOneKey);
+  await expect(prev).toBeEnabled();
+
+  await prev.click();
+  await expect(page.getByText(/Page\s*1/)).toBeVisible({ timeout: 20000 });
+  await expect.poll(firstKey, { timeout: 20000 }).toBe(pageOneKey);
+});
+
+test("changing the page size re-pages from the top", async ({ page }) => {
   await signIn(page, DEMO_USERS.admin);
   await openIssues(page);
 
-  const loadMore = page.getByRole("button", { name: /load more/i });
-  if ((await loadMore.count()) === 0) {
-    test.skip(true, "seed has one page of issues");
-    return;
-  }
-  const before = await rows(page).count();
-  await loadMore.click();
-  await expect.poll(async () => rows(page).count(), { timeout: 20000 }).toBeGreaterThan(before);
+  await page.getByLabel("Rows per page").click();
+  await page.getByRole("option", { name: "25" }).click();
+
+  await expect.poll(async () => rows(page).count(), { timeout: 20000 }).toBeLessThanOrEqual(25);
+  // The size is shareable; the page position deliberately is not.
+  await expect(page).toHaveURL(/take=25/);
+});
+
+test("a filter change returns to page one", async ({ page }) => {
+  await signIn(page, DEMO_USERS.admin);
+  await openIssues(page, "?take=25");
+
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText(/Page\s*2/)).toBeVisible({ timeout: 20000 });
+
+  // Staying on page 2 of a filter you just replaced shows rows 51-100 of a
+  // different result set. This is the regression that wrapper exists for.
+  await page.getByLabel("Search issue titles").fill("the");
+  await expect(page.getByText(/Page\s*1/)).toBeVisible({ timeout: 20000 });
 });
 
 test("a viewer sees the list scoped to their own memberships", async ({ page }) => {

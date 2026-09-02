@@ -38,6 +38,10 @@ for (const vp of [
       documentScrollH: Math.round(document.documentElement.scrollHeight),
       viewportH: window.innerHeight,
       innerScrollers: scrollers.length,
+      paginationBottomGap: (() => {
+        const nav = document.querySelector('nav[aria-label="Pagination"]');
+        return nav ? Math.round(window.innerHeight - nav.getBoundingClientRect().bottom) : null;
+      })(),
     };
   });
   console.log(String(vp.width).padEnd(5), JSON.stringify(m));

@@ -8,6 +8,8 @@ import { SavedViewService } from "@/features/saved-views/services/saved-view.ser
 import { CustomFieldService } from "@/features/custom-fields/services/custom-field.service";
 import { parseIssueFilter } from "@/features/issues/validation/issue-filter.schemas";
 import { IssueWorkspace } from "@/features/saved-views/components/issue-workspace";
+import { PAGE_SIZE_OPTIONS } from "@/shared/lib/pagination";
+import { DEFAULT_PAGE_SIZE } from "@/features/saved-views/types/saved-view.types";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 
 // Cross-project issues + saved views (22_saved_views.md §5, ADR-0040).
@@ -36,8 +38,21 @@ export default async function IssuesPage({
       initialViews={views}
       filterableFields={filterableFields}
       initialFilter={parseFilterFromParams(params)}
+      initialPageSize={parsePageSize(params.take)}
     />
   );
+}
+
+/**
+ * `?take=` from a shared link, clamped to the sizes the control offers.
+ *
+ * Anything else — a missing value, a word, 5000 — falls back to the default
+ * rather than 400ing. The server clamps `take` again anyway (MAX_PAGE_SIZE);
+ * this is about the control showing a size it can actually select.
+ */
+function parsePageSize(raw: string | string[] | undefined): number {
+  const value = Number(Array.isArray(raw) ? raw[0] : raw);
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(value) ? value : DEFAULT_PAGE_SIZE;
 }
 
 /**

@@ -51,7 +51,13 @@ export function AppFrame({
         // The frame is the scroll container's child and must fill it, so the
         // workspace below can claim the remaining height rather than growing
         // the document.
-        "flex h-full min-h-0 flex-col",
+        //
+        // `100% + 3.5rem`, not `100%`: `h-full` measures the CONTENT box, which
+        // `py-7` has already shortened by 28px top and bottom. Cancelling the
+        // padding with a negative margin without giving those 56px back left a
+        // dead strip under the pagination bar — measured, not theorised. The
+        // calc disappears with the padding at the global flip.
+        "flex h-[calc(100%+3.5rem)] min-h-0 flex-col",
         className,
       )}
     >
@@ -141,14 +147,16 @@ export function Toolbar({
  * "content pushed downward" complaint: the header and toolbar cannot be
  * scrolled away because they are not in the scroller.
  */
-export function Workspace({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+export const Workspace = React.forwardRef<
+  HTMLDivElement,
+  { className?: string; children: React.ReactNode }
+>(function Workspace({ className, children }, ref) {
+  // Forwards a ref so a page can scroll it back to the top — turning a page in
+  // a table and landing halfway down the new rows is disorienting, and the
+  // document is no longer the scroller, so `window.scrollTo` cannot do it.
   return (
-    <div className={cn("min-h-0 flex-1 overflow-auto", className)}>{children}</div>
+    <div ref={ref} className={cn("min-h-0 flex-1 overflow-auto", className)}>
+      {children}
+    </div>
   );
-}
+});

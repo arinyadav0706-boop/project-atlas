@@ -63,17 +63,28 @@ The recommendation below only makes sense against the real page, so:
 | Library | Exact purpose | Existing alternative | Why it is **not** needed now | Bundle impact | Used on | Decision |
 |---|---|---|---|---|---|---|
 | `@tanstack/react-table` | Column model: sizing, ordering, pinning, visibility, sort state | A typed column-definition array (~80 lines) plus CSS Grid. Sorting is already server-side, so the library would run in `manualSorting` mode as a state container. Row selection already works with a `Set` | Resize / reorder / pin are **new features**, not part of a UI refactor. Adopting the library now buys indirection, not capability | ≤97 kB worst case; ~15–20 kB realistic | Would be `DataTable` | **Defer** |
-| `@tanstack/react-virtual` | Windowing long lists | None needed — the page renders **50 rows per fetch** | Virtualization solves a problem this page does not have. A few hundred DOM rows after several "Load more" clicks is not a performance issue | 11 kB worst case | `/issues`, backlog | **Defer** |
+| `@tanstack/react-virtual` | Windowing long lists | None needed — the page renders **one page of 50**, capped at 100 by `MAX_PAGE_SIZE` | **Re-measured at the gate, not re-asserted:** 1,517 DOM nodes and a 102–120 ms click-to-paint page turn at 50 rows (158–190 ms at 100), API round trip included. Windowing 50 rows adds a scroll listener, absolute positioning and a measurement cache to save work that costs under a frame. Real pagination removed the premise the audit's proposal rested on | 11 kB worst case | `/issues`, backlog | **Defer — and the reason is now measured** |
 | `@radix-ui/react-tabs` | Accessible in-page tabs with roving focus | `TabNav` (route tabs) — correct for routes | `/issues` has **no in-object tabs**. The saved-view rail is a list of links | 17 kB worst case | Nothing yet | **Defer** |
 | `@radix-ui/react-scroll-area` | Overlay scrollbars in nested panels | Native `overflow: auto` | Native scrollbars are correct on macOS and Linux, which is all I can actually test here. Claiming a Windows fix I cannot verify would be a guess | 17 kB worst case | Table body | **Defer** |
 | `@radix-ui/react-popover` | Form controls in a floating container | Radix `Select` for each facet (already used); `Dialog` for anything larger | The compact toolbar fits the existing Selects in one row. A multi-select filter with search would need this — but that is **new functionality**, not a layout change | ≤117 kB standalone; far less here (most sub-packages already present) | Filter overflow | **Defer** |
 
-### Installed for this phase: **none of the five.**
+### Installed for this phase: **none of the five.** Re-confirmed at the gate.
+
+Nothing in the /issues gate changed a deferral. The pagination bar, the filter
+panel and the chips are Radix `Select` and `Dialog` (already present), CSS Grid
+and Tailwind. The one proposal whose *justification* changed is
+`react-virtual`, and it changed against adoption — see the table row above.
 
 `/issues` will be rebuilt entirely on what is already in `package.json`:
 Tailwind for layout and density, CSS Grid for the table, Radix `Select` and
 `Checkbox` for controls, `cva` for variants, Lucide for icons, and the existing
 server-side sort and cursor pagination.
+
+The `@radix-ui/react-popover` row deserves a note after the fact: the toolbar
+overflow it was proposed for turned out to be real, and was solved with the
+`Dialog` already in the tree rather than by installing the popover. A modal
+filter panel is a slightly heavier interaction than a popover; it is also 0 kB
+and 0 new packages. The trigger stands — multi-select filters with search.
 
 ### The triggers that would change each answer
 
@@ -83,7 +94,7 @@ an omission:
 | Library | Adopt when |
 |---|---|
 | `react-table` | Column resize/reorder/pinning is approved as a **feature**, or the third page needs a column behaviour the hand-rolled model cannot express |
-| `react-virtual` | A list renders **>500 rows in one DOM** — realistically the backlog once "Load more" is replaced by infinite scroll |
+| `react-virtual` | A list renders **>500 rows in one DOM**. `/issues` cannot reach it — the page size is capped at 100. The **backlog**, which renders a whole sprint unpaginated, still can; re-ask there, with a measurement |
 | `react-tabs` | The issue-detail split view lands and needs in-object tabs |
 | `react-scroll-area` | A Windows user reports the scrollbar, or we get a Windows test target |
 | `react-popover` | Multi-select filters with search are approved as a feature |

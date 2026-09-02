@@ -74,14 +74,22 @@ const config: Config = {
         panel: "8px",
       },
       // Semantic type scale (§E3). Six roles, replacing the nine ad-hoc sizes
-      // measured on a single page. 11px is the floor — the 9px and 10px labels
-      // found in the audit are below legibility, not merely small.
+      // measured on a single page.
+      //
+      // REVISED at the /issues gate. The first scale bought density by
+      // shrinking text — 13px body, 11px metadata — and the result read as
+      // small rather than dense. Density is now bought back with spacing and
+      // layout instead: 14px body, 12px metadata, and a 36px row. `micro` is
+      // the 11px floor and is for genuinely secondary metadata only (a relative
+      // timestamp, a count), never for anything a person has to read to do
+      // their job.
       fontSize: {
-        "page-title": ["20px", { lineHeight: "26px", fontWeight: "600", letterSpacing: "-0.014em" }],
-        section: ["15px", { lineHeight: "20px", fontWeight: "600", letterSpacing: "-0.006em" }],
-        body: ["13px", { lineHeight: "18px" }],
+        "page-title": ["21px", { lineHeight: "28px", fontWeight: "600", letterSpacing: "-0.014em" }],
+        section: ["16px", { lineHeight: "22px", fontWeight: "600", letterSpacing: "-0.006em" }],
+        body: ["14px", { lineHeight: "20px" }],
         label: ["12px", { lineHeight: "16px", fontWeight: "500" }],
-        meta: ["11px", { lineHeight: "15px" }],
+        meta: ["12px", { lineHeight: "16px" }],
+        micro: ["11px", { lineHeight: "15px" }],
       },
       // Component sizing (§E5), so a row height is a token and not a guess
       // re-made in six table implementations.
@@ -91,8 +99,11 @@ const config: Config = {
         // flush against both edges. Four pixels is the difference between a
         // toolbar and a seam.
         toolbar: "44px",
-        "row-compact": "32px",
-        "row-comfy": "40px",
+        // 36, not 32: at 14px body text a 32px row leaves 6px of breathing
+        // room above and below, which reads as cramped rather than dense. 36
+        // is Linear's row height and one notch under Jira's ~40.
+        "row-compact": "36px",
+        "row-comfy": "44px",
         "col-head": "36px",
         "ctl-sm": "24px",
         "ctl-md": "28px",

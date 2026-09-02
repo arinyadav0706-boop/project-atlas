@@ -42,6 +42,15 @@ export interface CrossProjectIssueDto extends IssueListItemDto {
   projectName: string;
 }
 
+/**
+ * Page size, here rather than in the repository because the pagination control
+ * is a client component and importing a `*.repository.ts` into one would drag
+ * Prisma into the browser bundle (Feature Architecture §4). The repository and
+ * the service both read these from here, so there is still one definition.
+ */
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 100;
+
 export interface IssueQueryResultDto {
   items: CrossProjectIssueDto[];
   /** Keyset cursor for the next page, or null at the end (BR-9). */

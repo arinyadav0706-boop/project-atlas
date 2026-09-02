@@ -57,7 +57,7 @@ export function issueColumns(): Column<CrossProjectIssueDto>[] {
     {
       id: "key",
       header: "Key",
-      width: "132px",
+      width: "150px",
       sortKey: "key",
       cell: (row) => (
         <span className="flex min-w-0 items-center gap-2">
@@ -67,7 +67,7 @@ export function issueColumns(): Column<CrossProjectIssueDto>[] {
               truncated both. The project's full name — the part the key does
               not tell you — moves to the tooltip. */}
           <span
-            className="truncate font-mono text-meta text-muted-foreground"
+            className="truncate font-mono text-body text-muted-foreground"
             title={row.projectName}
           >
             {row.key}
@@ -125,7 +125,7 @@ export function issueColumns(): Column<CrossProjectIssueDto>[] {
         row.assignee ? (
           <Avatar className="size-6" title={row.assignee.name}>
             <AvatarImage src={row.assignee.avatarUrl ?? undefined} alt="" />
-            <AvatarFallback className="text-[10px]">
+            <AvatarFallback className="text-micro">
               {row.assignee.name.slice(0, 1).toUpperCase()}
             </AvatarFallback>
           </Avatar>
