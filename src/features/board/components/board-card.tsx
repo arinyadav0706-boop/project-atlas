@@ -41,7 +41,11 @@ export function BoardCard({
         // Named elevation steps, not Tailwind's defaults: `shadow-card` at
         // rest, `shadow-pop` while a card is lifted under the cursor. The
         // drag overlay is the one place in the app that earns the top step.
-        "group rounded-xl border border-border bg-background p-3 shadow-card",
+        "group rounded-control border border-border bg-background px-2.5 py-2 shadow-card transition-shadow",
+        // A card lifts on hover rather than tinting: the board is a field of
+        // white cards on a grey well, and a tint at this density reads as a
+        // selection state rather than as a pointer.
+        "hover:shadow-card-hover",
         canWrite && "cursor-grab active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
         overlay && "rotate-1 cursor-grabbing shadow-pop ring-1 ring-accent",
@@ -54,26 +58,26 @@ export function BoardCard({
           // browser's native anchor drag so it can't hijack the dnd gesture.
           draggable={false}
           onClick={(e) => sortable.isDragging && e.preventDefault()}
-          className="line-clamp-2 text-sm font-medium text-foreground hover:text-accent focus-visible:outline-none focus-visible:underline"
+          className="line-clamp-2 text-body font-medium text-foreground hover:text-accent focus-visible:outline-none focus-visible:underline"
         >
           {item.title}
         </Link>
         <PriorityIcon priority={item.priority} className="mt-0.5 shrink-0" />
       </div>
 
-      <IssueChips item={item} className="mt-2" />
+      <IssueChips item={item} className="mt-1.5" />
 
-      <div className="mt-2.5 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <IssueTypeIcon type={item.type} className="h-3.5 w-3.5" />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 font-mono text-meta text-muted-foreground">
+          <IssueTypeIcon type={item.type} className="size-3.5" />
           {item.key}
         </span>
         {item.assignee && (
-          <Avatar className="h-5 w-5">
+          <Avatar className="size-5" title={item.assignee.name}>
             {item.assignee.avatarUrl && (
               <AvatarImage src={item.assignee.avatarUrl} alt={item.assignee.name} />
             )}
-            <AvatarFallback className="text-[10px]">
+            <AvatarFallback className="text-micro">
               {item.assignee.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>

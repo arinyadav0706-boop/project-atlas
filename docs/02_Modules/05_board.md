@@ -61,13 +61,32 @@ tables.** `rank` is a string fractional key (ADR-0009); index
   fields. Returns:
   ```
   BoardDto {
-    columns: { status: IssueStatusDto; items: IssueListItemDto[] }[]  // 4, ordered
-    counts: IssueStatusCounts                                          // per status + ALL
-    appliedFilter: BoardFilter                                        // echoed
+    columns: {
+      status: WorkflowStatusDto
+      items: IssueListItemDto[]     // one PAGE, 50
+      count: number                 // live filtered total for this column
+      nextCursor: string | null     // keyset cursor for this column's next page
+    }[]
+    counts: IssueStatusCounts       // per category + ALL
+    appliedFilter: BoardFilter      // echoed
   }
   ```
-  Each column is **bounded** (capped per column; per-column "load more" is a
-  future enhancement — Performance doc). Reuses the existing `IssueListItemDto`.
+  **BR-9 — each column is PAGED, not capped.** 50 cards per page, keyset by
+  rank; the header carries the column's live filtered total and a `Load N more`
+  control names exactly how many are still hidden. Paging is per column, because
+  columns fill at wildly different rates — a Done column holding a year of work
+  sits beside a Blocked column holding two — and one board-wide cursor would
+  make the short columns wait for the long one. Retrieval stays keyset; the
+  board never uses an offset.
+
+  It used to be a hard cap of 100 with **no way to reach card 101**, while the
+  header cheerfully counted 137 — a number the reader had no way to reconcile
+  with the list under it (UX-5). Reuses the existing `IssueListItemDto`.
+- **`GET /api/projects/{projectId}/board/columns/{statusId}?cursor=&<BoardFilter>`**
+  — the next page of ONE column. Separate from the board read so growing one
+  column does not re-read the other eleven or discard their paging. The filter
+  is parsed with the same parser, because a page-two request under a different
+  filter would append cards that do not belong in the column.
 - **`PATCH /api/issues/{issueId}/rank`** — body:
   ```
   { status?: IssueStatusDto; beforeId?: string | null; afterId?: string | null }
@@ -118,5 +137,5 @@ card's current status.
 - **Sprint filter** (Phase 5), **Epic filter**, **Label filter**, **Saved
   Filters** (stored named `BoardFilter`) — all reuse the `BoardFilter` contract
   and the same board component (ADR-0008).
-- Per-column "load more" for very large columns.
 - Swimlanes (by assignee/epic), WIP limits, configurable columns.
+

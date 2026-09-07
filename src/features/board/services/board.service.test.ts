@@ -3,6 +3,7 @@ import type { Actor } from "@/shared/types/actor";
 
 vi.mock("@/features/board/repositories/board.repository", () => ({
   BOARD_COLUMN_LIMIT: 100,
+  BOARD_COLUMN_PAGE: 50,
   BoardRepository: {
     columnItems: vi.fn(),
     countByCategory: vi.fn(),
@@ -136,7 +137,32 @@ describe("getBoard", () => {
     const filter = { assigneeId: "u-9", type: "BUG" as const };
     const board = await BoardService.getBoard(actor, "proj-1", filter);
     expect(board.appliedFilter).toEqual(filter);
-    expect(repo.columnItems).toHaveBeenCalledWith("proj-1", "st-todo", filter);
+    expect(repo.columnItems).toHaveBeenCalledWith("proj-1", "st-todo", filter, {
+      take: 50,
+    });
+  });
+
+  // UX-5 — a column used to stop at 100 cards with no way to reach card 101,
+  // while its header cheerfully counted 137.
+  it("trims the take+1 probe row and reports a cursor when a column has more", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    // 51 rows back for a page of 50 — the 51st exists only to answer "is there
+    // more" and must never reach the client.
+    repo.columnItems.mockResolvedValue(
+      Array.from({ length: 51 }, (_, i) => card(`c${i}`, "st-todo")) as never,
+    );
+    const board = await BoardService.getBoard(actor, "proj-1", {});
+    const column = board.columns[0]!;
+    expect(column.items).toHaveLength(50);
+    expect(column.nextCursor).toBe("c49");
+  });
+
+  it("reports no cursor when the column fits on one page", async () => {
+    projects.getMemberRole.mockResolvedValue("MEMBER");
+    repo.columnItems.mockResolvedValue([card("only", "st-todo")] as never);
+    const board = await BoardService.getBoard(actor, "proj-1", {});
+    expect(board.columns[0]!.items).toHaveLength(1);
+    expect(board.columns[0]!.nextCursor).toBeNull();
   });
 
   it("treats a project in another org as absent (F-1 tenant scope)", async () => {

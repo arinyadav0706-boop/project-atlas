@@ -11,6 +11,7 @@
 // (omit SEED_ADMIN_PASSWORD for an SSO-only admin.)
 import { PrismaClient, type OrgRole, type ProjectRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { generateKeyBetween } from "fractional-indexing";
 import { DEFAULT_STATUSES } from "../src/features/workflow/lib/defaults";
 
 const prisma = new PrismaClient();
@@ -258,6 +259,18 @@ async function seedDemoIssues(
   const day = 24 * 60 * 60 * 1000;
   const now = Date.now();
 
+  // Ranks come from the SAME generator the app uses (ADR-0009), chained.
+  //
+  // They used to be `a0000`, `a0001`, … which look like order keys and are not:
+  // `fractional-indexing` rejects a key ending in "0", so `generateKeyBetween`
+  // threw on the first drag onto a seeded card and the board answered 409 —
+  // "the list changed", on a list that had not changed. Nothing caught it,
+  // because the ranks satisfied the database's uniqueness constraint perfectly
+  // and no test dragged a seeded card. Never hand-roll a value another library
+  // owns the grammar of.
+  let rank: string | null = null;
+  const nextRank = () => (rank = generateKeyBetween(rank, null));
+
   for (const [i, seed] of DEMO_ISSUES.entries()) {
     const status = byName.get(seed.status);
     if (!status) continue;
@@ -276,10 +289,7 @@ async function seedDemoIssues(
         reporterId: adminId,
         storyPoints: seed.points ?? null,
         dueDate: seed.dueInDays === undefined ? null : new Date(now + seed.dueInDays * day),
-        // Ranks only have to be unique within (project, status) and sort
-        // sensibly; a zero-padded ordinal satisfies both without pulling the
-        // fractional-indexing generator into the seed.
-        rank: `a${String(i).padStart(4, "0")}`,
+        rank: nextRank(),
         createdBy: adminId,
         updatedBy: adminId,
       },

@@ -67,6 +67,41 @@ export function AppFrame({
 }
 
 /**
+ * Cancels a container's padding so a child can run to its edges and fill its
+ * height.
+ *
+ * The project layout pads its children, because six of the seven pages inside
+ * it are still V1 and expect it. The board is the seventh, and a board that
+ * cannot reach the bottom of its container cannot give its columns their own
+ * scrollbars. Rather than special-casing the route in the layout, the page that
+ * wants the edges says so.
+ *
+ * TEMPORARY and deliberately visible, exactly like `SHELL_PADDING_CANCEL`
+ * above: it is deleted when the last project page is migrated and the layout
+ * stops padding.
+ */
+export function Bleed({
+  padding = "p-5",
+  className,
+  children,
+}: {
+  /** Must match the container's padding class. */
+  padding?: "p-5";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  // 2.5rem = the 1.25rem of `p-5` given back at the top and the bottom.
+  return (
+    <div
+      className={cn("-m-5 flex h-[calc(100%+2.5rem)] min-h-0 flex-col", className)}
+      data-cancels={padding}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * The page's identity line: breadcrumb, title, actions. 44px, one row.
  *
  * The old `PageHeader` stacked a 26px title over a subtitle and cost ~92px

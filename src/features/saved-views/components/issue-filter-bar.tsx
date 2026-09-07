@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -12,12 +12,11 @@ import {
 } from "@/shared/components/ui/select";
 import { Button } from "@/shared/components/ui/button";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+  FilterChip,
+  FilterPanel,
+  FilterRow,
+  FiltersButton,
+} from "@/shared/components/data/filter-bar";
 import { cn } from "@/shared/lib/utils";
 import { isIssueFilterActive } from "@/features/issues/lib/issue-filter-query";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
@@ -278,23 +277,7 @@ export function IssueFilterBar({
       <div className="flex min-w-0 flex-nowrap items-center gap-2">
         {searchBox}
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => setPanelOpen(true)}
-          // The badge is a number in a coloured pill; without this it is
-          // announced as a bare "3" after the word "Filters".
-          aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : "Filters"}
-        >
-          <SlidersHorizontal className="size-3.5" />
-          Filters
-          {activeCount > 0 && (
-            <span className="ml-0.5 rounded-chip bg-accent px-1.5 text-meta font-semibold text-accent-foreground">
-              {activeCount}
-            </span>
-          )}
-        </Button>
+        <FiltersButton count={activeCount} onClick={() => setPanelOpen(true)} />
 
         {/* What is actually on, spelled out. A count alone tells you a filter
             exists; the chips tell you which one is hiding the issue you came
@@ -310,86 +293,30 @@ export function IssueFilterBar({
             />
           ))}
           {mineOnly && (
-            <FilterChip
-              label="Assignee"
-              value="Me"
-              onRemove={() => set("assigneeId", undefined)}
-            />
+            <FilterChip label="Assignee" value="Me" onRemove={() => set("assigneeId", undefined)} />
           )}
         </div>
 
         {clearButton}
       </div>
 
-      <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogTitle>Filters</DialogTitle>
-          <DialogDescription>
-            Narrow the list. The URL updates as you go, so the result is shareable.
-          </DialogDescription>
-
-          <div className="mt-4 space-y-2.5">
-            {facets.map((facet) => (
-              <div
-                key={facet.id}
-                className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3"
-              >
-                <span className="text-label text-muted-foreground">{facet.label}</span>
-                <Picker {...facet} className="w-full" />
-              </div>
-            ))}
-
-            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
-              <span className="text-label text-muted-foreground">Assignee</span>
-              <div>{mineToggle}</div>
-            </div>
-
-            {children && (
-              <div className="border-t border-border-subtle pt-3">{children}</div>
-            )}
-          </div>
-
-          <div className="mt-5 flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!isIssueFilterActive(filter)}
-              onClick={() => onChange({})}
-            >
-              Clear all
-            </Button>
-            <DialogClose asChild>
-              <Button size="sm">Done</Button>
-            </DialogClose>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-function FilterChip({
-  label,
-  value,
-  onRemove,
-}: {
-  label: string;
-  value: string;
-  onRemove: () => void;
-}) {
-  return (
-    <span className="flex h-ctl-lg shrink-0 items-center gap-1 rounded-control border border-border bg-background pl-2 pr-1 text-body">
-      <span className="text-muted-foreground">{label}:</span>
-      <span className="max-w-[12rem] truncate font-medium text-foreground">{value}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove the ${label} filter`}
-        className="rounded-chip p-0.5 text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      <FilterPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        onClearAll={() => onChange({})}
+        canClear={isIssueFilterActive(filter)}
       >
-        <X className="size-3" />
-      </button>
-    </span>
+        {facets.map((facet) => (
+          <FilterRow key={facet.id} label={facet.label}>
+            <Picker {...facet} className="w-full" />
+          </FilterRow>
+        ))}
+
+        <FilterRow label="Assignee">{mineToggle}</FilterRow>
+
+        {children && <div className="border-t border-border-subtle pt-3">{children}</div>}
+      </FilterPanel>
+    </>
   );
 }
 

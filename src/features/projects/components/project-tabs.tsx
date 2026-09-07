@@ -21,10 +21,17 @@ import { TabNav } from "@/shared/components/ui/tab-nav";
 // Client component for the same reason as AdminConsoleNav: the icons are
 // component references, and the project layout that renders this is a server
 // component. Passing them across that boundary throws.
-export function ProjectTabs({ projectId }: { projectId: string }) {
+export function ProjectTabs({
+  projectId,
+  className,
+}: {
+  projectId: string;
+  className?: string;
+}) {
   const base = `/projects/${projectId}`;
   return (
     <TabNav
+      className={className}
       items={[
         { href: `${base}/issues`, label: "Issues", icon: ListTodo },
         { href: `${base}/board`, label: "Board", icon: KanbanSquare },

@@ -17,6 +17,7 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
+import { Bleed, Toolbar, Workspace } from "@/shared/components/layout/app-frame";
 import { BoardColumn, COLUMN_DROP_PREFIX } from "./board-column";
 import { BoardCard } from "./board-card";
 import { BoardFilterBar } from "./board-filter-bar";
@@ -30,6 +31,8 @@ import type {
 // three columns that are all IN_PROGRESS, and a category-keyed map would merge
 // them into one.
 type Columns = Record<string, IssueListItemDto[]>;
+/** Keyed by status id, like everything else on this page. */
+type Cursors = Record<string, string | null>;
 
 // The drop target is whatever the CURSOR is over, not the dragged card's
 // nearest corner (closestCorners) — a wide card near a column boundary
@@ -44,6 +47,10 @@ function toColumns(board: BoardDto): Columns {
   const cols: Columns = {};
   for (const column of board.columns) cols[column.status.id] = column.items;
   return cols;
+}
+
+function toCursors(board: BoardDto): Cursors {
+  return Object.fromEntries(board.columns.map((c) => [c.status.id, c.nextCursor]));
 }
 
 function filterToQuery(filter: BoardFilter): string {
@@ -88,6 +95,8 @@ export function BoardView({
     Object.fromEntries(initialBoard.columns.map((c) => [c.status.id, c.count])),
   );
   const [counts, setCounts] = useState<IssueStatusCounts>(initialBoard.counts);
+  const [cursors, setCursors] = useState<Cursors>(() => toCursors(initialBoard));
+  const [loadingColumn, setLoadingColumn] = useState<string | null>(null);
   const [filter, setFilter] = useState<BoardFilter>(initialBoard.appliedFilter);
   const [activeCard, setActiveCard] = useState<IssueListItemDto | null>(null);
   const canWrite = initialBoard.canWrite;
@@ -117,6 +126,9 @@ export function BoardView({
         setStatuses(board.columns.map((c) => c.status));
         setColumnCounts(Object.fromEntries(board.columns.map((c) => [c.status.id, c.count])));
         setCounts(board.counts);
+        // A new filter is a new set of columns: the old cursors point into the
+        // previous result and would append cards the filter excludes.
+        setCursors(toCursors(board));
       } catch (error) {
         if (!cancelled) {
           toast.error(error instanceof Error ? error.message : "Failed to load board.");
@@ -127,6 +139,44 @@ export function BoardView({
       cancelled = true;
     };
   }, [projectId, filter]);
+
+  /**
+   * The next page of one column (UX-5).
+   *
+   * Appends rather than replaces, and only one column moves — the other eleven
+   * keep their own scroll position and their own paging. Re-reading the whole
+   * board to grow one column would throw away both.
+   */
+  const loadMore = useCallback(
+    async (statusId: string) => {
+      const cursor = cursors[statusId];
+      if (!cursor || loadingColumn) return;
+      setLoadingColumn(statusId);
+      try {
+        const query = filterToQuery(filter);
+        const sep = query ? "&" : "?";
+        const page = await apiRequest<{
+          items: IssueListItemDto[];
+          nextCursor: string | null;
+        }>(
+          `/api/projects/${projectId}/board/columns/${statusId}${query}${sep}cursor=${encodeURIComponent(cursor)}`,
+        );
+        setColumns((prev) => {
+          // Guard against a double-append if the same page arrives twice: a
+          // duplicated card id would break both dnd-kit and React keys.
+          const seen = new Set((prev[statusId] ?? []).map((i) => i.id));
+          const added = page.items.filter((i) => !seen.has(i.id));
+          return { ...prev, [statusId]: [...(prev[statusId] ?? []), ...added] };
+        });
+        setCursors((prev) => ({ ...prev, [statusId]: page.nextCursor }));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't load more cards.");
+      } finally {
+        setLoadingColumn(null);
+      }
+    },
+    [projectId, filter, cursors, loadingColumn],
+  );
 
   const containerOfCard = useCallback(
     (cardId: string): string | null =>
@@ -244,50 +294,70 @@ export function BoardView({
   );
 
   return (
-    <div>
-      <BoardFilterBar
-        members={members}
-        labels={labels}
-        components={components}
-        epics={epics}
-        sprints={sprints}
-        filter={filter}
-        onChange={setFilter}
-      />
+    <Bleed>
+      <Toolbar>
+        <BoardFilterBar
+          members={members}
+          labels={labels}
+          components={components}
+          epics={epics}
+          sprints={sprints}
+          filter={filter}
+          onChange={setFilter}
+        />
+      </Toolbar>
+
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollisionDetection}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        {/* Columns are data, so their number is not known at build time: a
-            fixed 4-up grid squeezed twelve statuses into unreadable slivers.
-            A scrolling row of fixed-width columns is what ClickUp and Jira both
-            do, and it degrades honestly — the board gets wider, not denser. */}
-        <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
-          {statuses.map((status) => (
-            <div key={status.id} className="w-[300px] shrink-0 snap-start">
-              <BoardColumn
-                projectId={projectId}
-                status={status}
-                items={columns[status.id] ?? []}
-                count={columnCounts[status.id] ?? 0}
-                canWrite={canWrite}
-              />
-            </div>
-          ))}
-        </div>
+        {/* The board scrolls HORIZONTALLY and the columns scroll vertically —
+            two axes, each owned by the thing it belongs to. Before, the whole
+            document scrolled: a long To Do column pushed every other column's
+            cards off screen, so you scrolled past forty cards you did not care
+            about to find out whether Done had anything in it.
+
+            Columns are data, so their number is not known at build time; a
+            fixed 4-up grid squeezed twelve statuses into unreadable slivers. A
+            row of fixed-width columns degrades honestly — the board gets wider,
+            not denser. */}
+        <Workspace className="overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full min-h-0 snap-x gap-3 p-3">
+            {statuses.map((status) => (
+              // Columns GROW to fill the board and stop growing when they get
+              // wide enough to be silly. A fixed 304px left ~400px of a 1920
+              // screen empty on a four-column board, which is the same dead
+              // space /issues was rebuilt to remove; an unbounded `1fr` would
+              // stretch two columns to 800px each and make a 5-word card title
+              // look lost. Below the floor the row scrolls, which is the honest
+              // answer for a team with twelve statuses.
+              <div
+                key={status.id}
+                className="h-full min-w-[272px] max-w-[420px] flex-1 shrink-0 basis-[304px] snap-start"
+              >
+                <BoardColumn
+                  projectId={projectId}
+                  status={status}
+                  items={columns[status.id] ?? []}
+                  count={columnCounts[status.id] ?? 0}
+                  canWrite={canWrite}
+                  hasMore={cursors[status.id] != null}
+                  loadingMore={loadingColumn === status.id}
+                  onLoadMore={() => void loadMore(status.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </Workspace>
+
         <DragOverlay>
           {activeCard && (
-            <BoardCard
-              projectId={projectId}
-              item={activeCard}
-              canWrite={canWrite}
-              overlay
-            />
+            <BoardCard projectId={projectId} item={activeCard} canWrite={canWrite} overlay />
           )}
         </DragOverlay>
       </DndContext>
-    </div>
+    </Bleed>
   );
 }

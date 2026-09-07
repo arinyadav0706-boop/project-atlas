@@ -23,8 +23,18 @@ export type BoardFilter = IssueFilter;
 export interface BoardColumnDto {
   status: WorkflowStatusDto;
   items: IssueListItemDto[];
-  /** Live total in this column under the active filter — the column is capped. */
+  /** Live total in this column under the active filter. */
   count: number;
+  /**
+   * Keyset cursor for the next page of THIS column, or null when the loaded
+   * cards are all of them.
+   *
+   * Per column, not per board: columns fill at wildly different rates — a Done
+   * column holding a year of work sits beside a Blocked column holding two —
+   * and one board-wide cursor would make the short columns wait for the long
+   * one (UX-5).
+   */
+  nextCursor: string | null;
 }
 
 export interface BoardDto {
