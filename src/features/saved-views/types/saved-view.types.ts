@@ -51,10 +51,32 @@ export interface CrossProjectIssueDto extends IssueListItemDto {
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 
+/**
+ * The ceiling on the result count (BR-9a).
+ *
+ * A count is bounded work or it is a liability: `COUNT(*)` over an unbounded
+ * filtered set is fine at 7,300 issues and is a sequential scan at 5,000,000.
+ * Past this many matches the exact number stops being information anybody acts
+ * on — nobody pages to 200,001 — so the query stops counting and the UI says
+ * "10,000+". Jira and GitHub both cap for the same reason.
+ */
+export const COUNT_CAP = 10_000;
+
 export interface IssueQueryResultDto {
   items: CrossProjectIssueDto[];
   /** Keyset cursor for the next page, or null at the end (BR-9). */
   nextCursor: string | null;
+  /**
+   * How many issues match the filter — the denominator in "1–50 of 7,300".
+   *
+   * Capped at `COUNT_CAP`: when `totalCountCapped` is true this is the cap and
+   * the real number is higher, so the UI must render "10,000+" and must not
+   * compute a page count from it. Retrieval is still keyset — this is a
+   * denominator, not a new way to fetch rows.
+   */
+  totalCount: number;
+  /** True when the match count reached `COUNT_CAP` and counting stopped. */
+  totalCountCapped: boolean;
   /**
    * How many projects the query actually read, after the membership
    * intersection. Surfaced so "0 results" can distinguish "nothing matches"

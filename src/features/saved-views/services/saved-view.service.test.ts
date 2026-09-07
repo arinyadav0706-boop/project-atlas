@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import { SavedViewService } from "@/features/saved-views/services/saved-view.service";
 import { SavedViewRepository } from "@/features/saved-views/repositories/saved-view.repository";
+import { COUNT_CAP } from "@/features/saved-views/types/saved-view.types";
 import type { Actor } from "@/shared/types/actor";
 
 vi.mock("@/features/saved-views/repositories/saved-view.repository", async (orig) => {
@@ -12,6 +13,7 @@ vi.mock("@/features/saved-views/repositories/saved-view.repository", async (orig
       memberProjectIds: vi.fn(),
       allProjectIds: vi.fn(),
       listIssues: vi.fn(),
+      countIssues: vi.fn(),
       listViews: vi.fn(),
       findById: vi.fn(),
       create: vi.fn(),
@@ -47,6 +49,7 @@ beforeEach(() => {
     { id: "p3" },
   ] as never);
   repo.listIssues.mockResolvedValue([] as never);
+  repo.countIssues.mockResolvedValue(0 as never);
 });
 
 // ADR-0040 §1 — the one rule that makes a shared view safe.
@@ -79,8 +82,17 @@ describe("project scope", () => {
   it("returns an empty result, and runs no query, when nothing is visible", async () => {
     repo.memberProjectIds.mockResolvedValue([] as never);
     const result = await SavedViewService.queryIssues(member, {});
-    expect(result).toEqual({ items: [], nextCursor: null, projectsInScope: 0 });
+    expect(result).toEqual({
+      items: [],
+      nextCursor: null,
+      projectsInScope: 0,
+      totalCount: 0,
+      totalCountCapped: false,
+    });
     expect(repo.listIssues).not.toHaveBeenCalled();
+    // The count is skipped too — `projectId IN ()` should not reach Postgres
+    // from either query.
+    expect(repo.countIssues).not.toHaveBeenCalled();
   });
 
   it("returns empty when a view names only projects the viewer cannot see (BR-3)", async () => {
@@ -124,6 +136,51 @@ describe("pagination", () => {
   it("clamps take to the maximum page size (BR-9)", async () => {
     await SavedViewService.queryIssues(member, {}, "UPDATED_DESC", { take: 5000 });
     expect(repo.listIssues.mock.calls[0]![3]).toMatchObject({ take: 100 });
+  });
+});
+
+// BR-9a — the denominator in "1–50 of 7,300".
+describe("result count", () => {
+  it("reports the count the repository returns", async () => {
+    repo.countIssues.mockResolvedValue(284 as never);
+    const result = await SavedViewService.queryIssues(member, {});
+    expect(result.totalCount).toBe(284);
+    expect(result.totalCountCapped).toBe(false);
+  });
+
+  it("counts with the SAME scope, filter and predicates as the list query", async () => {
+    // The one property that makes a count trustworthy: it cannot describe a
+    // different set from the rows beside it. Both calls are asserted against
+    // each other rather than against literals, so a future argument added to
+    // one and forgotten on the other fails here.
+    const filter = { type: "BUG" as const, search: "timeout" };
+    await SavedViewService.queryIssues(member, filter);
+    const list = repo.listIssues.mock.calls[0]!;
+    const count = repo.countIssues.mock.calls[0]!;
+    expect(count[0]).toEqual(list[0]); // project scope
+    expect(count[1]).toEqual(list[1]); // filter
+    expect(count[3]).toEqual(list[4]); // resolved custom-field predicates
+  });
+
+  it("asks for cap + 1 so 'exactly the cap' is distinguishable from 'more'", async () => {
+    await SavedViewService.queryIssues(member, {});
+    expect(repo.countIssues.mock.calls[0]![2]).toBe(COUNT_CAP + 0);
+  });
+
+  it("reports an exact count when the matches land ON the cap", async () => {
+    repo.countIssues.mockResolvedValue(COUNT_CAP as never);
+    const result = await SavedViewService.queryIssues(member, {});
+    expect(result.totalCount).toBe(COUNT_CAP);
+    expect(result.totalCountCapped).toBe(false);
+  });
+
+  it("caps, and says so, when there is at least one more than the cap", async () => {
+    repo.countIssues.mockResolvedValue((COUNT_CAP + 1) as never);
+    const result = await SavedViewService.queryIssues(member, {});
+    expect(result.totalCount).toBe(COUNT_CAP);
+    // The UI renders "10,000+" off this flag; without it the page count would
+    // be computed from a floor and would name a last page that is not last.
+    expect(result.totalCountCapped).toBe(true);
   });
 });
 

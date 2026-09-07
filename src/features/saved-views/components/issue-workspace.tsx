@@ -217,6 +217,29 @@ export function IssueWorkspace({
     goToTop();
   }, [goToTop]);
 
+  /**
+   * Jump to a page the cursor stack can already reach.
+   *
+   * Backwards is free — the cursor that opened page 3 is still in the stack, so
+   * going back is a truncation. Forwards is only ever one step, because a
+   * cursor is an opaque row id and page 73's cursor is not derivable from page
+   * 1's without an `OFFSET`. `reachablePage` below tells the control exactly
+   * that, so it never offers a jump it cannot honour.
+   */
+  const goToPage = useCallback(
+    (target: number) => {
+      setCursors((prev) => {
+        if (target <= prev.length) return prev.slice(0, target - 1);
+        if (target === prev.length + 2 && result?.nextCursor) {
+          return [...prev, result.nextCursor];
+        }
+        return prev;
+      });
+      goToTop();
+    },
+    [result, goToTop],
+  );
+
   const toggleRow = useCallback(
     (id: string, shiftKey: boolean) => {
       setSelected((prev) => {
@@ -518,15 +541,22 @@ export function IssueWorkspace({
         page={cursors.length + 1}
         pageSize={pageSize}
         count={items.length}
-        // The API cannot count the matching set (06_Issues_Gate_Report.md §3),
-        // so the bar shows the range without a denominator rather than
-        // fetching 7,300 rows into the browser to invent one. The numbered
-        // control appears the day this stops being null.
-        total={null}
+        // The denominator, from a bounded server-side count over the SAME
+        // filter the list query uses (ADR-0040 §6). `totalCountCapped` turns
+        // "of 10,000" into "of 10,000+" and withdraws the page numbers, because
+        // a page count derived from a floor would name a last page that is not
+        // the last page.
+        total={result?.totalCount ?? null}
+        totalCapped={result?.totalCountCapped ?? false}
         hasPrev={cursors.length > 0}
         hasNext={result?.nextCursor != null}
         onPrev={prevPage}
         onNext={nextPage}
+        onPage={goToPage}
+        // Every page already visited, plus the next one. Keyset retrieval
+        // cannot seek further without an OFFSET, and pretending otherwise
+        // would put a dead button on screen.
+        reachablePage={cursors.length + (result?.nextCursor != null ? 2 : 1)}
         onPageSize={(size) => {
           setPageSize(size);
           resetPage();

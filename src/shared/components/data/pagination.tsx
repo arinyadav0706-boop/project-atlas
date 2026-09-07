@@ -18,21 +18,29 @@ import { PAGE_SIZE_OPTIONS, pageWindow } from "@/shared/lib/pagination";
 // scroll until bored; it is wrong for a dataset where the questions are "how
 // many are there", "am I near the end", and "take me back to where I was".
 //
-// TWO MODES, and which one you get is decided by the SERVER, not by taste:
+// THREE MODES, and which one you get is decided by the SERVER, not by taste:
 //
-//   • `total` known   → range, denominator, and numbered pages with an
-//                       ellipsis window. The full enterprise control.
-//   • `total` null    → range and Previous/Next only, with the current page
-//                       number. The denominator is omitted rather than
-//                       guessed.
+//   • exact total     → range, denominator, and numbered pages with an
+//                       ellipsis window. The full control.
+//   • capped total    → range and "of 10,000+", but Previous/Next only. There
+//                       is no honest page count when the denominator is a
+//                       floor, so no numbers are offered.
+//   • no total        → range and Previous/Next, no denominator. For a caller
+//                       whose API cannot count at all.
 //
-// The second mode exists because `/api/issues` paginates by CURSOR: it can
-// answer "is there another page" for free (it fetches take+1) but it never
-// counts the matching set, and nothing addresses a page by number. Rendering
-// "1–50 of 7,300" there would mean fetching all 7,300 rows into the browser to
-// count them — which is not pagination, it is pagination-shaped theatre. When
-// the API grows a count, this component already renders the full control; the
-// only change is a prop that stops being null.
+// Retrieval is keyset in every mode, and that has one consequence this
+// component has to be honest about: `total` is a DENOMINATOR, not a seek
+// mechanism. A cursor is an opaque row id, so "jump to page 73" is only
+// answerable by a caller that already holds a cursor for page 73 — or by an
+// `OFFSET`, which scans 3,600 rows to skip them and which we have deliberately
+// not added.
+//
+// So `reachablePage` says how far the CALLER can actually jump. Pages within
+// it are buttons; pages beyond it are rendered as context — you can see that
+// there are 146 pages and that you are on page 3, and you reach page 4 by
+// clicking it. With a cursor stack that set grows as you page forward and
+// every page you have already seen stays one click away, which is how a
+// numbered pager behaves for anyone reading sequentially.
 
 export interface PaginationProps {
   /** 1-based index of the page currently on screen. */
@@ -42,12 +50,24 @@ export interface PaginationProps {
   count: number;
   /** Total matching rows, or `null` when the server cannot answer it. */
   total?: number | null;
+  /**
+   * `total` is a floor, not the figure — the server stopped counting at a cap.
+   * Renders "of 10,000+" and suppresses numbered pages, because a page count
+   * derived from a floor would name a last page that is not the last page.
+   */
+  totalCapped?: boolean;
   hasPrev: boolean;
   hasNext: boolean;
   onPrev: () => void;
   onNext: () => void;
   /** Jump to an absolute page. Offered only when `total` is known. */
   onPage?: (page: number) => void;
+  /**
+   * The highest page `onPage` can actually reach. Defaults to "all of them",
+   * which is right for a seekable API; a keyset caller passes how far its
+   * cursor stack goes.
+   */
+  reachablePage?: number;
   onPageSize: (size: number) => void;
   pageSizeOptions?: readonly number[];
   /** Disables navigation while a request is in flight. */
@@ -62,11 +82,13 @@ export function Pagination({
   pageSize,
   count,
   total = null,
+  totalCapped = false,
   hasPrev,
   hasNext,
   onPrev,
   onNext,
   onPage,
+  reachablePage,
   onPageSize,
   pageSizeOptions = PAGE_SIZE_OPTIONS,
   busy = false,
@@ -74,7 +96,8 @@ export function Pagination({
 }: PaginationProps) {
   const from = count === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = count === 0 ? 0 : from + count - 1;
-  const pageCount = total === null ? null : Math.max(1, Math.ceil(total / pageSize));
+  const pageCount =
+    total === null || totalCapped ? null : Math.max(1, Math.ceil(total / pageSize));
   const numbered = pageCount !== null && onPage !== undefined;
 
   return (
@@ -115,7 +138,13 @@ export function Pagination({
             <span className="font-medium text-foreground">
               {NUMBERS.format(from)}–{NUMBERS.format(to)}
             </span>
-            {total !== null && <> of {NUMBERS.format(total)}</>}
+            {total !== null && (
+              <>
+                {" "}
+                of {NUMBERS.format(total)}
+                {totalCapped && "+"}
+              </>
+            )}
           </>
         )}
       </p>
@@ -133,6 +162,16 @@ export function Pagination({
             n === null ? (
               <span key={`gap-${i}`} className="px-1 text-meta text-muted-foreground" aria-hidden>
                 …
+              </span>
+            ) : n > (reachablePage ?? pageCount) ? (
+              // Context, not a control. Rendering it as a disabled button would
+              // promise a jump the caller cannot make; rendering it as text
+              // says "there are this many pages" and nothing more.
+              <span
+                key={n}
+                className="h-ctl-lg min-w-[2rem] px-2 text-center text-meta tabular-nums leading-8 text-muted-foreground/60"
+              >
+                {n}
               </span>
             ) : (
               <button
@@ -155,8 +194,8 @@ export function Pagination({
             ),
           )
         ) : (
-          // No denominator, so the page number is stated rather than offered as
-          // a jump target: a "3" you cannot click to leave is a label.
+          // No page count, so the position is stated rather than offered as a
+          // jump target: a "3" you cannot click to leave is a label.
           <span className="px-2 text-meta tabular-nums text-muted-foreground">
             Page <span className="font-medium text-foreground">{page}</span>
           </span>

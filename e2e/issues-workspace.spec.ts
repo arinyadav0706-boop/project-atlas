@@ -20,11 +20,12 @@ async function openIssues(page: Page, query = "") {
   await expect(page.getByRole("heading", { name: /issues/i }).first()).toBeVisible({
     timeout: 20000,
   });
-  // The first row proves the list actually loaded rather than rendering an
-  // empty shell, which several of these assertions would otherwise pass on.
-  await expect(page.getByRole("checkbox", { name: /^select /i }).first()).toBeVisible({
-    timeout: 20000,
-  });
+  // Wait for a ROW, not for any checkbox. The header's "Select all issues on
+  // this page" also matches /^select /, and it renders with the table shell —
+  // so the looser wait could return while the body was still empty, and the
+  // next line would count zero rows. That produced exactly one flaky run
+  // before it was fixed here rather than papered over with a retry.
+  await expect(rows(page).first()).toBeVisible({ timeout: 20000 });
 }
 
 function rows(page: Page) {
@@ -41,7 +42,9 @@ test("the list loads issues from more than one project", async ({ page }) => {
   // the sentence. Wording has already changed twice here; a test that pins
   // phrasing fails on every copy edit.
   await expect(page.getByRole("navigation", { name: /pagination/i })).toBeVisible();
-  await expect(page.getByText(/\d+–\d+/)).toBeVisible();
+  // Range AND denominator — "1–30 of 30", not a bare "1–30". The count is the
+  // whole point of the last change to this page.
+  await expect(page.getByText(/\d+–\d+ of [\d,]+/)).toBeVisible();
   await expect(page.getByText(/\d+ projects?/i).first()).toBeVisible();
 });
 
@@ -152,15 +155,70 @@ test("paging forward and back replaces the rows and moves the range", async ({ p
   const pageOneKey = await firstKey();
 
   await next.click();
-  await expect(page.getByText(/Page\s*2/)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("button", { name: "Page 2" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
   // REPLACES rather than appends — the difference between pagination and a
   // feed, and the whole reason this changed.
   await expect.poll(firstKey, { timeout: 20000 }).not.toBe(pageOneKey);
   await expect(prev).toBeEnabled();
+  // The range moves with the page and keeps its denominator.
+  await expect(page.getByText(/26–\d+ of [\d,]+/)).toBeVisible();
 
   await prev.click();
-  await expect(page.getByText(/Page\s*1/)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("button", { name: "Page 1" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
   await expect.poll(firstKey, { timeout: 20000 }).toBe(pageOneKey);
+});
+
+test("a numbered page button jumps back to a page already visited", async ({ page }) => {
+  await signIn(page, DEMO_USERS.admin);
+  await openIssues(page, "?take=25");
+
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByRole("button", { name: "Page 2" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
+
+  // Backwards is free on a cursor stack — the cursor that opened page 1 is
+  // still held, so this is a truncation and not a re-walk.
+  await page.getByRole("button", { name: "Page 1" }).click();
+  await expect(page.getByRole("button", { name: "Page 1" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
+  await expect(page.getByText(/^1–\d+ of/)).toBeVisible();
+});
+
+test("the denominator is the FILTERED total, not the collection size", async ({ page }) => {
+  await signIn(page, DEMO_USERS.admin);
+  await openIssues(page);
+
+  const total = async () => {
+    const text = (await page.getByText(/\d+–\d+ of [\d,]+/).innerText()).replace(/,/g, "");
+    return Number(/of (\d+)/.exec(text)?.[1]);
+  };
+  const before = await total();
+
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByLabel("Type", { exact: true }).click();
+  await page.getByRole("option", { name: /^bug$/i }).click();
+  await page.getByRole("button", { name: /^done$/i }).click();
+
+  await expect(page).toHaveURL(/type=BUG/);
+  // Every seeded project has bugs and non-bugs, so the filtered total must be
+  // strictly smaller. A count built from the collection rather than the filter
+  // would stay put here, and would look right on an unfiltered screen.
+  await expect.poll(total, { timeout: 20000 }).toBeLessThan(before);
+  await expect.poll(total, { timeout: 20000 }).toBeGreaterThan(0);
 });
 
 test("changing the page size re-pages from the top", async ({ page }) => {
@@ -180,12 +238,20 @@ test("a filter change returns to page one", async ({ page }) => {
   await openIssues(page, "?take=25");
 
   await page.getByRole("button", { name: "Next page" }).click();
-  await expect(page.getByText(/Page\s*2/)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("button", { name: "Page 2" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
 
-  // Staying on page 2 of a filter you just replaced shows rows 51-100 of a
+  // Staying on page 2 of a filter you just replaced shows rows 26-50 of a
   // different result set. This is the regression that wrapper exists for.
   await page.getByLabel("Search issue titles").fill("the");
-  await expect(page.getByText(/Page\s*1/)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("button", { name: "Page 1" })).toHaveAttribute(
+    "aria-current",
+    "page",
+    { timeout: 20000 },
+  );
 });
 
 test("a viewer sees the list scoped to their own memberships", async ({ page }) => {

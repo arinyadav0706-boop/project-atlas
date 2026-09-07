@@ -138,6 +138,36 @@ export const SavedViewRepository = {
     });
   },
 
+  /**
+   * How many issues match — the denominator, bounded by `cap`.
+   *
+   * Reuses `issueFilterWhere` with the SAME arguments `listIssues` passes, and
+   * that is the entire point: a count built from a second, hand-written where
+   * clause is a count that disagrees with its own list the first time a filter
+   * grows a case. One builder, two queries.
+   *
+   * `take` on a Prisma `count` is not decoration — it compiles to
+   * `SELECT COUNT(*) FROM (SELECT id FROM issues WHERE … LIMIT $1) AS sub`,
+   * verified against Postgres 16 with query logging on. So the database stops
+   * at the cap instead of counting five million rows, and no row is
+   * transferred. Fetching ids and measuring the array would have been the
+   * other way to bound it, and it moves 10,000 cuids over the wire to learn
+   * one integer.
+   */
+  countIssues(
+    projectIds: string[],
+    filter: IssueFilter,
+    cap: number,
+    customFields: ResolvedPredicate[] = [],
+  ) {
+    return prisma.issue.count({
+      where: issueFilterWhere({ projectIds }, filter, customFields),
+      // cap + 1 so the service can tell "exactly at the cap" from "more than
+      // the cap" — the difference between "10,000" and "10,000+".
+      take: cap + 1,
+    });
+  },
+
   // ── Views ────────────────────────────────────────────────────────────────
 
   /** The caller's own views plus everything shared in their org (BR-4). */

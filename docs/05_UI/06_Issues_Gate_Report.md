@@ -1,13 +1,15 @@
 # 06 — `/issues` implementation gate
 
-- **Status:** Revision 2 — awaiting approval. **Stopped here by instruction** —
-  no other page has been migrated.
+- **Status:** **APPROVED** as the V2 reference direction, with one closing
+  requirement (`totalCount`) — now shipped. Revision 3.
 - **Date:** 2026-09-02
 - **Covers:** Phase 0 (regression safety), dependency decision, design tokens,
   layout primitives, and the `/issues` rebuild.
-- **Revision 2 adds:** the typography increase (§1a), real pagination (§3),
+- **Revision 2 added:** the typography increase (§1a), real pagination (§3),
   the server-side pagination finding (§3a), the virtualization reassessment
-  (§3b), the full-bleed rule (§6a) and the V1/V2 strategy (ADR-0055).
+  (§3b), the full-bleed rule (§8) and the V1/V2 strategy (ADR-0055).
+- **Revision 3 closes §3a:** `totalCount` shipped — the denominator, the
+  numbered pages, the cap, and the measurement.
 
 ---
 
@@ -96,7 +98,7 @@ without bound and loses your place on every reload.
 does not move as you page:
 
 ```
-Rows per page [50 ▾]   1–50                              ‹  Page 1  ›
+Rows per page [50 ▾]   1–50 of 7,300                    ‹  1  2  …  146  ›
 ```
 
 Shipped and verified against 7,300 issues:
@@ -109,8 +111,8 @@ Shipped and verified against 7,300 issues:
 | Row range | ✅ `1–50`, `51–100`, and the short last page |
 | Rows-per-page selector | ✅ 25 / 50 / 100, wired to the API's existing `take` |
 | Pagination state in the URL | ⚠️ **page size yes** (`?take=25`), **page position no** — see §3a |
-| Total result count | ❌ **not available** — see §3a |
-| Numbered page list (1 2 3 … 146) | ❌ **not available** — see §3a |
+| Total result count | ✅ `1–50 of 7,300`, and the **filtered** total when a filter is on — §3c |
+| Numbered page list (1 2 3 … 146) | ✅ within what keyset can reach — §3c |
 | Selection cleared on page change | ✅ already the behaviour; ids you cannot see must not stay ticked |
 | Filter/sort change returns to page 1 | ✅ structurally — see below |
 
@@ -125,8 +127,8 @@ Verified in the browser, with the numbers each step produced:
 
 | Step | Range | Page | URL |
 |---|---|---|---|
-| Open | `1–50` | 1 | `/issues` |
-| Next | `51–100` | 2 | unchanged (see §3a) |
+| Open | `1–50 of 7,300` | 1 | `/issues` |
+| Next | `51–100 of 7,300` | 2 | unchanged (see §3a) |
 | Previous | `1–50` | 1 | — first row identical to the opening row |
 | Sort by Priority | `1–50` | 1 | `?sort=PRIORITY_ASC` |
 | Filter Type=Bug, Priority=High | `1–50` | 1 | `?type=BUG&priority=HIGH&sort=PRIORITY_ASC` |
@@ -144,12 +146,11 @@ I inspected the data path before changing anything: `src/app/api/issues/route.ts
 | Cursor pagination | ✅ | keyset on `id`; the repository fetches `take + 1` so "is there more" costs no extra query |
 | `offset` / `skip` | ❌ | nothing in the stack accepts one |
 | `page` / `pageSize` | ❌ | no page-number addressing anywhere |
-| `totalCount` | ❌ | **no `count()` is issued by any query on this path** |
+| `totalCount` | ✅ **added, revision 3** | `SavedViewRepository.countIssues`, bounded at `COUNT_CAP` = 10,000 |
 
-So: **server-side pagination already exists, and the UI is built on it.** What
-does *not* exist is the count and the offset addressing that "1–50 of 7,300"
-and a numbered page list require. Those are a data/API change, and per the
-brief I have not made one.
+At revision 2 the count did not exist and I reported it rather than inventing
+it. It exists now, and §3c is what shipped. Offset addressing is still absent
+and still deliberately so.
 
 **I did not fake it.** Counting 7,300 rows in the browser to render a
 denominator would mean fetching all 7,300 — pagination-shaped theatre with
@@ -160,7 +161,7 @@ offering page numbers that cannot be jumped to. The `Pagination` component
 clickable numbers, all unit-tested; the only thing standing between the two
 modes is a `total` prop that is currently `null`.
 
-#### The safest option, if you want the count
+#### The safest option, as proposed at revision 2 — and taken
 
 **Additive, ~15 lines, no schema change, no breaking change:**
 
@@ -188,8 +189,8 @@ Cost and risk, honestly:
   Previous/Next with a real "of 7,300", and only add offset if someone actually
   asks to jump to page 73.
 
-Both are backend changes and both are your call. Say the word and they are a
-small, testable commit.
+Approved and implemented — see §3c. Offset was **not** taken: keyset retrieval
+is unchanged.
 
 ### 3b. Virtualization, reassessed — and dropped
 
@@ -216,6 +217,68 @@ The trigger stays named in `05_Dependency_Review.md`: a list that renders
 `MAX_PAGE_SIZE`, `/issues` cannot reach it. The backlog page, which renders a
 whole sprint's worth of cards unpaginated, still can — and that is where the
 question should be re-asked, with a measurement, not here.
+
+### 3c. What shipped: the denominator
+
+Additive, no schema change, no migration, no new dependency.
+
+```
+Rows per page [50 ▾]   1–50 of 7,300                    ‹  1  2  …  146  ›
+Rows per page [50 ▾]   51–100 of 7,300                  ‹  1  2  3 …  146  ›
+Rows per page [50 ▾]   1–50 of 1,563   (Type: Bug)      ‹  1  2  …  32   ›
+```
+
+Read from the running app at 1920×1080 against VERUS, not mocked.
+
+**One filter builder, two queries.** `countIssues` calls `issueFilterWhere(...)`
+with the same scope, the same filter and the same resolved custom-field
+predicates that `listIssues` gets, in a `Promise.all` so it costs no extra
+round trip. The unit test asserts the two calls **against each other** rather
+than against literals, so an argument added to one and forgotten on the other
+fails immediately; the integration test then compares the count against a full
+walk of the real pages, because arguments matching is not the same as results
+agreeing.
+
+**Bounded, not unbounded.** `COUNT_CAP` = 10,000, applied as `take` on the
+Prisma `count`, which compiles to:
+
+```sql
+SELECT COUNT(*) FROM (SELECT id FROM issues WHERE … LIMIT 10001) AS sub
+```
+
+Verified against Postgres 16 with query logging on, because "Prisma's `count`
+honours `take`" is the assumption the whole strategy rests on and it is an
+implementation detail a version bump could change — so an integration test
+pins it. Past the cap the bar reads **"of 10,000+"** and the page numbers are
+withdrawn: a page count derived from a floor would name a last page that is not
+the last page.
+
+**Measured:** 7 ms for the capped count over 7,300 matching issues
+(`EXPLAIN ANALYZE`, Postgres 16). It runs in parallel with the list query.
+
+**Scope is not bypassed.** The count runs on the resolved project scope, never
+on the raw filter — a count that ignored scope would leak the size of a project
+the caller cannot open, which is the quietest kind of leak because no row comes
+with it. Pinned by an integration test where an admin sees 13 and a member of
+one project sees 4.
+
+#### The one thing numbered pages cannot do on keyset, stated plainly
+
+Clicking "146" needs a cursor for page 146. A cursor is an opaque row id; it is
+not derivable from page 1's without an `OFFSET`, which you asked me not to add
+and which I agree is the wrong trade — `OFFSET 7250` reads and discards 7,250
+rows, while a cursor stays flat wherever you are.
+
+So the control offers **every page the client can actually reach**: all of them
+already visited (the cursor stack makes backwards free) plus the next one.
+Pages beyond that render as muted context — you can see there are 146 pages and
+which one you are on, and "146" is not a button that does nothing. For anyone
+reading sequentially this behaves as a numbered pager and the reachable set
+grows as they go.
+
+If jump-to-any-page is ever wanted, it is `skip` in one repository method and a
+`page` parameter on the route — and it should be a decision about that
+trade-off, not a side effect of wanting a denominator.
 
 ## 4. Dependencies: none installed
 
@@ -355,9 +418,10 @@ column), not to shrink the table back down.
 - **The top bar is still 56px** and the global `<main>` padding is unchanged;
   `AppFrame` cancels it with negative margins for this page only. That is
   deliberate for the island phase and is removed by the global flip.
-- **No total count, and no jump-to-page.** The two pieces of the pagination
-  control that need a backend change; §3a has the measurement, the cost and the
-  recommendation. Not done unilaterally.
+- **No jump to an arbitrary page.** The count shipped (§3c); arbitrary seeking
+  did not, because it needs `OFFSET` and `OFFSET 7250` reads and discards 7,250
+  rows. Pages already visited plus the next one are clickable; the rest render
+  as context. One repository argument away if it is ever wanted.
 - **Page position is not in the URL.** A shared link reopens the same filtered,
   sorted list at page 1. A cursor is an opaque row id, not an ordinal, so
   `?page=3` cannot be resolved without walking pages 1 and 2 — offset
@@ -374,10 +438,10 @@ Recorded at gate time, in this order, on a database re-seeded from scratch
 
 | Check | Result |
 |---|---|
-| Unit (`npm test`) | **1228 passed**, 84 files, 8.4s |
-| Integration (`npm run test:integration`) | **355 passed**, 31 files, 80s |
-| E2E (`npx playwright test`) | **39 passed, 2 failed**, no flakes, no skips, 3.4 min |
-| `/issues` + shell specs on their own | **14 passed**, no skips |
+| Unit (`npm test`) | **1233 passed**, 84 files, 7.5s |
+| Integration (`npm run test:integration`) | **363 passed**, 32 files, 81s |
+| E2E (`npx playwright test`) | **41 passed, 2 failed**, no flakes, no skips, 3.2 min |
+| `/issues` + shell specs on their own | **16 passed**, no skips |
 | `npm run build` | clean |
 | `npx tsc --noEmit` | clean |
 | `npx eslint` on changed areas | clean (one pre-existing warning in `theme-toggle.tsx`, untouched) |
@@ -400,8 +464,22 @@ replaced by three pagination specs that open the list at `?take=25` against a
 30-issue seed, so two pages are guaranteed and the tests actually run:
 
 - paging forward and back **replaces** the rows and moves the range
+- a numbered page button jumps back to a page already visited
+- the denominator is the **filtered** total, not the collection size
 - changing the page size re-pages from the top and puts `take=25` in the URL
 - a filter change returns to page one
+
+Plus a new integration file, `saved-views-count.integration.test.ts` (8 tests),
+which checks the count against a **full walk of the real pages** rather than
+against a literal — because two queries being handed the same arguments is not
+the same as two queries agreeing.
+
+**One flaky run, fixed rather than retried.** `openIssues` waited for any
+checkbox matching `/^select /`, and the header's "Select all issues on this
+page" matches that too — so it could return while the table body was still
+empty and the next line counted zero rows. It now waits for a ROW checkbox. The
+count query made the window a few milliseconds wider, which is what surfaced a
+latent bug rather than causing one.
 
 ### 10a. The safety net no longer depends on test ordering
 

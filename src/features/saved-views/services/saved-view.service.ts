@@ -13,6 +13,7 @@ import type {
   UpdateSavedViewInput,
 } from "@/features/saved-views/validation/saved-view.schemas";
 import {
+  COUNT_CAP,
   DEFAULT_SORT,
   type CrossProjectIssueDto,
   type IssueQueryResultDto,
@@ -130,25 +131,42 @@ export const SavedViewService = {
     // No accessible projects is a legitimate empty result, and skipping the
     // query keeps `projectId IN ()` out of the database entirely.
     if (projectIds.length === 0) {
-      return { items: [], nextCursor: null, projectsInScope: 0 };
+      return {
+        items: [],
+        nextCursor: null,
+        projectsInScope: 0,
+        totalCount: 0,
+        totalCountCapped: false,
+      };
     }
 
     // Types come from the definitions, never from the request (ADR-0043 §2).
     const predicates = await CustomFieldService.resolvePredicates(actor, filter.customFields);
 
-    const rows = await SavedViewRepository.listIssues(projectIds, filter, sort, {
-      cursor: page.cursor,
-      take,
-    }, predicates);
+    // Both queries, one round trip's worth of latency. The count is a
+    // denominator only — retrieval stays keyset (ADR-0040 §6), so this adds a
+    // bounded aggregate and no OFFSET anywhere.
+    const [rows, counted] = await Promise.all([
+      SavedViewRepository.listIssues(projectIds, filter, sort, {
+        cursor: page.cursor,
+        take,
+      }, predicates),
+      SavedViewRepository.countIssues(projectIds, filter, COUNT_CAP, predicates),
+    ]);
 
     // The repository fetched take+1 purely to answer "is there more".
     const hasMore = rows.length > take;
     const now = new Date();
     const items = (hasMore ? rows.slice(0, take) : rows).map((row) => toIssueDto(row, now));
+    // The count query took cap+1, so anything above the cap means "more than
+    // this" and the exact figure is deliberately unknown.
+    const totalCountCapped = counted > COUNT_CAP;
     return {
       items,
       nextCursor: hasMore ? (items.at(-1)?.id ?? null) : null,
       projectsInScope: projectIds.length,
+      totalCount: totalCountCapped ? COUNT_CAP : counted,
+      totalCountCapped,
     };
   },
 

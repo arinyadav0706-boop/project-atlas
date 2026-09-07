@@ -31,6 +31,7 @@ not bulk actions (a separate V2 module), not charts (Dashboards).
 | BR-7 | The stored filter is validated with the same schema as the query string, on write and on read. Unknown keys are stripped. |
 | BR-8 | A stored filter that fails validation resolves to the empty filter, and the view renders with a visible warning. It must never 500 — a rotted view still has to open so its owner can fix it. |
 | BR-9 | Results are keyset-paginated with the same page cap as every other list (`DEFAULT_PAGE_SIZE` 50, `MAX_PAGE_SIZE` 100). A cross-project query is not exempt. |
+| BR-9a | Every result carries `totalCount` — how many issues match, in the caller's resolved scope — counted with the SAME filter builder as the rows, so the two can never describe different sets. The count is bounded at `COUNT_CAP` = 10,000; past that `totalCountCapped` is true, `totalCount` is the cap, and the UI must render "10,000+" and must not derive a page count from it. Retrieval stays keyset — the count is a denominator, never an `OFFSET` (ADR-0040 §6). |
 | BR-10 | View names are unique per owner, trimmed, 1–80 characters. A duplicate name is a 409, not a silent second view. |
 | BR-11 | Deleting a view is a soft delete, like everything else (`deletedAt`). |
 | BR-12 | An issue appears at most once regardless of how many filter terms match it. |

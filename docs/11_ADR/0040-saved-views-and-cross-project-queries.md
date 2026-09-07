@@ -91,6 +91,45 @@ Column visibility is already tracked as UX-7 and needs a per-user preference
 store. Bundling it here would make this change the vehicle for a second feature
 (CLAUDE.md rule 10). A view answers "which issues, in what order".
 
+### 6. The result count is a bounded aggregate, not a change of retrieval strategy
+
+*Added 2026-09-02, with the /issues gate.*
+
+The list needed a denominator — "1–50 of 7,300" — and the temptation with a
+denominator is to reach for `OFFSET`, because once you know there are 146 pages
+it feels natural to address page 73 directly. **We did not.** Retrieval stays
+keyset: `OFFSET 3600` reads and discards 3,600 rows before returning one, so
+deep pages get progressively slower, while a cursor stays flat wherever you are
+in the set. That property is worth more than jump-to-page.
+
+So the count is exactly one extra thing: a second query, over the SAME
+predicate, that returns an integer.
+
+- **One filter builder.** `countIssues` calls `issueFilterWhere(...)` with the
+  same scope, filter and resolved predicates that `listIssues` gets. A count
+  built from a hand-written second clause is a count that disagrees with its
+  own list the first time a filter grows a case — and it disagrees silently,
+  because nothing on screen compares them. A unit test asserts the two calls
+  against **each other** rather than against literals, so an argument added to
+  one and forgotten on the other fails.
+- **Bounded, at `COUNT_CAP` = 10,000.** `take` on a Prisma `count` compiles to
+  `SELECT COUNT(*) FROM (SELECT id FROM issues WHERE … LIMIT $1) AS sub`, so
+  the database stops at the cap instead of scanning five million rows, and no
+  row crosses the wire. Past the cap the UI says "10,000+" and withdraws the
+  page numbers, because a page count derived from a floor would name a last
+  page that is not the last page. Jira and GitHub both cap for this reason.
+- **Same scope as the rows.** The count runs on the resolved project scope
+  (§1), never on the raw filter. A count that ignored scope would leak the size
+  of a project the caller cannot open — the quietest kind of leak, because no
+  row comes with it. Pinned by an integration test.
+- **Measured:** 7 ms for the capped count over 7,300 matching issues on
+  Postgres 16, run in parallel with the list query, so it adds no round trip.
+
+Numbered pages are therefore offered only as far as the caller can actually
+reach — every page already visited plus the next one, from the client's cursor
+stack. Pages beyond that render as context rather than as controls. The
+alternative was a button that looks clickable and cannot work.
+
 ## Consequences
 
 **Good.** One filter language across four surfaces. UI-6 closes. Bulk edit and
