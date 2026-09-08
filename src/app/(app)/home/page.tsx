@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getActor, getSession } from "@/features/authentication/services/actor.service";
 import { HomeService } from "@/features/home/services/home.service";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { AppFrame, Workspace, WorkspaceHeader } from "@/shared/components/layout/app-frame";
 import { MyWorkSection } from "@/features/home/components/sections/my-work-section";
 import { AttentionSection } from "@/features/home/components/sections/attention-section";
 import { ContinueWorkingSection } from "@/features/home/components/sections/continue-working-section";
@@ -22,44 +23,48 @@ export default async function HomePage() {
   const projectIds = await HomeService.memberProjectIds(actor);
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <header className="mb-7">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-          {greeting()}, {firstName} <span aria-hidden>👋</span>
-        </h1>
-        <p className="mt-1.5 text-[15px] text-muted-foreground">
-          Here&apos;s what&apos;s happening with your work today.
-        </p>
-      </header>
+    <AppFrame>
+      {/* The greeting IS the page title. It used to be a 28px line with a
+          15px sentence under it — 92px of chrome to say hello, on the screen
+          people see most often. The sentence said nothing the panels below do
+          not say better, so it is gone rather than demoted. */}
+      <WorkspaceHeader title={`${greeting()}, ${firstName}`} />
 
-      {/* Two columns from `lg` up, matched in pairs: the two lists people scan
-          first sit side by side, then the two time-based ones, then projects
-          full width. Below `lg` it collapses to the original single column —
-          the pairing is a convenience at width, not the information order.
+      <Workspace className="p-4">
+        {/*
+          One column, two from `lg`, THREE from `2xl`.
 
-          `items-start` matters: without it the grid stretches every card in a
-          row to the tallest, so a five-item card beside an eight-item one grows
-          a large empty area under its last row. Cards size to content. */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <Suspense fallback={<SectionSkeleton rows={3} />}>
-          <MyWorkSection actor={actor} projectIds={projectIds} />
-        </Suspense>
-        <Suspense fallback={<SectionSkeleton rows={3} />}>
-          <AttentionSection actor={actor} projectIds={projectIds} />
-        </Suspense>
-        <Suspense fallback={<SectionSkeleton rows={3} />}>
-          <ContinueWorkingSection actor={actor} projectIds={projectIds} />
-        </Suspense>
-        <Suspense fallback={<SectionSkeleton rows={3} />}>
-          <DueSoonSection actor={actor} projectIds={projectIds} />
-        </Suspense>
-        <div className="lg:col-span-2">
-          <Suspense fallback={<SectionSkeleton rows={3} grid />}>
-            <ProjectStripSection actor={actor} />
+          The three-up row is what the width is for: at 1920 a two-column grid
+          made each panel ~830px wide to hold a list of five one-line rows, and
+          pushed Projects below the fold. At 2xl the three lists that answer
+          "what should I be doing right now" — my work, what needs me, what is
+          due — sit on one row, and the two navigational panels follow.
+
+          `items-start` matters: without it the grid stretches every panel in a
+          row to the tallest, so a five-item panel beside a ten-item one grows a
+          large empty area under its last row.
+        */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <Suspense fallback={<SectionSkeleton rows={5} />}>
+            <MyWorkSection actor={actor} projectIds={projectIds} />
           </Suspense>
+          <Suspense fallback={<SectionSkeleton rows={5} />}>
+            <AttentionSection actor={actor} projectIds={projectIds} />
+          </Suspense>
+          <Suspense fallback={<SectionSkeleton rows={5} />}>
+            <DueSoonSection actor={actor} projectIds={projectIds} />
+          </Suspense>
+          <Suspense fallback={<SectionSkeleton rows={4} />}>
+            <ContinueWorkingSection actor={actor} projectIds={projectIds} />
+          </Suspense>
+          <div className="lg:col-span-2">
+            <Suspense fallback={<SectionSkeleton rows={3} grid />}>
+              <ProjectStripSection actor={actor} />
+            </Suspense>
+          </div>
         </div>
-      </div>
-    </div>
+      </Workspace>
+    </AppFrame>
   );
 }
 
@@ -80,23 +85,30 @@ function greeting(): string {
   return "Good evening";
 }
 
+// Matches the real panel: an h-11 header rule, then rows at the row height the
+// sections use. A skeleton that is a different shape from what replaces it is
+// a layout shift with extra steps.
 function SectionSkeleton({ rows, grid = false }: { rows: number; grid?: boolean }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-5 shadow-card">
-      <Skeleton className="mb-4 h-4 w-28" />
-      {grid ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: rows }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-border">
-          {Array.from({ length: rows }).map((_, i) => (
-            <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
-          ))}
-        </div>
-      )}
+    <div className="rounded-panel border border-border bg-background shadow-card">
+      <div className="flex h-11 items-center border-b border-border-subtle px-3">
+        <Skeleton className="h-3.5 w-28" />
+      </div>
+      <div className="p-2">
+        {grid ? (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: rows }).map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-control" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {Array.from({ length: rows }).map((_, i) => (
+              <Skeleton key={i} className="h-row-compact rounded-control" />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,88 @@
+import * as React from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
+
+// The panel: a titled block of content on a page made of blocks.
+//
+// `Card` is the surface — a border, a radius, a shadow. This is the surface
+// PLUS the grammar every dashboard-shaped page repeats: an icon, a title, a
+// count, a link out, and a body. Home has five of them, Dashboards will have a
+// grid of them, and the issue detail page is a column of them. Writing that
+// header three times is how the three end up with three different title sizes.
+//
+// Deliberately not a variant of `Card`: a card can hold anything, a panel
+// always has a header. Making the header optional would put the decision back
+// at every call site, which is the thing being removed.
+
+export function Panel({
+  title,
+  icon,
+  count,
+  /** Singular noun, pluralised automatically: "open issue" → "2 open issues". */
+  countLabel,
+  /** Renders the count as "10+" — the list is capped and there are more. */
+  countTruncated = false,
+  action,
+  link,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title: React.ReactNode;
+  icon?: React.ReactNode;
+  count?: number;
+  countLabel?: string;
+  countTruncated?: boolean;
+  /** Arbitrary right-hand control. `link` is the common case. */
+  action?: React.ReactNode;
+  link?: { href: string; label?: string };
+  children: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  return (
+    <section
+      aria-label={typeof title === "string" ? title : undefined}
+      className={cn(
+        "flex min-w-0 flex-col rounded-panel border border-border bg-background shadow-card",
+        className,
+      )}
+    >
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+        {icon && (
+          <span className="shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span>
+        )}
+        <h2 className="min-w-0 truncate text-section text-foreground">{title}</h2>
+
+        {count !== undefined && count > 0 && (
+          <span className="shrink-0 rounded-chip bg-accent/10 px-1.5 text-meta font-medium tabular-nums text-accent">
+            {/* "10+" and not "10". The list is capped at ten; someone with
+                forty open issues was being shown "10 open issues" as a fact.
+                A number that is quietly a floor is worse than no number. */}
+            {count}
+            {countTruncated && "+"}
+            {countLabel && ` ${countLabel}${count === 1 && !countTruncated ? "" : "s"}`}
+          </span>
+        )}
+
+        {(action || link) && (
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {action}
+            {link && (
+              <Link
+                href={link.href}
+                className="inline-flex items-center gap-1 rounded-chip text-label text-accent transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                {link.label ?? "View all"}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+          </div>
+        )}
+      </header>
+
+      <div className={cn("min-w-0 flex-1 p-2", bodyClassName)}>{children}</div>
+    </section>
+  );
+}

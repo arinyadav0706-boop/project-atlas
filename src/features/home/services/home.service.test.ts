@@ -64,7 +64,9 @@ describe("membership scope", () => {
   });
 
   it("returns empty sections when the user is in no projects (BR-7)", async () => {
-    expect(await HomeService.myWork(actor, [])).toEqual([]);
+    expect(await HomeService.myWork(actor, [])).toEqual({ items: [], truncated: false });
+    // `continueWorking` is ranked, not capped-with-a-count, so it stays a plain
+    // array — the truncation flag exists for the sections that show a number.
     expect(await HomeService.continueWorking(actor, [])).toEqual([]);
     expect(home.myWork).not.toHaveBeenCalled();
   });
@@ -73,9 +75,32 @@ describe("membership scope", () => {
 describe("myWork", () => {
   it("maps assigned rows to cards", async () => {
     home.myWork.mockResolvedValue([issueRow("a"), issueRow("b")] as never);
-    const items = await HomeService.myWork(actor, IDS);
+    const { items, truncated } = await HomeService.myWork(actor, IDS);
     expect(items.map((i) => i.id)).toEqual(["a", "b"]);
     expect(items[0]!.projectId).toBe("p1");
+    expect(truncated).toBe(false);
+  });
+
+  // The count in the panel header is `items.length`, so a capped list that does
+  // not say it is capped tells somebody with forty open issues that they have
+  // ten. The repository is asked for limit + 1 and the extra row never ships.
+  it("asks for one more than the cap, trims it, and reports the truncation", async () => {
+    home.myWork.mockResolvedValue(
+      Array.from({ length: 11 }, (_, i) => issueRow(`i${i}`)) as never,
+    );
+    const { items, truncated } = await HomeService.myWork(actor, IDS);
+    expect(home.myWork.mock.calls[0]![2]).toBe(11);
+    expect(items).toHaveLength(10);
+    expect(truncated).toBe(true);
+  });
+
+  it("does not claim truncation when the list lands exactly on the cap", async () => {
+    home.myWork.mockResolvedValue(
+      Array.from({ length: 10 }, (_, i) => issueRow(`i${i}`)) as never,
+    );
+    const { items, truncated } = await HomeService.myWork(actor, IDS);
+    expect(items).toHaveLength(10);
+    expect(truncated).toBe(false);
   });
 });
 

@@ -9,7 +9,12 @@ import { CustomFieldService } from "@/features/custom-fields/services/custom-fie
 import { parseIssueFilter } from "@/features/issues/validation/issue-filter.schemas";
 import { IssueWorkspace } from "@/features/saved-views/components/issue-workspace";
 import { PAGE_SIZE_OPTIONS } from "@/shared/lib/pagination";
-import { DEFAULT_PAGE_SIZE } from "@/features/saved-views/types/saved-view.types";
+import {
+  DEFAULT_PAGE_SIZE,
+  DEFAULT_SORT,
+  type SavedViewSortDto,
+} from "@/features/saved-views/types/saved-view.types";
+import { savedViewSort } from "@/features/saved-views/validation/saved-view.schemas";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
 
 // Cross-project issues + saved views (22_saved_views.md §5, ADR-0040).
@@ -38,9 +43,22 @@ export default async function IssuesPage({
       initialViews={views}
       filterableFields={filterableFields}
       initialFilter={parseFilterFromParams(params)}
+      initialSort={parseSort(params.sort)}
       initialPageSize={parsePageSize(params.take)}
     />
   );
+}
+
+/**
+ * `?sort=` from a shared link, validated against the tokens the API accepts.
+ *
+ * An unrecognised sort falls back to the default rather than 400ing — the same
+ * posture the API route takes, for the same reason: a stale bookmark should
+ * still open the list.
+ */
+function parseSort(raw: string | string[] | undefined): SavedViewSortDto {
+  const parsed = savedViewSort.safeParse(Array.isArray(raw) ? raw[0] : raw);
+  return parsed.success ? parsed.data : DEFAULT_SORT;
 }
 
 /**

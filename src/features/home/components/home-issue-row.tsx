@@ -1,26 +1,21 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
+import { IssueTypeIcon, StatusDot, statusLabel } from "@/features/issues/components/issue-meta";
 import { cn } from "@/shared/lib/utils";
 import type { IssueListItemDto, IssueStatusDto } from "@/features/issues/types/issue.types";
 
 // Cross-project issue row for Home.
 //
-// A bordered card per row rather than a divided list. The first visual pass
-// restyled the containing card and left this untouched, which is why the page
-// still read as the old design wearing a new frame — the row is the thing you
-// actually look at.
+// One line, not two. The V1 row stacked the key above the title inside a
+// bordered card, which made every row 52px and a five-item panel 300px tall —
+// so two panels side by side pushed the third below the fold on the screen
+// people open first. At 14px on one line a row is 32px and the same panel is
+// 190px.
 //
-// Two lines: key above, title below. The key is reference data and the title is
-// the content, so stacking them lets the title take the full width instead of
-// being squeezed into whatever a fixed key column leaves behind.
-
-const STATUS_PILL: Record<IssueStatusDto, { label: string; className: string; dot: string }> = {
-  TODO: { label: "To Do", className: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/60" },
-  IN_PROGRESS: { label: "In Progress", className: "bg-accent/10 text-accent", dot: "bg-accent" },
-  IN_REVIEW: { label: "In Review", className: "bg-warning/10 text-warning", dot: "bg-warning" },
-  DONE: { label: "Done", className: "bg-success/10 text-success", dot: "bg-success" },
-};
+// It is deliberately NOT `DataTable`: these are five rows in a narrow panel,
+// not a scannable grid, and aligned columns at this width would leave a title
+// 120px wide. Same tokens, different structure — which is the distinction
+// "reuse the primitives" is supposed to allow.
 
 /**
  * Short, unambiguous, and never the year for a date inside the current one.
@@ -29,21 +24,15 @@ const STATUS_PILL: Record<IssueStatusDto, { label: string; className: string; do
  * against one request clock. Pure formatting only.
  */
 function formatDue(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Status as a dot plus a word — the same vocabulary the issue table uses. */
 export function StatusPill({ status }: { status: IssueStatusDto }) {
-  const pill = STATUS_PILL[status];
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-        pill.className,
-      )}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full", pill.dot)} />
-      {pill.label}
+    <span className="hidden shrink-0 items-center gap-1.5 text-meta text-muted-foreground sm:inline-flex">
+      <StatusDot status={status} />
+      {statusLabel(status)}
     </span>
   );
 }
@@ -54,32 +43,32 @@ export function HomeIssueRow({ item }: { item: IssueListItemDto }) {
   return (
     <Link
       href={`/projects/${item.projectId}/issues/${item.id}`}
-      className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 transition-all duration-150 hover:border-accent/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className={cn(
+        "flex h-row-compact items-center gap-2.5 rounded-control px-2 transition-colors",
+        "hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+      )}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/70">
-        <IssueTypeIcon type={item.type} />
+      <IssueTypeIcon type={item.type} className="size-3.5 shrink-0" />
+
+      <span className="hidden shrink-0 font-mono text-meta text-muted-foreground md:inline">
+        {item.key}
       </span>
 
-      <span className="min-w-0 flex-1">
-        <span className="block font-mono text-[11px] leading-tight text-muted-foreground">
-          {item.key}
-        </span>
-        <span className="mt-0.5 block truncate text-[14px] font-medium leading-snug text-foreground">
-          {item.title}
-        </span>
-      </span>
+      <span className="min-w-0 flex-1 truncate text-body text-foreground">{item.title}</span>
 
       <StatusPill status={item.status} />
 
-      {item.assignee && (
-        <Avatar className="h-6 w-6 shrink-0">
+      {item.assignee ? (
+        <Avatar className="size-5 shrink-0" title={item.assignee.name}>
           {item.assignee.avatarUrl && (
-            <AvatarImage src={item.assignee.avatarUrl} alt={item.assignee.name} />
+            <AvatarImage src={item.assignee.avatarUrl} alt="" />
           )}
-          <AvatarFallback className="text-[10px]">
+          <AvatarFallback className="text-micro">
             {item.assignee.name.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
+      ) : (
+        <span className="size-5 shrink-0" aria-hidden />
       )}
 
       {/* Fixed width so dates line up down the column even when one is overdue
@@ -87,8 +76,11 @@ export function HomeIssueRow({ item }: { item: IssueListItemDto }) {
           hard to scan. */}
       <span
         className={cn(
-          "hidden w-14 shrink-0 text-right text-xs font-medium tabular-nums sm:block",
-          item.dueOverdue ? "text-destructive" : "text-muted-foreground",
+          // 56px and nowrap: "Aug 11" at 12px is 44px, and at w-12 it wrapped
+          // to two lines inside a 36px row — the date overflowed the row it
+          // belonged to and collided with the one below.
+          "hidden w-14 shrink-0 whitespace-nowrap text-right text-meta tabular-nums sm:block",
+          item.dueOverdue ? "font-medium text-destructive" : "text-muted-foreground",
         )}
       >
         {dueText ?? ""}
@@ -97,10 +89,9 @@ export function HomeIssueRow({ item }: { item: IssueListItemDto }) {
   );
 }
 
-// Rows are spaced, not divided — each is its own surface.
 export function HomeIssueList({ items }: { items: IssueListItemDto[] }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col">
       {items.map((item) => (
         <HomeIssueRow key={item.id} item={item} />
       ))}

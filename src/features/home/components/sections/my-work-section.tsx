@@ -8,14 +8,21 @@ import type { Actor } from "@/shared/types/actor";
 // (ADR-0012 / Performance doc). Always rendered (empty state doubles as light
 // onboarding).
 export async function MyWorkSection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
-  const items = await HomeService.myWork(actor, projectIds);
+  const { items, truncated } = await HomeService.myWork(actor, projectIds);
   return (
     <HomeSection
       title="My work"
       icon={<ListChecks />}
       count={items.length}
       countLabel="open issue"
-      viewAll={{ href: "/projects", label: "View all issues" }}
+      countTruncated={truncated}
+      // The same question, on the page that can answer all of it. It used to
+      // point at /projects — a link labelled "View all issues" that landed on
+      // a list of projects, which is a dead end dressed as a shortcut.
+      viewAll={{
+        href: `/issues?assigneeId=${actor.userId}&openOnly=true`,
+        label: "View all",
+      }}
     >
       {items.length > 0 ? (
         <HomeIssueList items={items} />

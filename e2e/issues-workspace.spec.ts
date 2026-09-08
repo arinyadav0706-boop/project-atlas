@@ -254,6 +254,24 @@ test("a filter change returns to page one", async ({ page }) => {
   );
 });
 
+test("a shared link keeps its sort", async ({ page }) => {
+  // `sort=` was written into the URL and never read back: the component
+  // initialised to the default regardless, and the first `replaceState` then
+  // deleted it — so the URL you copied stopped being the list you were looking
+  // at. Found by a Home "View all" that asked for due-date order.
+  await signIn(page, DEMO_USERS.admin);
+  await openIssues(page, "?sort=DUE_DATE_ASC");
+
+  await expect(page).toHaveURL(/sort=DUE_DATE_ASC/);
+  // And the column header says so, rather than the URL merely surviving.
+  // `aria-sort` lives on the columnheader, not on the button inside it.
+  await expect(page.getByRole("columnheader", { name: /^due$/i })).toHaveAttribute(
+    "aria-sort",
+    "ascending",
+    { timeout: 20000 },
+  );
+});
+
 test("a viewer sees the list scoped to their own memberships", async ({ page }) => {
   // Permission behaviour, restated at the page level: the service scopes
   // results to the caller, so this must keep working through a layout change.

@@ -35,6 +35,25 @@ export interface AttentionItemDto {
   occurredAt: string; // ISO
 }
 
+/**
+ * A capped Home list, with the cap made visible.
+ *
+ * Every Home section shows the top N of something. The count in each panel
+ * header used to be `items.length`, so somebody with forty open issues was
+ * told they had ten — a floor presented as a fact, which is the same defect the
+ * board had when it counted 137 above a list of 100. `truncated` is what turns
+ * "10" into "10+".
+ *
+ * Not pagination: a launchpad's job is to show the top of a list and hand you
+ * to the page that has all of it. The fix is an honest number and a link that
+ * actually lands on the same question.
+ */
+export interface HomeList<T> {
+  items: T[];
+  /** There is at least one more beyond the cap. */
+  truncated: boolean;
+}
+
 // Lean project shape for the Home navigation strip (not the catalog).
 export interface HomeProjectDto {
   id: string;
@@ -48,10 +67,10 @@ export interface HomeProjectDto {
 // One composed payload for the whole page. Sections depending on not-yet-built
 // modules return [] — the contract is stable from day one.
 export interface HomeDto {
-  myWork: IssueListItemDto[];
-  attention: AttentionItemDto[];
+  myWork: HomeList<IssueListItemDto>;
+  attention: HomeList<AttentionItemDto>;
   continueWorking: IssueListItemDto[];
-  dueSoon: IssueListItemDto[];
+  dueSoon: HomeList<IssueListItemDto>;
   starredProjects: HomeProjectDto[];
   recentProjects: HomeProjectDto[];
 }

@@ -31,16 +31,18 @@ function DateChip({ iso, overdue }: { iso: string; overdue: boolean }) {
   return (
     <span
       className={cn(
-        "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl leading-none",
+        "flex size-9 shrink-0 flex-col items-center justify-center rounded-control leading-none",
         // Overdue is the one state worth colouring — everything else is just a
         // date, and tinting them all would make none of them stand out.
         overdue ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
       )}
     >
-      <span className="text-[9px] font-semibold uppercase tracking-wide">
+      {/* 11px is the floor, not 9px — a month abbreviation nobody can read is
+          not a date, it is decoration. */}
+      <span className="text-micro font-semibold uppercase tracking-wide">
         {date.toLocaleDateString(undefined, { month: "short" })}
       </span>
-      <span className="mt-0.5 text-[15px] font-semibold tabular-nums text-foreground">
+      <span className="text-body font-semibold tabular-nums text-foreground">
         {date.getDate()}
       </span>
     </span>
@@ -52,27 +54,25 @@ function DateChip({ iso, overdue }: { iso: string; overdue: boolean }) {
 // apart could disagree about the same instant.
 export function DueSoonList({ items }: { items: IssueListItemDto[] }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-0.5">
       {items.map((item) => (
         <Link
           key={item.id}
           href={`/projects/${item.projectId}/issues/${item.id}`}
-          className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 transition-all duration-150 hover:border-accent/30 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex items-center gap-2.5 rounded-control px-2 py-1 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           {item.dueDate && <DateChip iso={item.dueDate} overdue={item.dueOverdue ?? false} />}
 
           <span className="min-w-0 flex-1">
-            <span className="block font-mono text-[11px] leading-tight text-muted-foreground">
+            <span className="block truncate text-body text-foreground">{item.title}</span>
+            <span className="block font-mono text-meta leading-tight text-muted-foreground">
               {item.key}
-            </span>
-            <span className="mt-0.5 block truncate text-[14px] font-medium leading-snug text-foreground">
-              {item.title}
             </span>
           </span>
 
           <span
             className={cn(
-              "hidden shrink-0 items-center gap-1 text-xs font-medium sm:flex",
+              "hidden shrink-0 items-center gap-1 text-meta font-medium sm:flex",
               PRIORITY_TEXT[item.priority],
             )}
           >

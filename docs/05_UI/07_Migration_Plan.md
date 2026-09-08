@@ -1,7 +1,7 @@
 # 07 — V2 migration plan
 
-- **Status:** In progress. `/issues` and the **Board** are done; the project
-  shell came with the board. `/issues` remains the reference
+- **Status:** In progress. `/issues`, the **Board** (+ the project shell) and
+  **Home** are done. `/issues` remains the reference
   (`06_Issues_Gate_Report.md`).
 - **Date:** 2026-09-03 (order revised)
 - **Strategy:** ADR-0055 — one repository, trunk-based, `FEATURE_UI_V2` selects
@@ -50,14 +50,14 @@ the document scroll. All seven project pages were checked in the new frame.
 | # | Page | Why here | New primitive needed | Risk |
 |---|---|---|---|---|
 | ✅ | **Board** + the project shell | Done 2026-09-03. Migrated first by request. Closed UX-5 (per-column paging), UX-11 (150px of shell), SEED-12, BRD-1. | `FilterChip`/`FiltersButton`/`FilterRow`/`FilterPanel`/`FilterToggleGroup`, `Bleed` | Paid |
-| 2 | **Home** (`/home`) | Next, by request — the first screen after login | `Panel`, `StatTile` refresh | Low-med |
-| 3 | **Projects list** (`/projects`) | The closest thing to `/issues` that exists: a list with a filter and a header. Almost pure reuse of `AppFrame` + `DataTable` + `Toolbar`, so it proves the system generalises before anything new is built on it. | none | **Low** |
-| 4 | **Project issues** (`/projects/[id]/issues`) | The same table with a narrower scope. If `DataTable` cannot serve both the cross-project and the in-project list without a fork, that is the cheapest possible place to find out. | none | **Low** |
-| 5 | **Backlog** (`/projects/[id]/backlog`) | First page with drag-and-drop, and the first that needs a **row that is also a drag handle**. Doing it here — while the table is still fresh — is what keeps `DataTable` honest about interactive rows instead of retrofitting later. | `SortableRow` wrapper | **Medium** — dnd-kit sensors and keyboard reordering must survive |
-| 6 | **Project settings** | The shell is done; the form page inside it is not. First `measure="regular"` page, and the pattern admin and profile then copy. | `SettingsSection` | **Medium** — every project route renders through it |
-| 7 | **Dashboards** (`/dashboards`) | Widget grid + ECharts. Depends on Home's panels. Charts get **token colours only** — no chart library change, no ECharts option rewrite beyond palette and font. | none new | **Medium** — chart theming is easy to get subtly wrong in both themes |
-| 8 | **Workload** (`/workload`, `/workload/people`, `/workload/projects`) | Dense tables plus bar visualisations. Reuses the table and the chart tokens; nothing new. Late because it is read by managers and its numbers are the ones people quote — regressions here are expensive to notice. | none new | **Low-medium** |
-| 9 | **Issue detail** (`/projects/[id]/issues/[issueId]`) | **Last, deliberately.** The densest screen in the product — comments, subtasks, dependencies, attachments, custom fields, time tracking, the Development panel, activity. It is where every primitive gets used at once, and it benefits most from a settled system. It is also the page where a careless change most easily loses an interaction nobody remembers exists. | `DetailPane`, `PropertyRow` | **High** |
+| ✅ | **Home** (`/home`) | Done 2026-09-03. Migrated second by request — the first screen after login. Three-up at 2xl, honest counts, links that land on the same question. Closed HOME-1, HOME-2, HOME-3, UI-19. | `Panel` | Paid |
+| 1 | **Projects list** (`/projects`) | The closest thing to `/issues` that exists: a list with a filter and a header. Almost pure reuse of `AppFrame` + `DataTable` + `Toolbar`, so it proves the system generalises before anything new is built on it. | none | **Low** |
+| 2 | **Project issues** (`/projects/[id]/issues`) | The same table with a narrower scope. If `DataTable` cannot serve both the cross-project and the in-project list without a fork, that is the cheapest possible place to find out. | none | **Low** |
+| 3 | **Backlog** (`/projects/[id]/backlog`) | First page with drag-and-drop, and the first that needs a **row that is also a drag handle**. Doing it here — while the table is still fresh — is what keeps `DataTable` honest about interactive rows instead of retrofitting later. | `SortableRow` wrapper | **Medium** — dnd-kit sensors and keyboard reordering must survive |
+| 4 | **Project settings** | The shell is done; the form page inside it is not. First `measure="regular"` page, and the pattern admin and profile then copy. | `SettingsSection` | **Medium** — every project route renders through it |
+| 5 | **Dashboards** (`/dashboards`) | Widget grid + ECharts. Depends on Home's panels. Charts get **token colours only** — no chart library change, no ECharts option rewrite beyond palette and font. | none new | **Medium** — chart theming is easy to get subtly wrong in both themes |
+| 6 | **Workload** (`/workload`, `/workload/people`, `/workload/projects`) | Dense tables plus bar visualisations. Reuses the table and the chart tokens; nothing new. Late because it is read by managers and its numbers are the ones people quote — regressions here are expensive to notice. | none new | **Low-medium** |
+| 7 | **Issue detail** (`/projects/[id]/issues/[issueId]`) | **Last, deliberately.** The densest screen in the product — comments, subtasks, dependencies, attachments, custom fields, time tracking, the Development panel, activity. It is where every primitive gets used at once, and it benefits most from a settled system. It is also the page where a careless change most easily loses an interaction nobody remembers exists. | `DetailPane`, `PropertyRow` | **High** |
 
 **Admin, profile, notifications, timeline and calendar** are not in the nine and
 are not forgotten. Admin and profile are `measure="regular"` form pages that

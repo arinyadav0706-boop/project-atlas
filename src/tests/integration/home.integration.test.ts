@@ -65,7 +65,7 @@ describe("Home cross-project scope (BR-7)", () => {
     await assignIssue(p3.id, user.id, "in p3 (not a member)");
 
     const ids = await HomeService.memberProjectIds(actor);
-    const items = await HomeService.myWork(actor, ids);
+    const { items } = await HomeService.myWork(actor, ids);
     const titles = items.map((i) => i.title);
     expect(titles).toContain("in p1");
     expect(titles).toContain("in p2");

@@ -21,7 +21,7 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
       viewAll={{ href: "/projects", label: "View all projects" }}
     >
       {projects.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -29,7 +29,7 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
       ) : (
         <Link
           href="/projects"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border bg-surface/50 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-control border border-dashed border-border px-3 py-2 text-body text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
         >
           Browse projects
           <ArrowRight className="h-3.5 w-3.5" />
@@ -59,34 +59,36 @@ function toneFor(key: string): string {
 
 function ProjectCard({ project }: { project: HomeProjectDto }) {
   return (
-    <div className="group relative rounded-xl border border-border bg-background p-4 transition-all duration-150 hover:border-accent/30 hover:shadow-card-hover">
-      <div className="flex items-start justify-between gap-2">
-        <span
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl text-[13px] font-semibold",
-            toneFor(project.key),
-          )}
-        >
-          {project.key.slice(0, 2)}
-        </span>
-        {/* Outside the link: starring must not navigate. */}
-        <StarButton projectId={project.id} initialStarred={project.starred} />
-      </div>
+    <div className="group relative flex items-start gap-3 rounded-control border border-border bg-background p-3 transition-shadow hover:shadow-card-hover">
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-control text-label font-semibold",
+          toneFor(project.key),
+        )}
+      >
+        {project.key.slice(0, 2)}
+      </span>
 
       <Link
         href={`/projects/${project.id}/issues`}
-        className="mt-3 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 rounded"
+        className="min-w-0 flex-1 rounded-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <span className="block truncate text-[15px] font-semibold text-foreground">
+        <span className="block truncate text-body font-medium text-foreground">
           {project.name}
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">
+        <span className="mt-0.5 line-clamp-1 block text-meta leading-snug text-muted-foreground">
           {project.description || "No description"}
         </span>
         {/* Covers the card so the whole tile is clickable, while the star stays
             above it in stacking order. */}
         <span className="absolute inset-0" aria-hidden />
       </Link>
+
+      <span className="relative shrink-0">
+        {/* Outside the link, and above the covering span: starring must not
+            navigate. */}
+        <StarButton projectId={project.id} initialStarred={project.starred} />
+      </span>
     </div>
   );
 }

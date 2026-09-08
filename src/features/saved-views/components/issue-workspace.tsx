@@ -85,6 +85,7 @@ export function IssueWorkspace({
   initialViews,
   filterableFields,
   initialFilter,
+  initialSort = DEFAULT_SORT,
   initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   projects: ProjectOption[];
@@ -94,13 +95,23 @@ export function IssueWorkspace({
   filterableFields: CustomFieldDefinitionDto[];
   /** Parsed from the URL server-side, so a shared link opens filtered. */
   initialFilter: IssueFilter;
+  /**
+   * `?sort=` from the URL.
+   *
+   * It was written to the URL and never read back: `buildQuery` put `sort=` in
+   * the address bar, the component initialised to DEFAULT_SORT regardless, and
+   * the first `replaceState` then deleted it. So a link to a sorted list
+   * reopened unsorted, and the URL you copied stopped being the list you were
+   * looking at. Found by a Home "View all" that asked for due-date order.
+   */
+  initialSort?: SavedViewSortDto;
   /** `?take=` from the URL, so a shared link keeps the sender's page size. */
   initialPageSize?: number;
 }) {
   const [views, setViews] = useState(initialViews);
   const [activeView, setActiveView] = useState<SavedViewDto | null>(null);
   const [filter, setFilter] = useState<IssueFilter>(initialFilter);
-  const [sort, setSort] = useState<SavedViewSortDto>(DEFAULT_SORT);
+  const [sort, setSort] = useState<SavedViewSortDto>(initialSort);
 
   const [result, setResult] = useState<IssueQueryResultDto | null>(null);
   const [items, setItems] = useState<CrossProjectIssueDto[]>([]);

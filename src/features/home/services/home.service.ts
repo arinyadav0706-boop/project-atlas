@@ -6,6 +6,7 @@ import type { Actor } from "@/shared/types/actor";
 import type {
   AttentionItemDto,
   HomeDto,
+  HomeList,
   HomeProjectDto,
   InteractionTypeDto,
 } from "@/features/home/types/home.types";
@@ -55,6 +56,16 @@ function toCard(row: IssueCardRow, now = Date.now()): IssueListItemDto {
   };
 }
 
+/** Shared empty result, so "no projects" and "no matches" read identically. */
+function empty<T>(): HomeList<T> {
+  return { items: [], truncated: false };
+}
+
+/** Split a `limit + 1` read into the visible page and whether it was cut. */
+function capped<T>(rows: T[], limit: number): HomeList<T> {
+  return { items: rows.slice(0, limit), truncated: rows.length > limit };
+}
+
 export const HomeService = {
   // Active projects the caller belongs to — resolved ONCE per page and passed to
   // each section (BR-7 scope), so there's a single membership query per request.
@@ -63,22 +74,29 @@ export const HomeService = {
     return rows.map((r) => r.projectId);
   },
 
-  async myWork(actor: Actor, projectIds: string[]): Promise<IssueListItemDto[]> {
-    if (projectIds.length === 0) return [];
-    const rows = await HomeRepository.myWork(projectIds, actor.userId, MY_WORK_LIMIT);
-    return rows.map(toCard);
+  async myWork(actor: Actor, projectIds: string[]): Promise<HomeList<IssueListItemDto>> {
+    if (projectIds.length === 0) return empty();
+    // limit + 1: the extra row never reaches the reader, it only answers "is
+    // the number in the header the whole truth". Costs nothing.
+    const rows = await HomeRepository.myWork(projectIds, actor.userId, MY_WORK_LIMIT + 1);
+    return capped(rows.map(toCard), MY_WORK_LIMIT);
   },
 
-  async dueSoon(actor: Actor, projectIds: string[]): Promise<IssueListItemDto[]> {
-    if (projectIds.length === 0) return [];
+  async dueSoon(actor: Actor, projectIds: string[]): Promise<HomeList<IssueListItemDto>> {
+    if (projectIds.length === 0) return empty();
     const before = new Date(Date.now() + DUE_SOON_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await HomeRepository.dueSoon(projectIds, actor.userId, before, DUE_SOON_LIMIT);
-    return rows.map(toCard);
+    const rows = await HomeRepository.dueSoon(projectIds, actor.userId, before, DUE_SOON_LIMIT + 1);
+    return capped(rows.map(toCard), DUE_SOON_LIMIT);
   },
 
-  async attention(actor: Actor, projectIds: string[]): Promise<AttentionItemDto[]> {
-    if (projectIds.length === 0) return [];
-    return AttentionComposer.compose({ actor, memberProjectIds: projectIds, limit: ATTENTION_LIMIT });
+  async attention(actor: Actor, projectIds: string[]): Promise<HomeList<AttentionItemDto>> {
+    if (projectIds.length === 0) return empty();
+    const items = await AttentionComposer.compose({
+      actor,
+      memberProjectIds: projectIds,
+      limit: ATTENTION_LIMIT + 1,
+    });
+    return capped(items, ATTENTION_LIMIT);
   },
 
   // BR-3: rank recent issues by engagement weight × recency decay; keep only

@@ -69,6 +69,19 @@ that keeps Home calm at V5 (ADR-0012).
   not a member of never appears (defense-in-depth: service-layer scope + the
   same tenant checks used elsewhere, F-1).
 
+- **BR-8 (An honest count):** every section is a capped top-N list, and the
+  count in its header must never present the cap as the total. Each capped
+  query asks for `limit + 1`; the extra row is trimmed and becomes
+  `truncated`, which renders the count as **"10+"**. A number that is quietly a
+  floor is worse than no number — someone with forty open issues was being told
+  they had ten.
+- **BR-9 (Every link lands on the same question):** a section's "View all" goes
+  to the page that can answer the section, filtered the way the section is.
+  "My work" → `/issues?assigneeId=<me>&openOnly=true`; "Due soon" → the same,
+  sorted `DUE_DATE_ASC`, which is the closest `IssueFilter` can express (there
+  is no due-date facet). A link labelled "View all issues" that lands on the
+  project list is a dead end wearing a shortcut's clothes.
+
 ## Continue-working algorithm (BR-3)
 
 Feels *magical, not random* because it ranks **active engagement**, not cursor

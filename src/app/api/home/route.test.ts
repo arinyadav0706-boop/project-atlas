@@ -33,10 +33,10 @@ it("401 when unauthenticated", async () => {
 it("200 with the composed home payload", async () => {
   actorMock.mockResolvedValue(actor);
   svc.getHome.mockResolvedValue({
-    myWork: [],
-    attention: [],
+    myWork: { items: [], truncated: false },
+    attention: { items: [], truncated: false },
     continueWorking: [],
-    dueSoon: [],
+    dueSoon: { items: [], truncated: false },
     starredProjects: [],
     recentProjects: [],
   });
