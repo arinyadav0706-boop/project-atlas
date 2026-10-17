@@ -129,10 +129,11 @@ Development: **< $40/month** · Production (initial): **< $100/month**
 | Role | Tool |
 |---|---|
 | Founding CTO | Claude / Claude Code |
+| Principal Design Engineer / UI Architect | Antigravity |
 | Chief Architect | ChatGPT |
 | Senior Software Engineer | Cursor |
 | Version Control | GitHub |
 
-Rules governing AI-assisted contributions: [`CLAUDE.md`](CLAUDE.md),
+Rules governing AI-assisted contributions: [`CLAUDE.md`](CLAUDE.md), [`ANTIGRAVITY.md`](ANTIGRAVITY.md),
 [`.cursor/rules/project-atlas.mdc`](.cursor/rules/project-atlas.mdc), and
 [`docs/09_AI_Context/`](docs/09_AI_Context/README.md).

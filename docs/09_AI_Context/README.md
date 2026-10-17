@@ -5,7 +5,8 @@ configured to work on this codebase, and links to the actual rule files.
 
 | AI Tool | Role | Rule file |
 |---|---|---|
-| Claude / Claude Code | Founding CTO — architecture, documentation, code generation, review | [`/CLAUDE.md`](../../CLAUDE.md) (repo root, required location for Claude Code to auto-load it) |
+| Claude / Claude Code | Founding CTO — architecture, documentation, backend, code generation, review | [`/CLAUDE.md`](../../CLAUDE.md) (repo root, required location for Claude Code to auto-load it) |
+| Antigravity | Principal Design Engineer — UI/UX modernization & presentation layer (Google × Apple design) | [`/ANTIGRAVITY.md`](../../ANTIGRAVITY.md) (repo root) |
 | Cursor | Senior Software Engineer — in-editor implementation | [`/.cursor/rules/project-atlas.mdc`](../../.cursor/rules/project-atlas.mdc) |
 | GitHub | Version control, CI (GitHub Actions) | `.github/workflows/` (Phase 3) |
 
