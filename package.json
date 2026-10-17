@@ -18,8 +18,8 @@
     "seed:verus": "tsx prisma/verus/seed.ts",
     "seed:verus:teardown": "tsx prisma/verus/teardown.ts",
     "db:studio": "prisma studio",
-    "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test": "NODE_OPTIONS='--experimental-require-module' vitest run",
+    "test:integration": "NODE_OPTIONS='--experimental-require-module' vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -32,9 +32,14 @@
     "@radix-ui/react-checkbox": "^1.3.7",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
+    "@radix-ui/react-popover": "^1.3.1",
+    "@radix-ui/react-scroll-area": "^1.4.0",
     "@radix-ui/react-select": "^2.3.3",
     "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.2.12",
+    "@tanstack/react-table": "^9.3.1",
+    "@tanstack/react-virtual": "^3.14.21",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -54,6 +59,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@playwright/test": "^1.61.1",
+    "@rolldown/binding-darwin-arm64": "^1.1.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.5",
     "@types/react": "^19.2.18",
