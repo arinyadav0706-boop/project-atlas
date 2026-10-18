@@ -12,14 +12,6 @@ import {
 import { cn } from "@/shared/lib/utils";
 import type { CrossProjectIssueDto } from "@/features/saved-views/types/saved-view.types";
 
-// A result row for the cross-project list.
-//
-// The one thing it carries that a project-scoped row does not is the project
-// key. Without it two issues called "Fix login" are indistinguishable, which is
-// the whole hazard of pulling rows out of their project.
-//
-// Overdue comes from the DTO, decided server-side against one request clock —
-// reading the clock here would be impure and could make two rows disagree.
 function formatDue(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -34,55 +26,49 @@ export function CrossProjectRow({
   onToggle: (id: string, shiftKey: boolean) => void;
 }) {
   return (
-    // The checkbox sits OUTSIDE the link. Nesting an interactive control inside
-    // an anchor means every click on it also navigates, and the row is the
-    // whole point of the link.
     <div
       className={cn(
-        "flex items-center gap-3 transition-colors",
-        selected ? "bg-accent/[0.06]" : "bg-background hover:bg-muted/60",
+        "group flex h-9 items-center gap-2.5 px-3 transition-colors text-xs",
+        selected ? "bg-primary/10" : "bg-surface hover:bg-muted/60"
       )}
     >
-      <span className="pl-4">
+      <div className="flex items-center pl-1">
         <Checkbox
           checked={selected}
           aria-label={`Select ${item.key}`}
           onClick={(e) => onToggle(item.id, e.shiftKey)}
         />
-      </span>
+      </div>
 
       <Link
         href={`/projects/${item.projectId}/issues/${item.id}`}
-        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pr-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        className="flex min-w-0 flex-1 items-center gap-2.5 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       >
-        <IssueTypeIcon type={item.type} />
+        <span className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors">
+          <IssueTypeIcon type={item.type} />
+        </span>
 
         <span
-          className="w-14 shrink-0 truncate rounded bg-muted px-1.5 py-0.5 text-center font-mono text-[10px] font-medium text-muted-foreground"
+          className="shrink-0 truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold text-primary"
           title={item.projectName}
         >
           {item.projectKey}
         </span>
 
-        <span className="w-20 shrink-0 truncate font-mono text-xs text-muted-foreground">
+        <span className="shrink-0 truncate font-mono text-xs font-medium text-muted-foreground group-hover:text-foreground">
           {item.key}
         </span>
 
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-          {/* A subtask's parent, inline before the title (ADR-0045 §6). This
-              list mixes the two levels, and "Write the tests" on its own tells
-              a reader nothing about which work it belongs to. */}
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground group-hover:text-primary transition-colors">
           {item.parentKey && (
-            <span className="mr-1.5 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+            <span className="mr-1.5 rounded-xs bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
               {item.parentKey}
             </span>
           )}
           {item.title}
-          {/* After the title here, not before it: this list is scanned by
-              title, where the board is scanned by card. */}
           {Boolean(item.blockedBy) && (
             <span
-              className="ml-1.5 rounded bg-destructive/10 px-1 py-0.5 text-[10px] font-medium text-destructive"
+              className="ml-1.5 rounded-sm bg-destructive/10 px-1 py-0.5 text-[10px] font-semibold text-destructive"
               title={`Waiting on ${item.blockedBy} unfinished ${item.blockedBy === 1 ? "issue" : "issues"}`}
             >
               Blocked
@@ -93,30 +79,32 @@ export function CrossProjectRow({
         {item.dueDate && (
           <span
             className={cn(
-              "hidden w-14 shrink-0 text-right text-xs font-medium tabular-nums sm:block",
-              item.dueOverdue ? "text-destructive" : "text-muted-foreground",
+              "hidden w-14 shrink-0 text-right text-[11px] font-medium tabular-nums sm:block",
+              item.dueOverdue ? "text-destructive font-semibold" : "text-muted-foreground"
             )}
           >
             {formatDue(item.dueDate)}
           </span>
         )}
 
-        <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+        <span className="hidden shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground sm:flex min-w-[5.5rem]">
           <StatusDot status={item.status} />
-          {statusLabel(item.status)}
+          <span>{statusLabel(item.status)}</span>
         </span>
 
-        <PriorityIcon priority={item.priority} />
+        <span className="shrink-0">
+          <PriorityIcon priority={item.priority} />
+        </span>
 
         {item.assignee ? (
-          <Avatar className="h-6 w-6 shrink-0">
+          <Avatar className="h-5 w-5 shrink-0 ring-1 ring-border">
             <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt="" />
-            <AvatarFallback className="text-[10px]">
+            <AvatarFallback className="text-[9px]">
               {item.assignee.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         ) : (
-          <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" />
+          <span className="h-5 w-5 shrink-0 rounded-full border border-dashed border-border" />
         )}
       </Link>
     </div>

@@ -2,12 +2,8 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Card, CardHeader } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { Badge } from "@/shared/components/ui/badge";
 
-// Presentational wrapper shared by every Home section.
-//
-// Every section renders through this, so it is the single place the Home
-// surface's look is defined — restyle here and all five move together, which
-// is why the sections themselves stayed untouched in the visual pass.
 export function HomeSection({
   title,
   icon,
@@ -20,45 +16,41 @@ export function HomeSection({
   title: string;
   icon?: React.ReactNode;
   count?: number;
-  /** Singular noun, pluralised automatically: "open issue" → "2 open issues". */
   countLabel?: string;
   viewAll?: { href: string; label?: string };
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <Card className={className}>
+    <Card className={className} flush>
       <CardHeader
         icon={icon}
         title={title}
         action={
-          <>
+          <div className="flex items-center gap-2">
             {count !== undefined && count > 0 && countLabel && (
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium tabular-nums text-accent">
+              <Badge variant="primary" className="tabular-nums">
                 {count} {countLabel}
                 {count === 1 ? "" : "s"}
-              </span>
+              </Badge>
             )}
             {viewAll && (
               <Link
                 href={viewAll.href}
-                className="inline-flex items-center gap-1 text-[13px] font-medium text-accent transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline transition-opacity"
               >
                 {viewAll.label ?? "View all"}
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-3 w-3" />
               </Link>
             )}
-          </>
+          </div>
         }
       />
-      <div className="px-2 pb-2">{children}</div>
+      <div className="p-0 overflow-hidden">{children}</div>
     </Card>
   );
 }
 
-// The count pill sits in the header, so an empty section needs no number —
-// it needs a sentence. Compact by default: these live inside cards that share
-// a row, and a full-height empty state would stretch its neighbour.
 export function HomeEmpty({
   children,
   icon,
@@ -69,11 +61,13 @@ export function HomeEmpty({
   title?: string;
 }) {
   return (
-    <EmptyState
-      compact
-      icon={icon}
-      title={title ?? "Nothing here yet"}
-      description={typeof children === "string" ? children : undefined}
-    />
+    <div className="p-4">
+      <EmptyState
+        compact
+        icon={icon}
+        title={title ?? "Nothing here yet"}
+        description={typeof children === "string" ? children : undefined}
+      />
+    </div>
   );
 }
