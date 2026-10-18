@@ -542,7 +542,7 @@ export function SprintPlanningView({
       </div>
 
       {initialSprint.sprints.length === 0 ? (
-        <p className="mb-6 rounded-2xl border border-border bg-background px-6 py-8 text-center text-sm text-muted-foreground shadow-card">
+        <p className="mb-6 rounded-lg border border-dashed border-border bg-surface-sunken/40 px-6 py-8 text-center text-xs text-muted-foreground">
           {canManage
             ? "No sprints yet. Create one, then drag issues from the backlog to plan it."
             : "No sprints are planned yet."}
@@ -632,7 +632,7 @@ export function SprintPlanningView({
         )}
 
         {backlogItems.length === 0 && filterActive && (
-          <p className="rounded-xl bg-muted/50 px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border bg-surface-sunken/40 px-4 py-8 text-center text-xs text-muted-foreground">
             No unscheduled issues match this filter.
           </p>
         )}
@@ -698,14 +698,14 @@ export function SprintPlanningView({
 
       {/* Bulk action bar — appears while issues are selected */}
       {selected.size > 0 && (
-        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-pop backdrop-blur">
-          <span className="text-sm font-medium text-foreground">
+        <div className="sticky bottom-4 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-full border border-border/80 bg-background/90 px-4 py-2 shadow-pop backdrop-blur-md">
+          <span className="text-xs font-semibold text-foreground">
             {selected.size} selected
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Move to</span>
+            <span className="text-xs text-muted-foreground">Move to</span>
             <Select value={bulkTarget} onValueChange={setBulkTarget}>
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="h-8 w-40 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -717,10 +717,10 @@ export function SprintPlanningView({
                 ))}
               </SelectContent>
             </Select>
-            <Button size="sm" onClick={bulkMove} loading={bulkBusy}>
+            <Button size="xs" onClick={bulkMove} loading={bulkBusy} className="h-8 px-3 text-xs">
               Move
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            <Button size="xs" variant="ghost" onClick={() => setSelected(new Set())} className="h-8 px-2.5 text-xs">
               Clear
             </Button>
           </div>
@@ -764,7 +764,7 @@ function SprintSection({
     sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
-    <section className="rounded-2xl border border-border bg-background p-3 shadow-card">
+    <section className="rounded-lg border border-border bg-card p-3 shadow-2xs">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
@@ -812,7 +812,7 @@ function SprintSection({
         )}
       </div>
 
-      {sprint.goal && <p className="mb-2 text-sm text-muted-foreground">{sprint.goal}</p>}
+      {sprint.goal && <p className="mb-2 text-xs text-muted-foreground">{sprint.goal}</p>}
       <p className="mb-2 text-xs text-muted-foreground">
         {sprint.startDate || sprint.endDate ? formatDateRange(sprint.startDate, sprint.endDate) : "No dates set"}
         {durationDays(sprint.startDate, sprint.endDate) !== null && (
@@ -822,11 +822,14 @@ function SprintSection({
         {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
       </p>
       <div className="mb-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
+          <div
+            className={cn("h-full rounded-full transition-all", overdue ? "bg-destructive" : "bg-primary")}
+            style={{ width: `${pct}%` }}
+          />
         </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {done}/{total} done
+        <span className="text-[11px] font-medium tabular-nums text-muted-foreground">
+          {done}/{total} done ({pct}%)
         </span>
       </div>
 
@@ -872,10 +875,10 @@ function CompletedSprintCard({
 }) {
   const { doneIssues, totalIssues } = sprint.progress;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:bg-muted/30">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{sprint.name}</span>
+          <span className="truncate text-xs font-semibold text-foreground">{sprint.name}</span>
           <Badge variant="outline">Completed</Badge>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -915,8 +918,8 @@ function DroppableList({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-16 flex-col gap-2 rounded-xl bg-muted/50 p-2 transition-colors",
-        isOver && "border-accent/50 bg-accent/5",
+        "flex min-h-12 flex-col gap-1.5 rounded-lg border border-transparent bg-surface-sunken/60 p-1.5 transition-all",
+        isOver && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
       )}
     >
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
@@ -960,7 +963,7 @@ function BacklogGroup({
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-2 shadow-card">
+    <div className="rounded-lg border border-border bg-card p-2 shadow-2xs">
       <button
         type="button"
         onClick={onToggle}
