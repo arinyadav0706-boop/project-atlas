@@ -28,25 +28,24 @@ export function HomeSection({
         title={title}
         action={
           <div className="flex items-center gap-2">
-            {count !== undefined && count > 0 && countLabel && (
-              <Badge variant="primary" className="tabular-nums">
+            {count !== undefined && count > 0 && countLabel && (\n              <Badge variant=\"primary\" className=\"tabular-nums\">
                 {count} {countLabel}
-                {count === 1 ? "" : "s"}
+                {count === 1 ? \"\" : \"s\"}
               </Badge>
             )}
             {viewAll && (
               <Link
                 href={viewAll.href}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline transition-opacity"
+                className=\"inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline transition-opacity\"
               >
-                {viewAll.label ?? "View all"}
-                <ArrowRight className="h-3 w-3" />
+                {viewAll.label ?? \"View all\"}
+                <ArrowRight className=\"h-3 w-3\" />
               </Link>
             )}
           </div>
         }
       />
-      <div className="p-0 overflow-hidden">{children}</div>
+      <div className=\"p-0 overflow-hidden\">{children}</div>
     </Card>
   );
 }
@@ -61,12 +60,12 @@ export function HomeEmpty({
   title?: string;
 }) {
   return (
-    <div className="p-4">
+    <div className=\"p-4\">
       <EmptyState
         compact
         icon={icon}
-        title={title ?? "Nothing here yet"}
-        description={typeof children === "string" ? children : undefined}
+        title={title ?? \"Nothing here yet\"}
+        description={typeof children === \"string\" ? children : undefined}
       />
     </div>
   );
