@@ -782,11 +782,11 @@ function SprintSection({
     sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs backdrop-blur-sm transition-all hover:border-border">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
-          <Badge variant={sprint.status === "ACTIVE" ? "accent" : "outline"}>
+    <section className="rounded-3xl border border-border/60 bg-surface p-5 shadow-card transition-all hover:border-border-strong">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-[15px] font-bold tracking-tight text-foreground">{sprint.name}</h3>
+          <Badge variant={sprint.status === "ACTIVE" ? "primary" : "outline"} dot={sprint.status === "ACTIVE"}>
             {sprint.status === "ACTIVE" ? "Active" : "Planned"}
           </Badge>
         </div>
@@ -799,7 +799,7 @@ function SprintSection({
                   aria-label="Move sprint up"
                   disabled={!queuePosition.canMoveUp}
                   onClick={() => queuePosition.onMove("up")}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <ChevronUp className="h-4 w-4" />
                 </button>
@@ -808,7 +808,7 @@ function SprintSection({
                   aria-label="Move sprint down"
                   disabled={!queuePosition.canMoveDown}
                   onClick={() => queuePosition.onMove("down")}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <ChevronDown className="h-4 w-4" />
                 </button>
@@ -830,23 +830,23 @@ function SprintSection({
         )}
       </div>
 
-      {sprint.goal && <p className="mb-2 text-xs text-muted-foreground">{sprint.goal}</p>}
-      <p className="mb-2 text-xs text-muted-foreground">
+      {sprint.goal && <p className="mb-2 text-[13px] text-muted-foreground">{sprint.goal}</p>}
+      <p className="mb-3 text-xs font-medium text-muted-foreground">
         {sprint.startDate || sprint.endDate ? formatDateRange(sprint.startDate, sprint.endDate) : "No dates set"}
         {durationDays(sprint.startDate, sprint.endDate) !== null && (
           <span className="ml-2">· {durationDays(sprint.startDate, sprint.endDate)} days</span>
         )}
         <span className="ml-2">· {total} {total === 1 ? "issue" : "issues"}</span>
-        {overdue && <span className="ml-2 font-medium text-destructive">Overdue</span>}
+        {overdue && <span className="ml-2 font-semibold text-destructive">Overdue</span>}
       </p>
-      <div className="mb-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
           <div
-            className={cn("h-full rounded-full transition-all", overdue ? "bg-destructive" : "bg-primary")}
+            className={cn("h-full rounded-full transition-all", overdue ? "bg-destructive" : "bg-gradient-to-r from-primary to-google-purple")}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="text-[11px] font-medium tabular-nums text-muted-foreground">
+        <span className="text-xs font-semibold tabular-nums text-muted-foreground">
           {done}/{total} done ({pct}%)
         </span>
       </div>
@@ -880,8 +880,6 @@ function formatDateRange(startIso: string | null, endIso: string | null): string
   return "";
 }
 
-// A completed sprint in the history section: name, dates, final progress, and a
-// delete control (LEAD). Read-only otherwise — its issue set is the record.
 function CompletedSprintCard({
   sprint,
   canManage,
@@ -893,10 +891,10 @@ function CompletedSprintCard({
 }) {
   const { doneIssues, totalIssues } = sprint.progress;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:bg-muted/30">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-surface px-4 py-3 text-xs shadow-2xs transition-colors hover:bg-muted/30">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate text-xs font-semibold text-foreground">{sprint.name}</span>
+          <span className="truncate text-sm font-semibold text-foreground">{sprint.name}</span>
           <Badge variant="outline">Completed</Badge>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -925,8 +923,6 @@ function DroppableList({
   items: IssueListItemDto[];
   canWrite: boolean;
   emptyText: string;
-  // Suppress the per-row epic badge where the surrounding group already names
-  // the epic (grouped backlog). Shown by default (sprints, flat backlog).
   showEpic?: boolean;
   renderLeading?: (item: IssueListItemDto) => React.ReactNode;
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
@@ -936,8 +932,8 @@ function DroppableList({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-12 flex-col gap-1.5 rounded-lg border border-transparent bg-surface-sunken/60 p-1.5 transition-all",
-        isOver && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
+        "flex min-h-14 flex-col gap-2 rounded-2xl border border-transparent bg-surface-sunken/60 p-2.5 transition-all",
+        isOver && "border-primary/40 bg-primary/8 ring-2 ring-primary/20",
       )}
     >
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
@@ -954,15 +950,12 @@ function DroppableList({
         ))}
       </SortableContext>
       {items.length === 0 && (
-        <p className="px-1 py-6 text-center text-xs text-muted-foreground">{emptyText}</p>
+        <p className="px-2 py-8 text-center text-xs font-medium text-muted-foreground">{emptyText}</p>
       )}
     </div>
   );
 }
 
-// A collapsible backlog epic group (ADR-0026): header (epic key/title or "No
-// epic" + count) over a droppable list. Rows omit the epic badge — the header
-// already states it. Dropping a card here reassigns its parent epic.
 function BacklogGroup({
   group,
   collapsed,
@@ -981,24 +974,24 @@ function BacklogGroup({
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs transition-all hover:border-border">
+    <div className="rounded-3xl border border-border/60 bg-surface p-4 shadow-card transition-all hover:border-border-strong">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
-        className="mb-2 flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="mb-2.5 flex w-full items-center gap-2.5 rounded-xl px-2 py-1 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "-rotate-90")} />
         {group.epicKey ? (
           <span className="flex min-w-0 items-center gap-2">
-            <IssueTypeIcon type="EPIC" className="h-3.5 w-3.5 shrink-0" />
-            <span className="font-mono text-xs text-muted-foreground">{group.epicKey}</span>
-            <span className="truncate text-sm font-medium text-foreground">{group.title}</span>
+            <IssueTypeIcon type="EPIC" className="h-4 w-4 shrink-0" />
+            <span className="rounded-full bg-purple-500/12 px-2 py-0.5 font-mono text-xs font-semibold text-purple-600 dark:text-purple-400">{group.epicKey}</span>
+            <span className="truncate text-sm font-semibold text-foreground">{group.title}</span>
           </span>
         ) : (
-          <span className="text-sm font-medium text-foreground">No epic</span>
+          <span className="text-sm font-semibold text-foreground">No epic</span>
         )}
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground">{group.items.length}</span>
+        <span className="ml-auto shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{group.items.length}</span>
       </button>
       {!collapsed && (
         <DroppableList
