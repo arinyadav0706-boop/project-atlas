@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Users, Mail, Shield } from "lucide-react";
+import { Search, Mail } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -13,12 +14,10 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
   const [query, setQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("ALL");
 
-  // Distinct team names
   const teamNames = useMemo(() => {
     return Array.from(new Set(reports.map((r) => r.teamName))).sort();
   }, [reports]);
 
-  // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter((r) => {
       if (teamFilter !== "ALL" && r.teamName !== teamFilter) return false;
@@ -28,11 +27,7 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
     });
   }, [reports, teamFilter, query]);
 
-  // Integrated pagination
-  const {
-    paginatedItems,
-    paginationProps,
-  } = usePagination({
+  const { paginatedItems, paginationProps } = usePagination({
     items: filteredReports,
     initialPageSize: 12,
     itemLabel: "reports",
@@ -40,29 +35,30 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
   });
 
   return (
-    <div className="space-y-4">
-      {/* Control Bar: Search + Team Filter */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+    <div className="space-y-5">
+      {/* Control Bar: Search + Segmented Team Filter */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-surface p-3.5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search reports by name or email…"
-            className="h-8 pl-8 text-xs"
+            className="pl-10 rounded-full"
           />
         </div>
 
         {teamNames.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-surface-sunken/80 p-1">
             <button
               type="button"
               onClick={() => setTeamFilter("ALL")}
-              className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+              className={cn(
+                "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all",
                 teamFilter === "ALL"
-                  ? "bg-surface font-semibold text-foreground shadow-2xs"
+                  ? "bg-surface text-foreground shadow-xs ring-1 ring-border/50"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+              )}
             >
               All Teams ({reports.length})
             </button>
@@ -73,11 +69,12 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
                   key={teamName}
                   type="button"
                   onClick={() => setTeamFilter(teamName)}
-                  className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all",
                     teamFilter === teamName
-                      ? "bg-surface font-semibold text-foreground shadow-2xs"
+                      ? "bg-surface text-foreground shadow-xs ring-1 ring-border/50"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  )}
                 >
                   {teamName} ({count})
                 </button>
@@ -87,33 +84,36 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
         )}
       </div>
 
-      {/* Paginated Team List */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
-        {filteredReports.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">
-            No team members match &ldquo;{query}&rdquo;.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 divide-y divide-border/60 sm:grid-cols-2 sm:divide-y-0 sm:gap-px sm:bg-border/60">
+      {/* Bento Team Member Cards */}
+      {filteredReports.length === 0 ? (
+        <div className="rounded-3xl border border-border/60 bg-surface p-12 text-center text-sm text-muted-foreground shadow-card">
+          No team members match &ldquo;{query}&rdquo;.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {paginatedItems.map((r) => (
               <div
                 key={r.userId}
-                className="flex items-center gap-3 bg-surface p-4 transition-colors hover:bg-muted/30"
+                className="flex items-center gap-4 rounded-3xl border border-border/60 bg-surface p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover"
               >
-                <Avatar className="h-9 w-9 ring-1 ring-border">
+                <Avatar className="h-12 w-12 ring-2 ring-primary/15">
                   {r.avatarUrl && <AvatarImage src={r.avatarUrl} alt={r.name} />}
-                  <AvatarFallback className="text-xs font-semibold">
+                  <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary/20 to-google-purple/20 text-primary">
                     {r.name.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-xs font-semibold text-foreground">{r.name}</span>
-                  </div>
-                  <div className="truncate text-[11px] text-muted-foreground">{r.email}</div>
-                  <div className="mt-1">
-                    <Badge variant="outline" className="text-[10px] font-medium">
+                  <span className="block truncate text-[15px] font-bold text-foreground">
+                    {r.name}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                    <Mail className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{r.email}</span>
+                  </span>
+                  <div className="mt-2.5">
+                    <Badge variant="primary" dot>
                       {r.teamName}
                     </Badge>
                   </div>
@@ -121,10 +121,12 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
               </div>
             ))}
           </div>
-        )}
 
-        <DataPagination {...paginationProps} pageSizeOptions={[6, 12, 24]} />
-      </div>
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-surface shadow-card">
+            <DataPagination {...paginationProps} pageSizeOptions={[6, 12, 24]} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

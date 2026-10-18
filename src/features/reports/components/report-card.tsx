@@ -36,8 +36,8 @@ export function ReportCard({
   projectId: string;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-card p-4 shadow-2xs">
-      <h2 className="text-sm font-semibold text-foreground">{result.name}</h2>
+    <section className="rounded-3xl border border-border/60 bg-surface p-5 shadow-card">
+      <h2 className="text-[15px] font-bold tracking-tight text-foreground">{result.name}</h2>
       <div className="mt-4">
         {result.chartType === "bar" && <VelocityChart data={result.data as VelocityData} />}
         {result.chartType === "donut" && (

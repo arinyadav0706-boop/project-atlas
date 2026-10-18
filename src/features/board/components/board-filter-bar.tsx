@@ -26,9 +26,6 @@ import type {
 const TYPES: IssueTypeDto[] = ["TASK", "STORY", "BUG", "EPIC"];
 const PRIORITIES: IssuePriorityDto[] = ["HIGHEST", "HIGH", "MEDIUM", "LOW", "LOWEST"];
 
-// Renders the filters whose data exists in V1 (assignee, type, priority). The
-// board reads the full composable BoardFilter (ADR-0008), so adding Sprint,
-// Epic, Label, or Saved Filters later is a control here — no board redesign.
 export function BoardFilterBar({
   members,
   labels,
@@ -42,9 +39,6 @@ export function BoardFilterBar({
   labels: { id: string; name: string; color: string }[];
   components: { id: string; name: string }[];
   epics: { id: string; key: string; title: string }[];
-  // Sprints that can meaningfully scope a board: the running one and the
-  // planned queue. Optional so a surface without sprints (a kanban project)
-  // simply omits the control rather than rendering an empty one.
   sprints?: { id: string; name: string; status: string }[];
   filter: BoardFilter;
   onChange: (next: BoardFilter) => void;
@@ -66,11 +60,10 @@ export function BoardFilterBar({
     return next.length ? next : undefined;
   }
 
-  // `Select` has no empty value, so "Any" maps to removing the key entirely.
   const ANY = "__any__";
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className="mb-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-border/60 bg-surface p-3.5 shadow-card">
       <SearchInput
         value={filter.search ?? ""}
         onCommit={(v) => onChange({ ...filter, search: v || undefined })}
@@ -82,7 +75,7 @@ export function BoardFilterBar({
           onChange({ ...filter, assigneeId: v === ANY ? undefined : v })
         }
       >
-        <SelectTrigger className="h-8 w-auto min-w-36 text-sm">
+        <SelectTrigger className="w-auto min-w-36">
           <SelectValue placeholder="Assignee" />
         </SelectTrigger>
         <SelectContent>
@@ -101,7 +94,7 @@ export function BoardFilterBar({
           onChange({ ...filter, type: v === ANY ? undefined : (v as IssueTypeDto) })
         }
       >
-        <SelectTrigger className="h-8 w-auto min-w-28 text-sm">
+        <SelectTrigger className="w-auto min-w-32">
           <SelectValue placeholder="Type" />
         </SelectTrigger>
         <SelectContent>
@@ -123,7 +116,7 @@ export function BoardFilterBar({
           })
         }
       >
-        <SelectTrigger className="h-8 w-auto min-w-28 text-sm">
+        <SelectTrigger className="w-auto min-w-32">
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
@@ -143,7 +136,7 @@ export function BoardFilterBar({
             onChange({ ...filter, sprintId: v === ANY ? undefined : v })
           }
         >
-          <SelectTrigger className="h-8 w-auto min-w-36 text-sm">
+          <SelectTrigger className="w-auto min-w-36">
             <SelectValue placeholder="Sprint" />
           </SelectTrigger>
           <SelectContent className="max-h-64">
@@ -165,7 +158,7 @@ export function BoardFilterBar({
             onChange({ ...filter, epicId: v === ANY ? undefined : v })
           }
         >
-          <SelectTrigger className="h-8 w-auto min-w-36 text-sm">
+          <SelectTrigger className="w-auto min-w-36">
             <SelectValue placeholder="Epic" />
           </SelectTrigger>
           <SelectContent className="max-h-64">
@@ -205,7 +198,7 @@ export function BoardFilterBar({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 text-muted-foreground"
+          className="rounded-full text-muted-foreground"
           onClick={() => onChange({})}
         >
           <X className="mr-1 h-3.5 w-3.5" />
@@ -216,8 +209,6 @@ export function BoardFilterBar({
   );
 }
 
-// A compact multi-select on DropdownMenu — items stay open on toggle. Used for
-// the label + component filters (both are `?field=` repeated query params).
 function MultiSelect({
   label,
   options,
@@ -234,10 +225,10 @@ function MultiSelect({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1 text-sm">
+        <Button variant="outline" className="gap-1.5">
           {label}
           {count > 0 && (
-            <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">
+            <span className="rounded-full bg-primary/15 px-1.5 text-xs font-bold text-primary">
               {count}
             </span>
           )}
@@ -252,7 +243,7 @@ function MultiSelect({
               e.preventDefault();
               onToggle(option.id);
             }}
-            className="gap-2 text-sm"
+            className="gap-2"
           >
             {option.color && (
               <span
@@ -261,7 +252,7 @@ function MultiSelect({
               />
             )}
             <span className="flex-1 truncate">{option.label}</span>
-            {chosen.has(option.id) && <span className="text-xs text-accent">✓</span>}
+            {chosen.has(option.id) && <span className="text-xs font-bold text-primary">✓</span>}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -269,10 +260,6 @@ function MultiSelect({
   );
 }
 
-// Free-text title filter. Debounced rather than fired per keystroke: every
-// change is a server round trip (the list is keyset-paginated, so it cannot be
-// filtered client-side), and a request per character would both hammer the API
-// and race its own responses.
 function SearchInput({
   value,
   onCommit,
@@ -282,7 +269,6 @@ function SearchInput({
 }) {
   const [draft, setDraft] = useState(value);
 
-  // Re-sync when the filter is cleared from outside (the Clear button).
   useEffect(() => setDraft(value), [value]);
 
   useEffect(() => {
@@ -295,20 +281,18 @@ function SearchInput({
     <div className="relative">
       <Search
         aria-hidden
-        className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
       />
       <input
         type="search"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        // Enter commits immediately — waiting out the debounce after an
-        // explicit submit feels broken.
         onKeyDown={(e) => {
           if (e.key === "Enter") onCommit(draft.trim());
         }}
-        placeholder="Search titles"
+        placeholder="Search titles…"
         aria-label="Search issue titles"
-        className="h-8 w-44 rounded-md border border-border bg-background pl-7 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="h-9 w-52 rounded-full border border-border/80 bg-surface-sunken/70 pl-9 pr-3.5 text-[13px] text-foreground placeholder:text-muted-foreground transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:border-primary focus-visible:bg-surface"
       />
     </div>
   );

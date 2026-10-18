@@ -1,18 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import {
   ListFilter,
   Save,
   ArrowUpDown,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { PageHeader } from "@/shared/components/ui/page-header";
-import { PageShell } from "@/shared/components/ui/page-shell";
+import { AppFrame } from "@/shared/components/ui/app-frame";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
@@ -89,7 +88,6 @@ export function IssueWorkspace({
   const [sort, setSort] = useState<SavedViewSortDto>(DEFAULT_SORT);
   const [pageSize, setPageSize] = useState<number>(25);
 
-  // Pagination state: cursor stack for previous/next navigation
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const [pageIndex, setPageIndex] = useState<number>(0);
 
@@ -105,7 +103,6 @@ export function IssueWorkspace({
 
   const currentCursor = cursorStack[pageIndex];
 
-  // Fetch a page with specific cursor
   const fetchPage = useCallback(
     async (
       nextFilter: IssueFilter,
@@ -132,7 +129,6 @@ export function IssueWorkspace({
     []
   );
 
-  // When filter, sort, or pageSize changes, reset to page 1
   useEffect(() => {
     setCursorStack([undefined]);
     setPageIndex(0);
@@ -141,7 +137,6 @@ export function IssueWorkspace({
     window.history.replaceState(null, "", query ? `/issues?${query}` : "/issues");
   }, [filter, sort, pageSize, fetchPage]);
 
-  // When navigating via cursor stack (Next/Prev)
   const handleNextPage = useCallback(() => {
     if (!result?.nextCursor) return;
     const nextCursor = result.nextCursor;
@@ -283,39 +278,53 @@ export function IssueWorkspace({
   const rangeLabel = items.length > 0 ? `${rangeStart}–${rangeEnd}` : "0";
 
   return (
-    <PageShell>
-      <PageHeader
-        title={activeView ? activeView.name : "All issues"}
-        subtitle={
-          activeView
-            ? "Filtered saved view across your accessible projects."
-            : "Search, filter, paginate, and bulk-manage issues across your projects."
-        }
-        actions={
-          <div className="flex items-center gap-2">
+    <AppFrame className="space-y-6">
+      {/* Cross-Project Explorer Hero Banner */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/60 hero-mesh p-6 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-glow">
+              <ListFilter className="h-6 w-6" />
+            </span>
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                <Sparkles className="h-3 w-3" />
+                {activeView ? "Saved View" : "Cross-Project Explorer"}
+              </div>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                {activeView ? activeView.name : "All Issues"}
+              </h1>
+              <p className="text-[13px] text-muted-foreground">
+                {activeView
+                  ? "Filtered saved view across your accessible projects."
+                  : "Search, filter, paginate, and bulk-manage issues across your entire portfolio."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
             {!activeView && !sameFilter(filter, {}) && (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setSaveOpen(true)}
-                className="gap-1.5"
+                className="rounded-full bg-surface/90"
               >
-                <Save className="h-3.5 w-3.5 text-primary" />
+                <Save className="h-4 w-4 text-primary" />
                 <span>Save view</span>
               </Button>
             )}
             {activeView && (
-              <Button variant="ghost" size="sm" onClick={clearView}>
+              <Button variant="outline" onClick={clearView} className="rounded-full">
                 Clear view
               </Button>
             )}
           </div>
-        }
-      />
+        </div>
+      </section>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Saved Views Rail */}
-        <div className="w-full shrink-0 lg:w-56">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* Saved Views Dock */}
+        <div className="w-full shrink-0 lg:w-64">
           <ViewRail
             views={views}
             activeId={activeView?.id ?? null}
@@ -326,9 +335,9 @@ export function IssueWorkspace({
         </div>
 
         {/* Main Issue Directory */}
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
           {/* Filter Bar & Sort Controls */}
-          <div className="rounded-xl border border-border bg-surface p-3 shadow-2xs">
+          <div className="rounded-3xl border border-border/60 bg-surface p-4 shadow-card">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex-1">
                 <IssueFilterBar
@@ -339,19 +348,18 @@ export function IssueWorkspace({
                 />
               </div>
 
-              {/* Sort selector */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <div className="flex items-center gap-2 shrink-0">
+                <ArrowUpDown className="h-4 w-4 text-muted-foreground" aria-hidden />
                 <Select
                   value={sort}
                   onValueChange={(val) => setSort(val as SavedViewSortDto)}
                 >
-                  <SelectTrigger className="h-8 w-44 text-xs font-medium">
+                  <SelectTrigger className="w-48">
                     <SelectValue placeholder="Sort by…" />
                   </SelectTrigger>
                   <SelectContent>
                     {SORT_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
                     ))}
@@ -361,7 +369,7 @@ export function IssueWorkspace({
             </div>
 
             {filterableFields.length > 0 && (
-              <div className="mt-3 border-t border-border/60 pt-3">
+              <div className="mt-3.5 border-t border-border-subtle/70 pt-3.5">
                 <CustomFieldFilters
                   fields={filterableFields}
                   predicates={filter.customFields ?? []}
@@ -377,10 +385,10 @@ export function IssueWorkspace({
           </div>
 
           {/* Table Container */}
-          <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
-            {/* Table Header Row with Sticky Top */}
-            <div className="sticky top-0 z-10 flex h-9 items-center gap-2.5 border-b border-border bg-muted/40 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">
-              <div className="flex items-center pl-1">
+          <div className="flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-surface shadow-card">
+            {/* Table Header Row */}
+            <div className="sticky top-0 z-10 flex h-11 items-center gap-3.5 border-b border-border/60 bg-surface-sunken/70 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-md select-none">
+              <div className="flex items-center">
                 <Checkbox
                   checked={allOnPageSelected}
                   aria-label="Select all on this page"
@@ -398,34 +406,34 @@ export function IssueWorkspace({
                   }}
                 />
               </div>
-              <span className="w-7 text-center">Type</span>
-              <span className="w-16">Project</span>
-              <span className="w-20">Key</span>
+              <span className="w-8 text-center">Type</span>
+              <span className="w-18">Project</span>
+              <span className="w-22">Key</span>
               <span className="flex-1">Title</span>
-              <span className="hidden w-16 text-right sm:block">Due</span>
-              <span className="hidden w-24 sm:block">Status</span>
+              <span className="hidden w-18 text-right sm:block">Due</span>
+              <span className="hidden w-28 sm:block">Status</span>
               <span className="w-8 text-center">Pri</span>
               <span className="w-8 text-right">Owner</span>
             </div>
 
             {/* List Body */}
-            <div className="divide-y divide-border/50">
+            <div className="divide-y divide-border-subtle/70">
               {loading ? (
-                <div className="flex flex-col gap-2 p-4">
+                <div className="flex flex-col gap-3 p-5">
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="flex h-9 items-center gap-3">
-                      <Skeleton className="h-4 w-4 rounded" />
-                      <Skeleton className="h-4 w-12 rounded" />
-                      <Skeleton className="h-4 w-16 rounded" />
-                      <Skeleton className="h-4 flex-1 rounded" />
-                      <Skeleton className="h-4 w-20 rounded" />
+                    <div key={i} className="flex h-11 items-center gap-4">
+                      <Skeleton className="h-5 w-5 rounded-md" />
+                      <Skeleton className="h-6 w-14 rounded-full" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                      <Skeleton className="h-4 flex-1 rounded-xl" />
+                      <Skeleton className="h-6 w-24 rounded-full" />
                     </div>
                   ))}
                 </div>
               ) : items.length === 0 ? (
-                <div className="py-12">
+                <div className="py-14">
                   <EmptyState
-                    icon={<ListFilter className="h-6 w-6 text-muted-foreground" />}
+                    icon={<ListFilter />}
                     title="No issues match this view"
                     description={
                       result && result.projectsInScope === 0
@@ -453,7 +461,6 @@ export function IssueWorkspace({
               )}
             </div>
 
-            {/* Reusable DataPagination Footer */}
             <DataPagination
               mode="cursor"
               hasPrev={pageIndex > 0}
@@ -476,7 +483,6 @@ export function IssueWorkspace({
         </div>
       </div>
 
-      {/* Bulk Action Bar */}
       <BulkActionBar
         count={selected.size}
         currentUserId={currentUserId}
@@ -486,7 +492,6 @@ export function IssueWorkspace({
         onClear={() => setSelected(new Set())}
       />
 
-      {/* Save View Modal */}
       <SaveViewDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
@@ -498,6 +503,6 @@ export function IssueWorkspace({
           setActiveView(created);
         }}
       />
-    </PageShell>
+    </AppFrame>
   );
 }

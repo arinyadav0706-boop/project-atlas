@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ListTodo, Search, Filter as FilterIcon, Layers, Calendar } from "lucide-react";
+import { ListTodo, Search } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -18,10 +16,8 @@ import { CreateIssueDialog } from "./create-issue-dialog";
 import {
   IssueTypeIcon,
   PriorityIcon,
-  StatusDot,
   statusLabel,
 } from "./issue-meta";
-import { IssueChips } from "./issue-chips";
 import type {
   IssueDetailDto,
   IssueListItemDto,
@@ -39,6 +35,16 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "IN_REVIEW", label: "In Review" },
   { value: "DONE", label: "Done" },
 ];
+
+const STATUS_BADGE: Record<
+  IssueStatusDto,
+  "default" | "primary" | "warning" | "success"
+> = {
+  TODO: "default",
+  IN_PROGRESS: "primary",
+  IN_REVIEW: "warning",
+  DONE: "success",
+};
 
 export function IssuesView({
   projectId,
@@ -61,7 +67,6 @@ export function IssuesView({
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState<number>(25);
 
-  // Pagination state: cursor stack for previous/next navigation
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
   const [pageIndex, setPageIndex] = useState<number>(0);
 
@@ -95,7 +100,6 @@ export function IssuesView({
     [projectId]
   );
 
-  // When filter or pageSize changes, reset to page 1
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -106,7 +110,6 @@ export function IssuesView({
     void fetchPage(filter, undefined, pageSize);
   }, [filter, pageSize, fetchPage]);
 
-  // Handle Next Page
   const handleNextPage = useCallback(() => {
     if (!nextCursor) return;
     const nextIdx = pageIndex + 1;
@@ -119,7 +122,6 @@ export function IssuesView({
     void fetchPage(filter, nextCursor, pageSize);
   }, [nextCursor, pageIndex, filter, pageSize, fetchPage]);
 
-  // Handle Prev Page
   const handlePrevPage = useCallback(() => {
     if (pageIndex <= 0) return;
     const prevIdx = pageIndex - 1;
@@ -155,7 +157,6 @@ export function IssuesView({
     [filter]
   );
 
-  // Client-side quick filter on current page items for search query
   const displayedItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
     const q = searchQuery.toLowerCase().trim();
@@ -174,43 +175,50 @@ export function IssuesView({
 
   return (
     <div className="space-y-4">
-      {/* Control Bar: Status Tabs + Search + Action */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
-        {/* Segmented Status Filter Tabs */}
+      {/* Floating Control Bar */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-surface p-3.5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+        {/* Segmented Status Filter Pills */}
         <div
-          className="flex flex-wrap items-center rounded-lg border border-border bg-muted/30 p-0.5 text-xs select-none"
+          className="inline-flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-surface-sunken/80 p-1 select-none"
           role="group"
           aria-label="Filter by status"
         >
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
-                filter === f.value
-                  ? "bg-surface font-semibold text-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span>{f.label}</span>
-              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-semibold tabular-nums text-muted-foreground">
-                {liveCounts[f.value]}
-              </span>
-            </button>
-          ))}
+          {FILTERS.map((f) => {
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setFilter(f.value)}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all duration-200",
+                  active
+                    ? "bg-surface text-foreground shadow-xs ring-1 ring-border/50"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span>{f.label}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.2 text-[10px] font-bold tabular-nums",
+                    active ? "bg-primary/12 text-primary" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {liveCounts[f.value]}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Quick Search */}
-          <div className="relative w-full sm:w-52">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex items-center gap-2.5">
+          <div className="relative w-full sm:w-60">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter page issues…"
-              className="h-8 pl-8 text-xs"
+              placeholder="Filter issues on page…"
+              className="pl-9 rounded-full"
             />
           </div>
 
@@ -234,33 +242,33 @@ export function IssuesView({
           onCreated={onCreated}
         />
       ) : (
-        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
-          {/* Sticky Table Header */}
-          <div className="sticky top-0 z-10 flex h-9 items-center gap-2.5 border-b border-border bg-muted/40 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">
+        <div className="flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-surface shadow-card">
+          {/* Table Header */}
+          <div className="sticky top-0 z-10 flex h-11 items-center gap-3.5 border-b border-border/60 bg-surface-sunken/70 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-md select-none">
             <span className="w-8 text-center">Type</span>
-            <span className="w-20">Key</span>
-            <span className="flex-1">Title</span>
-            <span className="hidden w-28 sm:block">Status</span>
-            <span className="w-8 text-center">Pri</span>
+            <span className="w-24">Key</span>
+            <span className="flex-1">Issue Title</span>
+            <span className="hidden w-32 sm:block">Status</span>
+            <span className="w-10 text-center">Pri</span>
             <span className="hidden w-16 text-right sm:block">Points</span>
-            <span className="w-8 text-right">Assignee</span>
+            <span className="w-10 text-right">Owner</span>
           </div>
 
-          {/* Table Rows */}
-          <div className="divide-y divide-border/50">
+          {/* Issue Rows */}
+          <div className="divide-y divide-border-subtle/70">
             {loading ? (
-              <div className="flex flex-col gap-2 p-4">
+              <div className="flex flex-col gap-2.5 p-5">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="flex h-9 items-center gap-3 animate-pulse">
-                    <div className="h-4 w-4 rounded bg-muted" />
-                    <div className="h-4 w-16 rounded bg-muted" />
-                    <div className="h-4 flex-1 rounded bg-muted" />
-                    <div className="h-4 w-20 rounded bg-muted" />
+                  <div key={i} className="flex h-11 items-center gap-4 animate-pulse">
+                    <div className="h-8 w-8 rounded-xl bg-muted" />
+                    <div className="h-5 w-20 rounded-full bg-muted" />
+                    <div className="h-4 flex-1 rounded-xl bg-muted" />
+                    <div className="h-6 w-24 rounded-full bg-muted" />
                   </div>
                 ))}
               </div>
             ) : displayedItems.length === 0 ? (
-              <div className="py-12 text-center text-xs text-muted-foreground">
+              <div className="py-14 text-center text-sm text-muted-foreground">
                 No issues match {filter !== "ALL" ? `“${statusLabel(filter)}”` : "the search query"}.
               </div>
             ) : (
@@ -268,43 +276,50 @@ export function IssuesView({
                 <Link
                   key={item.id}
                   href={`/projects/${projectId}/issues/${item.id}`}
-                  className="group flex h-9 items-center gap-2.5 px-3 text-xs transition-colors hover:bg-muted/40"
+                  className="group flex h-13 items-center gap-3.5 px-5 text-sm transition-colors hover:bg-muted/45"
                 >
-                  <span className="flex w-8 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-muted-foreground ring-1 ring-border/50 transition-transform group-hover:scale-105 group-hover:text-foreground">
                     <IssueTypeIcon type={item.type} />
                   </span>
 
-                  <span className="w-20 shrink-0 font-mono text-xs font-semibold text-muted-foreground group-hover:text-foreground">
-                    {item.key}
+                  <span className="w-24 shrink-0">
+                    <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-primary">
+                      {item.key}
+                    </span>
                   </span>
 
-                  <span className="min-w-0 flex-1 truncate font-medium text-foreground group-hover:text-primary transition-colors">
+                  <span className="min-w-0 flex-1 truncate font-semibold text-foreground group-hover:text-primary transition-colors">
                     {item.title}
                   </span>
 
-                  <span className="hidden w-28 shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
-                    <StatusDot status={item.status} />
-                    <span className="truncate">{statusLabel(item.status)}</span>
+                  <span className="hidden w-32 shrink-0 sm:flex">
+                    <Badge variant={STATUS_BADGE[item.status] ?? "default"} dot>
+                      {statusLabel(item.status)}
+                    </Badge>
                   </span>
 
-                  <span className="flex w-8 shrink-0 items-center justify-center">
+                  <span className="flex w-10 shrink-0 items-center justify-center">
                     <PriorityIcon priority={item.priority} />
                   </span>
 
-                  <span className="hidden w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground sm:block">
-                    {item.storyPoints !== null ? `${item.storyPoints} pts` : "—"}
+                  <span className="hidden w-16 shrink-0 text-right font-mono text-xs font-medium text-muted-foreground sm:block">
+                    {item.storyPoints !== null ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5">{item.storyPoints}p</span>
+                    ) : (
+                      "—"
+                    )}
                   </span>
 
-                  <span className="flex w-8 shrink-0 items-center justify-end">
+                  <span className="flex w-10 shrink-0 items-center justify-end">
                     {item.assignee ? (
-                      <Avatar className="h-5 w-5 ring-1 ring-border">
+                      <Avatar className="h-6 w-6 ring-2 ring-surface">
                         <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt="" />
-                        <AvatarFallback className="text-[9px]">
+                        <AvatarFallback className="text-[10px] font-bold bg-primary/15 text-primary">
                           {initials(item.assignee.name)}
                         </AvatarFallback>
                       </Avatar>
                     ) : (
-                      <span className="h-5 w-5 rounded-full border border-dashed border-border" />
+                      <span className="h-6 w-6 rounded-full border border-dashed border-border" />
                     )}
                   </span>
                 </Link>
@@ -312,7 +327,6 @@ export function IssuesView({
             )}
           </div>
 
-          {/* Integrated First-Class DataPagination */}
           <DataPagination
             mode="cursor"
             hasPrev={pageIndex > 0}
@@ -355,7 +369,7 @@ function EmptyState({
 }) {
   return (
     <Card flush>
-      <div className="p-8">
+      <div className="p-10">
         <EmptyStatePrimitive
           icon={<ListTodo />}
           title="No issues yet"

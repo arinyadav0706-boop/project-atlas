@@ -20,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppProviders>
-      <div className="flex h-screen overflow-hidden bg-canvas">
+      <div className="flex h-screen overflow-hidden bg-ambient-canvas p-2 md:p-3 gap-2.5 md:gap-3">
         <Sidebar
           isOrgAdmin={actor.orgRole === "ADMIN"}
           managesTeam={managesTeam}
@@ -30,14 +30,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             image: session.user.image,
           }}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border/60 bg-surface/90 shadow-card backdrop-blur-xl">
           <TopBar
             userName={session.user.name ?? session.user.email ?? "User"}
             userImage={session.user.image}
             searchEnabled={searchEnabled}
           />
-          {/* Full-width responsive main workspace without artificial gutters */}
-          <main className="min-h-0 flex-1 overflow-y-auto bg-canvas flex flex-col">
+          <main className="min-h-0 flex-1 overflow-y-auto flex flex-col">
             {children}
           </main>
         </div>
