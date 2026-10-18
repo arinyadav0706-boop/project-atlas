@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Search, Users, Shield, UserPlus } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -15,6 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Badge } from "@/shared/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
+import { usePagination } from "@/shared/hooks/use-pagination";
 import type { TeamDetailDto, TeamListItemDto } from "@/features/teams/types/team.types";
 
 type UserOption = { id: string; name: string; email: string };
@@ -28,11 +32,34 @@ export function TeamsView({
   users: UserOption[];
 }) {
   const router = useRouter();
+  const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [managerId, setManagerId] = useState<string>(NONE);
   const [parentId, setParentId] = useState<string>(NONE);
   const [busy, setBusy] = useState(false);
+
+  // Search filtering
+  const filteredTeams = useMemo(() => {
+    if (!query.trim()) return teams;
+    const q = query.toLowerCase().trim();
+    return teams.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.manager && t.manager.name.toLowerCase().includes(q))
+    );
+  }, [teams, query]);
+
+  // Integrated pagination
+  const {
+    paginatedItems,
+    paginationProps,
+  } = usePagination({
+    items: filteredTeams,
+    initialPageSize: 10,
+    itemLabel: "teams",
+    resetDeps: [query],
+  });
 
   async function create() {
     if (!name.trim() || busy) return;
@@ -60,59 +87,85 @@ export function TeamsView({
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Teams</h1>
-          <p className="text-sm text-muted-foreground">
-            Reporting structure — managers see their team&apos;s work across every project.
-          </p>
+    <div className="space-y-4">
+      {/* Header and Control Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search teams or managers…"
+            className="h-8 pl-8 text-xs"
+          />
         </div>
-        <Button size="sm" onClick={() => setCreating((v) => !v)}>
-          <Plus className="h-4 w-4" />
+
+        <Button size="sm" onClick={() => setCreating((v) => !v)} className="gap-1.5 h-8 text-xs">
+          <Plus className="h-3.5 w-3.5" />
           New team
         </Button>
       </div>
 
       {creating && (
-        <div className="mb-6 grid gap-3 rounded-lg border border-border bg-card shadow-2xs p-4 sm:grid-cols-4">
+        <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 shadow-2xs sm:grid-cols-4">
           <div className="sm:col-span-2">
-            <Label htmlFor="team-name">Name</Label>
-            <Input id="team-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Platform" className="h-8 text-xs" />
+            <Label htmlFor="team-name" className="text-xs">Team Name</Label>
+            <Input
+              id="team-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Platform Engineering"
+              className="mt-1 h-8 text-xs"
+            />
           </div>
           <div>
-            <Label>Manager</Label>
-            <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
+            <Label className="text-xs">Team Manager</Label>
+            <div className="mt-1">
+              <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
+            </div>
           </div>
           <div>
-            <Label>
-              Parent team{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional — only for nested org charts)
-              </span>
-            </Label>
-            <TeamSelect teams={teams} value={parentId} onChange={setParentId} placeholder="No parent" />
+            <Label className="text-xs">Parent Team (Optional)</Label>
+            <div className="mt-1">
+              <TeamSelect teams={teams} value={parentId} onChange={setParentId} placeholder="No parent team" />
+            </div>
           </div>
-          <div className="flex items-end gap-2 sm:col-span-4">
-            <Button size="sm" onClick={create} loading={busy} disabled={!name.trim()} className="h-8">
-              Create
+          <div className="flex items-center gap-2 sm:col-span-4 pt-1">
+            <Button size="sm" onClick={create} disabled={busy || !name.trim()} className="h-8 text-xs">
+              Create Team
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setCreating(false)} disabled={busy} className="h-8">
+            <Button size="sm" variant="ghost" onClick={() => setCreating(false)} disabled={busy} className="h-8 text-xs">
               Cancel
             </Button>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        {teams.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border bg-card/50 shadow-2xs px-4 py-10 text-center text-xs text-muted-foreground">
-            No teams yet. Create one to model your reporting structure.
-          </p>
+      {/* Paginated Teams List */}
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+        {teams.length === 0 ? (
+          <div className="px-4 py-12 text-center text-xs text-muted-foreground">
+            No teams established yet. Create one to organize your organizational reporting structure.
+          </div>
+        ) : filteredTeams.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+            No teams match &ldquo;{query}&rdquo;.
+          </div>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {paginatedItems.map((team) => (
+              <TeamRow
+                key={team.id}
+                team={team}
+                teams={teams}
+                users={users}
+                onChanged={() => router.refresh()}
+              />
+            ))}
+          </div>
         )}
-        {teams.map((team) => (
-          <TeamRow key={team.id} team={team} teams={teams} users={users} onChanged={() => router.refresh()} />
-        ))}
+
+        <DataPagination {...paginationProps} pageSizeOptions={[5, 10, 20]} />
       </div>
     </div>
   );
@@ -183,6 +236,7 @@ function TeamRow({
       onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't delete the team.");
+    } finally {
       setBusy(false);
     }
   }
@@ -195,6 +249,7 @@ function TeamRow({
         method: "POST",
         body: { userId: addUserId },
       });
+      toast.success("Member added");
       setAddUserId(NONE);
       await loadDetail();
       onChanged();
@@ -206,9 +261,11 @@ function TeamRow({
   }
 
   async function removeMember(userId: string) {
+    if (busy) return;
     setBusy(true);
     try {
       await apiRequest(`/api/admin/teams/${team.id}/members/${userId}`, { method: "DELETE" });
+      toast.success("Member removed");
       await loadDetail();
       onChanged();
     } catch (error) {
@@ -218,88 +275,161 @@ function TeamRow({
     }
   }
 
-  const otherTeams = teams.filter((t) => t.id !== team.id);
-
   return (
-    <div className="rounded-lg border border-border bg-card shadow-2xs">
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <button type="button" onClick={toggle} aria-label="Toggle members" className="text-muted-foreground hover:text-foreground">
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+    <div className="transition-colors hover:bg-muted/20">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-foreground">{team.name}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {team.manager ? `Manager: ${team.manager.name}` : "No manager"}
-            {team.parentTeamName ? ` · Parent: ${team.parentTeamName}` : ""} · {team.memberCount}{" "}
-            member{team.memberCount === 1 ? "" : "s"}
+
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">{team.name}</span>
+            <Badge variant="default" className="text-[10px]">
+              {team.memberCount} {team.memberCount === 1 ? "member" : "members"}
+            </Badge>
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+            {team.manager ? (
+              <span className="flex items-center gap-1">
+                <Shield className="h-3 w-3 text-primary/70" />
+                <span>Manager: {team.manager.name}</span>
+              </span>
+            ) : (
+              <span>No manager assigned</span>
+            )}
+            {team.parentTeamId && (
+              <>
+                <span>·</span>
+                <span>Sub-team</span>
+              </>
+            )}
           </div>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)} className="h-7 px-2.5 text-xs">
-          Edit
-        </Button>
-        <Button size="sm" variant="ghost" onClick={remove} disabled={busy} className="h-7 px-2 text-xs">
-          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setEditing((v) => !v)}
+            className="h-7 px-2.5 text-xs"
+          >
+            {editing ? "Close" : "Edit"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={remove}
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {editing && (
-        <div className="grid gap-3 border-t border-border px-3 py-2.5 sm:grid-cols-4">
-          <div className="sm:col-span-2">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-xs" />
+        <div className="border-t border-border/40 bg-muted/20 p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label className="text-xs">Team Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Manager</Label>
+              <div className="mt-1">
+                <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Parent Team</Label>
+              <div className="mt-1">
+                <TeamSelect
+                  teams={teams.filter((t) => t.id !== team.id)}
+                  value={parentId}
+                  onChange={setParentId}
+                  placeholder="No parent"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <Label>Manager</Label>
-            <UserSelect users={users} value={managerId} onChange={setManagerId} placeholder="No manager" />
-          </div>
-          <div>
-            <Label>
-              Parent team{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </Label>
-            <TeamSelect teams={otherTeams} value={parentId} onChange={setParentId} placeholder="No parent" />
-          </div>
-          <div className="flex items-end gap-2 sm:col-span-4">
-            <Button size="sm" onClick={save} loading={busy} className="h-8">Save</Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy} className="h-8">Cancel</Button>
+          <div className="mt-3 flex items-center gap-2">
+            <Button size="sm" onClick={save} disabled={busy || !name.trim()} className="h-7 text-xs">
+              Save Changes
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-7 text-xs">
+              Cancel
+            </Button>
           </div>
         </div>
       )}
 
       {open && (
-        <div className="border-t border-border px-3 py-2.5">
-          <div className="mb-2 flex items-end gap-2">
-            <div className="flex-1">
-              <Label>Add member</Label>
-              <UserSelect users={users} value={addUserId} onChange={setAddUserId} placeholder="Choose a person…" />
+        <div className="border-t border-border/40 bg-surface-sunken/30 px-6 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Team Members ({detail?.members.length ?? team.memberCount})
+            </h4>
+            <div className="flex items-center gap-2">
+              <UserSelect
+                users={users.filter((u) => !detail?.members.some((m) => m.userId === u.id))}
+                value={addUserId}
+                onChange={setAddUserId}
+                placeholder="Select user to add…"
+              />
+              <Button
+                size="sm"
+                onClick={addMember}
+                disabled={busy || addUserId === NONE}
+                className="h-8 gap-1 text-xs"
+              >
+                <UserPlus className="h-3 w-3" />
+                Add
+              </Button>
             </div>
-            <Button size="sm" onClick={addMember} disabled={addUserId === NONE || busy} className="h-8">Add</Button>
           </div>
+
           {!detail ? (
             <p className="text-xs text-muted-foreground">Loading members…</p>
           ) : detail.members.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No members yet.</p>
+            <p className="text-xs text-muted-foreground">No members on this team yet.</p>
           ) : (
-            <ul className="divide-y divide-border/60">
-              {detail.members.map((m) => (
-                <li key={m.userId} className="flex items-center justify-between py-1.5 text-xs">
-                  <span>
-                    <span className="font-medium text-foreground">{m.name}</span>{" "}
-                    <span className="text-[11px] text-muted-foreground">{m.email}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeMember(m.userId)}
-                    disabled={busy}
-                    className="text-[11px] text-muted-foreground hover:text-destructive focus-visible:underline focus-visible:outline-none"
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {detail.members.map((member) => (
+                <div
+                  key={member.userId}
+                  className="flex items-center justify-between rounded-lg border border-border/60 bg-surface px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-[10px]">
+                        {member.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-foreground">{member.name}</div>
+                      <div className="truncate text-[10px] text-muted-foreground">{member.email}</div>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => removeMember(member.userId)}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
-                    Remove
-                  </button>
-                </li>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       )}
@@ -320,14 +450,16 @@ function UserSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-full">
+      <SelectTrigger className="h-8 text-xs font-medium">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NONE}>{placeholder}</SelectItem>
+        <SelectItem value={NONE} className="text-xs">
+          {placeholder}
+        </SelectItem>
         {users.map((u) => (
-          <SelectItem key={u.id} value={u.id}>
-            {u.name}
+          <SelectItem key={u.id} value={u.id} className="text-xs">
+            {u.name} ({u.email})
           </SelectItem>
         ))}
       </SelectContent>
@@ -348,13 +480,15 @@ function TeamSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-full">
+      <SelectTrigger className="h-8 text-xs font-medium">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NONE}>{placeholder}</SelectItem>
+        <SelectItem value={NONE} className="text-xs">
+          {placeholder}
+        </SelectItem>
         {teams.map((t) => (
-          <SelectItem key={t.id} value={t.id}>
+          <SelectItem key={t.id} value={t.id} className="text-xs">
             {t.name}
           </SelectItem>
         ))}
