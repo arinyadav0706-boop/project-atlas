@@ -55,17 +55,17 @@ export function BacklogItem({
       style={style}
       {...dragProps}
       className={cn(
-        "flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5 shadow-card",
+        "group flex items-center gap-2.5 rounded-md border border-border/70 bg-card px-2.5 py-1.5 text-xs transition-all duration-150 hover:border-primary/40 hover:bg-muted/30 hover:shadow-2xs",
         canWrite && "cursor-grab touch-none active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
-        overlay && "cursor-grabbing shadow-pop ring-1 ring-accent",
+        overlay && "cursor-grabbing shadow-pop ring-2 ring-primary/60 bg-background/95 backdrop-blur-md",
       )}
     >
       {leading}
       {canWrite && (
         <GripVertical
           aria-hidden
-          className="h-4 w-4 shrink-0 text-muted-foreground/50"
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-opacity group-hover:text-muted-foreground"
         />
       )}
       <IssueTypeIcon type={item.type} className="h-4 w-4 shrink-0" />
@@ -75,7 +75,7 @@ export function BacklogItem({
         // gesture with a link ghost); don't navigate if a drag just happened.
         draggable={false}
         onClick={(e) => sortable.isDragging && e.preventDefault()}
-        className="min-w-0 flex-1 truncate text-sm font-medium text-foreground hover:text-accent focus-visible:outline-none focus-visible:underline"
+        className="min-w-0 flex-1 truncate text-xs font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:underline transition-colors"
       >
         {item.title}
       </Link>
@@ -98,12 +98,12 @@ export function BacklogItem({
         <StatusDot status={item.status} />
         {statusLabel(item.status)}
       </span>
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+      <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-mono font-medium text-muted-foreground bg-muted/50">
         {item.key}
       </span>
       <PriorityIcon priority={item.priority} className="shrink-0" />
       {item.assignee && (
-        <Avatar className="h-5 w-5 shrink-0">
+        <Avatar className="h-5 w-5 shrink-0 ring-1 ring-border/50">
           {item.assignee.avatarUrl && (
             <AvatarImage src={item.assignee.avatarUrl} alt={item.assignee.name} />
           )}
