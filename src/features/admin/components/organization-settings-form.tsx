@@ -57,7 +57,7 @@ export function OrganizationSettingsForm({ settings }: { settings: OrgSettingsDt
     // card.
     <form
       onSubmit={form.handleSubmit(onSubmit)}
-      className="max-w-xl space-y-5 rounded-2xl border border-border bg-background p-5 shadow-card"
+      className="max-w-xl space-y-4 rounded-lg border border-border bg-card p-5 shadow-2xs"
     >
       <div>
         <Label htmlFor="org-name">Organization name</Label>

@@ -38,12 +38,12 @@ export function FeatureFlagsView({ initialFlags }: { initialFlags: FeatureFlagDt
         Toggle capabilities for this organization without a deploy. Flags gate
         behavior only — never permissions or data access.
       </p>
-      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background shadow-card">
+      <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border bg-card shadow-2xs">
         {flags.map((flag) => (
-          <li key={flag.key} className="flex items-center gap-4 px-4 py-3">
+          <li key={flag.key} className="flex items-center gap-4 px-4 py-2.5 transition-colors hover:bg-muted/30">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <code className="text-sm font-medium text-foreground">{flag.key}</code>
+                <code className="text-xs font-semibold text-foreground">{flag.key}</code>
                 <Badge variant="default" className="text-[10px]">
                   {flag.owner}
                 </Badge>
@@ -66,9 +66,9 @@ export function FeatureFlagsView({ initialFlags }: { initialFlags: FeatureFlagDt
                 onClick={() => mutate(flag.key, { reset: true })}
                 disabled={pending === flag.key}
                 title="Reset to default"
-                className="rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                className="rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </button>
             )}
 
@@ -106,13 +106,13 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50",
-        checked ? "bg-accent" : "bg-muted-foreground/30",
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50",
+        checked ? "bg-primary" : "bg-muted-foreground/30",
       )}
     >
       <span
         className={cn(
-          "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+          "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform",
           checked ? "translate-x-4" : "translate-x-0.5",
         )}
       />

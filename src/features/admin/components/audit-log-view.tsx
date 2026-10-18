@@ -51,7 +51,7 @@ export function AuditLogView({
             name="action"
             defaultValue={filters.action}
             placeholder="e.g. FEATURE_FLAG_CHANGED"
-            className="h-9 w-56"
+            className="h-8 w-56 text-xs"
           />
         </div>
         <div>
@@ -63,18 +63,18 @@ export function AuditLogView({
             name="entityType"
             defaultValue={filters.entityType}
             placeholder="e.g. Organization"
-            className="h-9 w-48"
+            className="h-8 w-48 text-xs"
           />
         </div>
-        <Button type="submit" size="sm" variant="outline">
+        <Button type="submit" size="sm" variant="outline" className="h-8">
           Filter
         </Button>
       </form>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-background shadow-card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-2xs">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+            <tr className="border-b border-border bg-surface-sunken/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 font-medium">When</th>
               <th className="px-3 py-2 font-medium">Action</th>
               <th className="px-3 py-2 font-medium">Entity</th>
@@ -90,7 +90,7 @@ export function AuditLogView({
               </tr>
             )}
             {data.map((entry) => (
-              <tr key={entry.id} className="border-b border-border/60 last:border-0">
+              <tr key={entry.id} className="border-b border-border/60 transition-colors hover:bg-muted/30 last:border-0">
                 <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                   {new Date(entry.createdAt).toLocaleString()}
                 </td>
@@ -101,9 +101,9 @@ export function AuditLogView({
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {entry.entityType}
-                  <span className="ml-1 font-mono text-xs opacity-60">{entry.entityId}</span>
+                  <span className="ml-1 font-mono text-[11px] opacity-60">{entry.entityId}</span>
                 </td>
-                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
                   {entry.actorId ?? "system"}
                 </td>
               </tr>
@@ -112,7 +112,7 @@ export function AuditLogView({
         </table>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
           {pagination.total} {pagination.total === 1 ? "entry" : "entries"} · page{" "}
           {pagination.page} of {totalPages}
@@ -123,6 +123,7 @@ export function AuditLogView({
             variant="outline"
             disabled={pagination.page <= 1}
             onClick={() => setParams({ page: pagination.page - 1 })}
+            className="h-7 text-xs"
           >
             Previous
           </Button>
@@ -131,6 +132,7 @@ export function AuditLogView({
             variant="outline"
             disabled={pagination.page >= totalPages}
             onClick={() => setParams({ page: pagination.page + 1 })}
+            className="h-7 text-xs"
           >
             Next
           </Button>

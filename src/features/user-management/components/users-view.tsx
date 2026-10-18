@@ -72,7 +72,7 @@ export function UsersView({
             name="q"
             defaultValue={filters.q}
             placeholder="Search name or email"
-            className="h-9 w-56"
+            className="h-8 w-56 text-xs"
           />
           <FilterSelect
             value={filters.role}
@@ -92,17 +92,17 @@ export function UsersView({
             ]}
             onChange={(v) => setParams({ status: v, page: 1 })}
           />
-          <Button type="submit" size="sm" variant="outline">
+          <Button type="submit" size="sm" variant="outline" className="h-8">
             Search
           </Button>
         </form>
         <InviteUserDialog onInvited={() => router.refresh()} />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-background shadow-card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-2xs">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+            <tr className="border-b border-border bg-surface-sunken/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 font-medium">User</th>
               <th className="px-3 py-2 font-medium">Role</th>
               <th className="px-3 py-2 font-medium">Status</th>
@@ -132,7 +132,7 @@ export function UsersView({
         </table>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
           {pagination.total} {pagination.total === 1 ? "user" : "users"} · page{" "}
           {pagination.page} of {totalPages}
@@ -143,6 +143,7 @@ export function UsersView({
             variant="outline"
             disabled={pagination.page <= 1}
             onClick={() => setParams({ page: pagination.page - 1 })}
+            className="h-7 text-xs"
           >
             Previous
           </Button>
@@ -151,6 +152,7 @@ export function UsersView({
             variant="outline"
             disabled={pagination.page >= totalPages}
             onClick={() => setParams({ page: pagination.page + 1 })}
+            className="h-7 text-xs"
           >
             Next
           </Button>
@@ -174,13 +176,13 @@ function UserRow({
   onActive: (isActive: boolean) => void;
 }) {
   return (
-    <tr className="border-b border-border/60 last:border-0">
+    <tr className="border-b border-border/60 transition-colors hover:bg-muted/30 last:border-0">
       <td className="px-3 py-2">
-        <div className="font-medium text-foreground">
+        <div className="text-xs font-semibold text-foreground">
           {user.name}
-          {isSelf && <span className="ml-1 text-xs text-muted-foreground">(you)</span>}
+          {isSelf && <span className="ml-1 text-[11px] font-normal text-muted-foreground">(you)</span>}
         </div>
-        <div className="text-xs text-muted-foreground">{user.email}</div>
+        <div className="text-[11px] text-muted-foreground">{user.email}</div>
       </td>
       <td className="px-3 py-2">
         <Select
@@ -188,7 +190,7 @@ function UserRow({
           onValueChange={(v) => onRole(v as OrgRoleDto)}
           disabled={busy}
         >
-          <SelectTrigger className="h-8 w-28">
+          <SelectTrigger className="h-7 w-28 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -213,7 +215,7 @@ function UserRow({
           </Badge>
         )}
       </td>
-      <td className="px-3 py-2 text-muted-foreground">
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">
         {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : "—"}
       </td>
       <td className="px-3 py-2">
@@ -222,6 +224,7 @@ function UserRow({
           variant="outline"
           disabled={busy}
           onClick={() => onActive(!user.isActive)}
+          className="h-7 px-2.5 text-xs"
         >
           {user.isActive ? "Deactivate" : "Reactivate"}
         </Button>
@@ -244,7 +247,7 @@ function FilterSelect({
   const ALL = "__all__";
   return (
     <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? "" : v)}>
-      <SelectTrigger className="h-9 w-36">
+      <SelectTrigger className="h-8 w-36 text-xs">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
