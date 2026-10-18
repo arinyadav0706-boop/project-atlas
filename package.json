@@ -59,7 +59,6 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@playwright/test": "^1.61.1",
-    "@rolldown/binding-darwin-arm64": "^1.1.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.5",
     "@types/react": "^19.2.18",
