@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ListTodo } from "lucide-react";
+import { ListTodo, Search, Filter as FilterIcon, Layers, Calendar } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { Badge } from "@/shared/components/ui/badge";
 import { EmptyState as EmptyStatePrimitive } from "@/shared/components/ui/empty-state";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
 import { CreateIssueDialog } from "./create-issue-dialog";
 import {
   IssueTypeIcon,
@@ -55,86 +58,76 @@ export function IssuesView({
   canSetEstimate?: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("ALL");
-  const [items, setItems] = useState(initialItems);
-  const [cursor, setCursor] = useState(initialCursor);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pageSize, setPageSize] = useState<number>(25);
+
+  // Pagination state: cursor stack for previous/next navigation
+  const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
+  const [pageIndex, setPageIndex] = useState<number>(0);
+
+  const [items, setItems] = useState<IssueListItemDto[]>(initialItems);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialCursor);
   const [liveCounts, setLiveCounts] = useState(counts);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const firstRender = useRef(true);
 
-  const query = useCallback(
-    (f: Filter, c?: string) => {
-      const params = new URLSearchParams();
-      if (f !== "ALL") params.set("status", f);
-      if (c) params.set("cursor", c);
-      const qs = params.toString();
-      return apiRequest<IssueListPageDto>(
-        `/api/projects/${projectId}/issues${qs ? `?${qs}` : ""}`,
-      );
-    },
-    [projectId],
-  );
-
-  const load = useCallback(
-    async (f: Filter) => {
+  const fetchPage = useCallback(
+    async (f: Filter, c: string | undefined, take: number) => {
       setLoading(true);
       try {
-        const page = await query(f);
+        const params = new URLSearchParams();
+        if (f !== "ALL") params.set("status", f);
+        if (c) params.set("cursor", c);
+        params.set("take", String(take));
+
+        const page = await apiRequest<IssueListPageDto>(
+          `/api/projects/${projectId}/issues?${params.toString()}`
+        );
         setItems(page.items);
-        setCursor(page.nextCursor);
+        setNextCursor(page.nextCursor);
+        setLiveCounts(page.counts);
       } catch {
         toast.error("Could not load issues.");
       } finally {
         setLoading(false);
       }
     },
-    [query],
+    [projectId]
   );
 
-  // Re-sync with fresh server data on navigation — only on the ALL view, since
-  // a filtered view is fetched client-side. Counts are filter-independent, so
-  // they always track the server.
-  useEffect(() => {
-    if (filter === "ALL") {
-      setItems(initialItems);
-      setCursor(initialCursor);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialItems, initialCursor]);
-
-  useEffect(() => {
-    setLiveCounts(counts);
-  }, [counts]);
-
-  // Server-driven filtering: refetch the first page when the filter changes.
-  // Skip the initial mount — the ALL view is already server-rendered.
+  // When filter or pageSize changes, reset to page 1
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    void load(filter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+    setCursorStack([undefined]);
+    setPageIndex(0);
+    void fetchPage(filter, undefined, pageSize);
+  }, [filter, pageSize, fetchPage]);
 
-  async function loadMore() {
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const page = await query(filter, cursor);
-      setItems((prev) => [...prev, ...page.items]);
-      setCursor(page.nextCursor);
-    } catch {
-      toast.error("Could not load more issues.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  // Handle Next Page
+  const handleNextPage = useCallback(() => {
+    if (!nextCursor) return;
+    const nextIdx = pageIndex + 1;
+    setCursorStack((prev) => {
+      const copy = prev.slice(0, nextIdx);
+      copy.push(nextCursor);
+      return copy;
+    });
+    setPageIndex(nextIdx);
+    void fetchPage(filter, nextCursor, pageSize);
+  }, [nextCursor, pageIndex, filter, pageSize, fetchPage]);
 
-  // Insert a just-created issue in place — no full-page refresh, no second
-  // server round-trip. Bump the counts, and prepend it to the list when the
-  // current filter would show it (a new issue is always TODO). It lands in
-  // exact server order on the next navigation.
+  // Handle Prev Page
+  const handlePrevPage = useCallback(() => {
+    if (pageIndex <= 0) return;
+    const prevIdx = pageIndex - 1;
+    const prevCursor = cursorStack[prevIdx];
+    setPageIndex(prevIdx);
+    void fetchPage(filter, prevCursor, pageSize);
+  }, [pageIndex, cursorStack, filter, pageSize, fetchPage]);
+
   const onCreated = useCallback(
     (issue: IssueDetailDto) => {
       setLiveCounts((c) => ({
@@ -159,58 +152,77 @@ export function IssuesView({
         setItems((prev) => [listItem, ...prev]);
       }
     },
-    [filter],
+    [filter]
   );
 
+  // Client-side quick filter on current page items for search query
+  const displayedItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.toLowerCase().trim();
+    return items.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        item.key.toLowerCase().includes(q) ||
+        (item.assignee && item.assignee.name.toLowerCase().includes(q))
+    );
+  }, [items, searchQuery]);
+
+  const rangeStart = pageIndex * pageSize + 1;
+  const rangeEnd = rangeStart + items.length - 1;
+  const totalInFilter = liveCounts[filter];
+  const rangeLabel = items.length > 0 ? `${rangeStart}–${rangeEnd}` : "0";
+
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        {/* Same segmented control as Workload's By person / By week: white
-            card, hairline border, `shadow-card`, `rounded-xl` outer with
-            `rounded-[0.6rem]` thumbs. It was `bg-surface` + `shadow-sm`, a
-            fourth elevation nobody defined. */}
+    <div className="space-y-4">
+      {/* Control Bar: Status Tabs + Search + Action */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+        {/* Segmented Status Filter Tabs */}
         <div
-          className="flex items-center gap-0.5 rounded-xl border border-border bg-background p-0.5 shadow-card"
+          className="flex flex-wrap items-center rounded-lg border border-border bg-muted/30 p-0.5 text-xs select-none"
           role="group"
           aria-label="Filter by status"
         >
           {FILTERS.map((f) => (
             <button
               key={f.value}
+              type="button"
               onClick={() => setFilter(f.value)}
-              aria-pressed={filter === f.value}
               className={cn(
-                "rounded-[0.6rem] px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                 filter === f.value
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-surface font-semibold text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {f.label}
-              {liveCounts[f.value] ? (
-                <span
-                  className={cn(
-                    "ml-1.5 text-xs tabular-nums",
-                    filter === f.value
-                      ? "text-accent-foreground/70"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {liveCounts[f.value]}
-                </span>
-              ) : null}
+              <span>{f.label}</span>
+              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-semibold tabular-nums text-muted-foreground">
+                {liveCounts[f.value]}
+              </span>
             </button>
           ))}
         </div>
-        {canWrite && (
-          <CreateIssueDialog
-            projectId={projectId}
-            members={members}
-            withHotkey
-            canSetEstimate={canSetEstimate}
-            onCreated={onCreated}
-          />
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Quick Search */}
+          <div className="relative w-full sm:w-52">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter page issues…"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
+
+          {canWrite && (
+            <CreateIssueDialog
+              projectId={projectId}
+              members={members}
+              canSetEstimate={canSetEstimate}
+              onCreated={onCreated}
+            />
+          )}
+        </div>
       </div>
 
       {liveCounts.ALL === 0 ? (
@@ -222,84 +234,98 @@ export function IssuesView({
           onCreated={onCreated}
         />
       ) : (
-        <>
-          {/* A `Card`, so the issue table is the same surface as every panel
-              on Home and Workload — hairline border, `rounded-2xl`,
-              `shadow-card`. It was a bare bordered box with no elevation, which
-              on the tinted canvas read as an outline rather than a sheet. */}
-          <ul
-            className={cn(
-              "overflow-hidden rounded-2xl border border-border bg-background shadow-card transition-opacity",
-              loading && "opacity-60",
-            )}
-          >
-            {items.map((issue, index) => (
-              <motion.li
-                key={issue.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.15, delay: Math.min(index * 0.02, 0.2) }}
-                className="border-b border-border last:border-b-0"
-              >
+        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+          {/* Sticky Table Header */}
+          <div className="sticky top-0 z-10 flex h-9 items-center gap-2.5 border-b border-border bg-muted/40 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">
+            <span className="w-8 text-center">Type</span>
+            <span className="w-20">Key</span>
+            <span className="flex-1">Title</span>
+            <span className="hidden w-28 sm:block">Status</span>
+            <span className="w-8 text-center">Pri</span>
+            <span className="hidden w-16 text-right sm:block">Points</span>
+            <span className="w-8 text-right">Assignee</span>
+          </div>
+
+          {/* Table Rows */}
+          <div className="divide-y divide-border/50">
+            {loading ? (
+              <div className="flex flex-col gap-2 p-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex h-9 items-center gap-3 animate-pulse">
+                    <div className="h-4 w-4 rounded bg-muted" />
+                    <div className="h-4 w-16 rounded bg-muted" />
+                    <div className="h-4 flex-1 rounded bg-muted" />
+                    <div className="h-4 w-20 rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : displayedItems.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No issues match {filter !== "ALL" ? `“${statusLabel(filter)}”` : "the search query"}.
+              </div>
+            ) : (
+              displayedItems.map((item) => (
                 <Link
-                  href={`/projects/${projectId}/issues/${issue.id}`}
-                  className="flex items-center gap-3 bg-background px-4 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                  key={item.id}
+                  href={`/projects/${projectId}/issues/${item.id}`}
+                  className="group flex h-9 items-center gap-2.5 px-3 text-xs transition-colors hover:bg-muted/40"
                 >
-                  <IssueTypeIcon type={issue.type} />
-                  <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
-                    {issue.key}
+                  <span className="flex w-8 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">
+                    <IssueTypeIcon type={item.type} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                    {issue.title}
+
+                  <span className="w-20 shrink-0 font-mono text-xs font-semibold text-muted-foreground group-hover:text-foreground">
+                    {item.key}
                   </span>
-                  {/* Epic / label chips (ADR-0018/0026) — the same component the
-                      board card and backlog row use, so one issue reads
-                      identically on all three. Capped at 3 including the epic
-                      badge, with a "+N": this is a dense single-line row, and
-                      wrapping would make some rows taller than their neighbours.
-                      Components are dropped here — with a 3-chip budget they
-                      crowded out the labels, which are what this list filters
-                      on. They remain on the board card and the issue detail. */}
-                  <IssueChips
-                    item={issue}
-                    max={3}
-                    showComponents={false}
-                    className="hidden shrink-0 flex-nowrap md:flex"
-                  />
-                  <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                    <StatusDot status={issue.status} />
-                    {statusLabel(issue.status)}
+
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground group-hover:text-primary transition-colors">
+                    {item.title}
                   </span>
-                  <PriorityIcon priority={issue.priority} />
-                  {issue.assignee ? (
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={issue.assignee.avatarUrl ?? undefined} alt="" />
-                      <AvatarFallback className="text-[10px]">
-                        {initials(issue.assignee.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  ) : (
-                    <span className="h-6 w-6 rounded-full border border-dashed border-border" />
-                  )}
+
+                  <span className="hidden w-28 shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
+                    <StatusDot status={item.status} />
+                    <span className="truncate">{statusLabel(item.status)}</span>
+                  </span>
+
+                  <span className="flex w-8 shrink-0 items-center justify-center">
+                    <PriorityIcon priority={item.priority} />
+                  </span>
+
+                  <span className="hidden w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground sm:block">
+                    {item.storyPoints !== null ? `${item.storyPoints} pts` : "—"}
+                  </span>
+
+                  <span className="flex w-8 shrink-0 items-center justify-end">
+                    {item.assignee ? (
+                      <Avatar className="h-5 w-5 ring-1 ring-border">
+                        <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt="" />
+                        <AvatarFallback className="text-[9px]">
+                          {initials(item.assignee.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <span className="h-5 w-5 rounded-full border border-dashed border-border" />
+                    )}
+                  </span>
                 </Link>
-              </motion.li>
-            ))}
-          </ul>
+              ))
+            )}
+          </div>
 
-          {items.length === 0 && !loading && (
-            <p className="rounded-2xl border border-border bg-background px-6 py-12 text-center text-sm text-muted-foreground shadow-card">
-              No issues in {statusLabel(filter as IssueStatusDto)}.
-            </p>
-          )}
-
-          {cursor && (
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
-                Load more
-              </Button>
-            </div>
-          )}
-        </>
+          {/* Integrated First-Class DataPagination */}
+          <DataPagination
+            mode="cursor"
+            hasPrev={pageIndex > 0}
+            hasNext={Boolean(nextCursor)}
+            onPrev={handlePrevPage}
+            onNext={handleNextPage}
+            rangeLabel={rangeLabel}
+            totalLabel={`${totalInFilter} ${totalInFilter === 1 ? "issue" : "issues"}`}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+          />
+        </div>
       )}
     </div>
   );
@@ -328,26 +354,28 @@ function EmptyState({
   onCreated: (issue: IssueDetailDto) => void;
 }) {
   return (
-    <Card>
-      <EmptyStatePrimitive
-        icon={<ListTodo />}
-        title="No issues yet"
-        description={
-          canWrite
-            ? "Create the first issue to start tracking work in this project."
-            : "There's nothing here yet. A project member can add the first issue."
-        }
-        action={
-          canWrite && (
-            <CreateIssueDialog
-              projectId={projectId}
-              members={members}
-              canSetEstimate={canSetEstimate}
-              onCreated={onCreated}
-            />
-          )
-        }
-      />
+    <Card flush>
+      <div className="p-8">
+        <EmptyStatePrimitive
+          icon={<ListTodo />}
+          title="No issues yet"
+          description={
+            canWrite
+              ? "Create the first issue to start tracking work in this project."
+              : "There's nothing here yet. A project member can add the first issue."
+          }
+          action={
+            canWrite && (
+              <CreateIssueDialog
+                projectId={projectId}
+                members={members}
+                canSetEstimate={canSetEstimate}
+                onCreated={onCreated}
+              />
+            )
+          }
+        />
+      </div>
     </Card>
   );
 }

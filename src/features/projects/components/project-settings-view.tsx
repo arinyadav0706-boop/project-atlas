@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Search } from "lucide-react";
 import { z } from "zod";
 import type {
   ProjectDto,
@@ -18,6 +18,8 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
+import { usePagination } from "@/shared/hooks/use-pagination";
 import { LabelsManager } from "@/features/labels/components/labels-manager";
 import { StatusManager } from "@/features/workflow/components/status-manager";
 import { AutomationsManager } from "@/features/automations/components/automations-manager";
@@ -272,6 +274,25 @@ function MembersSection({
   const router = useRouter();
   const [removeTarget, setRemoveTarget] = useState<ProjectMemberDto | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filteredMembers = useMemo(() => {
+    if (!query.trim()) return members;
+    const q = query.toLowerCase().trim();
+    return members.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+    );
+  }, [members, query]);
+
+  const {
+    paginatedItems,
+    paginationProps,
+  } = usePagination({
+    items: filteredMembers,
+    initialPageSize: 8,
+    itemLabel: "members",
+    resetDeps: [query],
+  });
 
   async function changeRole(member: ProjectMemberDto, role: string) {
     try {
@@ -309,63 +330,90 @@ function MembersSection({
       title="Members"
       description="Who can work in this project, and with which role."
     >
-      <ul className="divide-y divide-border">
-        {members.map((member) => (
-          <li key={member.id} className="flex items-center gap-3 py-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
-              <AvatarFallback className="text-xs">
-                {member.name
-                  .split(" ")
-                  .map((part) => part[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
-                {member.name}
-                {member.userId === currentUserId && (
-                  <Badge className="shrink-0">You</Badge>
-                )}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-            </div>
-            {isLead && project.status !== "ARCHIVED" ? (
-              <>
-                <Select
-                  value={member.role}
-                  onValueChange={(role) => changeRole(member, role)}
-                >
-                  <SelectTrigger className="w-[110px]" aria-label="Change role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LEAD">Lead</SelectItem>
-                    <SelectItem value="MEMBER">Member</SelectItem>
-                    <SelectItem value="VIEWER">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setRemoveTarget(member)}
-                      aria-label={`Remove ${member.name}`}
-                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>Remove from project</TooltipContent>
-                </Tooltip>
-              </>
-            ) : (
-              <Badge>{member.role.charAt(0) + member.role.slice(1).toLowerCase()}</Badge>
-            )}
-          </li>
-        ))}
-      </ul>
+      {/* Search Bar for Members */}
+      {members.length > 5 && (
+        <div className="mb-3">
+          <div className="relative max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search members by name or email…"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
+        </div>
+      )}
+
+      {filteredMembers.length === 0 ? (
+        <div className="py-6 text-center text-xs text-muted-foreground">
+          No members match &ldquo;{query}&rdquo;.
+        </div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {paginatedItems.map((member) => (
+            <li key={member.id} className="flex items-center gap-3 py-3">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
+                <AvatarFallback className="text-xs">
+                  {member.name
+                    .split(" ")
+                    .map((part) => part[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+                  {member.name}
+                  {member.userId === currentUserId && (
+                    <Badge className="shrink-0">You</Badge>
+                  )}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+              </div>
+              {isLead && project.status !== "ARCHIVED" ? (
+                <>
+                  <Select
+                    value={member.role}
+                    onValueChange={(role) => changeRole(member, role)}
+                  >
+                    <SelectTrigger className="w-[110px]" aria-label="Change role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LEAD">Lead</SelectItem>
+                      <SelectItem value="MEMBER">Member</SelectItem>
+                      <SelectItem value="VIEWER">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setRemoveTarget(member)}
+                        aria-label={`Remove ${member.name}`}
+                        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove from project</TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <Badge>{member.role.charAt(0) + member.role.slice(1).toLowerCase()}</Badge>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {members.length > 8 && (
+        <div className="mt-2 border-t border-border/50">
+          <DataPagination {...paginationProps} pageSizeOptions={[8, 16, 32]} />
+        </div>
+      )}
 
       {isLead && project.status !== "ARCHIVED" && (
         <div className="mt-3 border-t border-border pt-4">
