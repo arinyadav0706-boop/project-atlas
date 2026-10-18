@@ -664,13 +664,31 @@ export function SprintPlanningView({
           />
         )}
         {canWrite && <InlineCreateIssue projectId={projectId} onCreated={onChanged} />}
-        {nextCursor && (
-          <div className="mt-4 flex justify-center">
-            <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? "Loading…" : "Load more"}
-            </Button>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-surface-sunken/40 px-4 py-2.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">
+              Showing {backlogItems.length} of {total} issues
+            </span>
+            {nextCursor && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                More in backlog
+              </span>
+            )}
           </div>
-        )}
+          {nextCursor ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadMore}
+              loading={loadingMore}
+              className="h-8 gap-1.5 text-xs"
+            >
+              Load next 50 issues
+            </Button>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">All backlog issues loaded</span>
+          )}
+        </div>
       </section>
 
       {/* Completed sprints (history) */}
@@ -764,7 +782,7 @@ function SprintSection({
     sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
-    <section className="rounded-lg border border-border bg-card p-3 shadow-2xs">
+    <section className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs backdrop-blur-sm transition-all hover:border-border">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
@@ -963,7 +981,7 @@ function BacklogGroup({
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-2 shadow-2xs">
+    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs transition-all hover:border-border">
       <button
         type="button"
         onClick={onToggle}
