@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Trash2, Pencil, Check, X } from "lucide-react";
+import { Trash2, Pencil, Check, X, Search } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -13,14 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { usePagination } from "@/shared/hooks/use-pagination";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
 import type {
   ComponentDto,
   ComponentListDto,
 } from "@/features/components/types/component.types";
 
-// Project-scoped component management (18_components.md). CRUD is LEAD-only
-// (server-enforced, BR-1); a component.s owner auto-assigns new work (BR-3).
-// `Select` has no empty value, so "no owner" maps to a sentinel → null on save.
 const NO_OWNER = "__none__";
 
 type Member = { userId: string; name: string };
@@ -38,6 +37,7 @@ export function ComponentsManager({
   const [name, setName] = useState("");
   const [ownerId, setOwnerId] = useState<string>(NO_OWNER);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     apiRequest<ComponentListDto>(`/api/projects/${projectId}/components`)
@@ -85,21 +85,38 @@ export function ComponentsManager({
     );
   }
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.owner?.name && c.owner.name.toLowerCase().includes(q)),
+    );
+  }, [items, search]);
+
+  const { paginatedItems, paginationProps } = usePagination({
+    items: filtered,
+    initialPageSize: 10,
+    itemLabel: "components",
+    resetDeps: [search],
+  });
+
   if (loading) return <p className="text-sm text-muted-foreground">Loading components…</p>;
 
   return (
     <div className="space-y-4">
       {canManage && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-surface/50 p-3 shadow-2xs">
           <Input
             aria-label="New component name"
             placeholder="New component name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-8 max-w-xs"
+            className="h-8 max-w-xs text-xs"
           />
           <Select value={ownerId} onValueChange={setOwnerId}>
-            <SelectTrigger className="h-8 w-auto min-w-40 text-sm" aria-label="Owner">
+            <SelectTrigger className="h-8 w-auto min-w-40 text-xs" aria-label="Owner">
               <SelectValue placeholder="Owner" />
             </SelectTrigger>
             <SelectContent>
@@ -111,17 +128,31 @@ export function ComponentsManager({
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={create} loading={busy} disabled={!name.trim()}>
+          <Button size="sm" onClick={create} loading={busy} disabled={!name.trim()} className="h-8 text-xs">
             Add component
           </Button>
         </div>
       )}
 
+      {items.length > 5 && (
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Filter components..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
-        {items.length === 0 && (
-          <p className="text-sm text-muted-foreground">No components yet.</p>
+        {filtered.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">
+            {items.length === 0 ? "No components yet." : "No matching components found."}
+          </p>
         )}
-        {items.map((component) => (
+        {paginatedItems.map((component) => (
           <ComponentRow
             key={component.id}
             component={component}
@@ -132,6 +163,12 @@ export function ComponentsManager({
           />
         ))}
       </div>
+
+      {filtered.length > 10 && (
+        <div className="pt-2 border-t border-border/60">
+          <DataPagination {...paginationProps} />
+        </div>
+      )}
     </div>
   );
 }
@@ -173,10 +210,10 @@ function ComponentRow({
 
   if (editing) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5">
-        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-7 max-w-xs" />
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-card px-3 py-2 shadow-2xs">
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-7 max-w-xs text-xs" />
         <Select value={ownerId} onValueChange={setOwnerId}>
-          <SelectTrigger className="h-7 w-auto min-w-40 text-sm" aria-label="Owner">
+          <SelectTrigger className="h-7 w-auto min-w-40 text-xs" aria-label="Owner">
             <SelectValue placeholder="Owner" />
           </SelectTrigger>
           <SelectContent>
@@ -188,29 +225,31 @@ function ComponentRow({
             ))}
           </SelectContent>
         </Select>
-        <Button size="sm" variant="ghost" onClick={save} loading={busy} aria-label="Save">
-          <Check className="h-4 w-4" />
+        <Button size="sm" variant="ghost" onClick={save} loading={busy} aria-label="Save" className="h-7 px-2">
+          <Check className="h-3.5 w-3.5 text-primary" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} aria-label="Cancel">
-          <X className="h-4 w-4" />
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} aria-label="Cancel" className="h-7 px-2">
+          <X className="h-3.5 w-3.5" />
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
-      <span className="flex-1 text-sm">{component.name}</span>
+    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:border-border hover:bg-muted/30">
+      <span className="flex-1 font-medium text-foreground">{component.name}</span>
       {component.owner && (
-        <span className="text-xs text-muted-foreground">→ {component.owner.name}</span>
+        <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          {component.owner.name}
+        </span>
       )}
       {canManage && (
-        <>
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setEditing(true)}
             aria-label={`Edit ${component.name}`}
-            className="text-muted-foreground hover:text-foreground"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
@@ -218,11 +257,11 @@ function ComponentRow({
             type="button"
             onClick={onRemove}
             aria-label={`Delete ${component.name}`}
-            className="text-muted-foreground hover:text-destructive"
+            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
-        </>
+        </div>
       )}
     </div>
   );
