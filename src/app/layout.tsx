@@ -9,7 +9,8 @@ export const metadata: Metadata = {
 
 // Apply the stored theme before first paint to avoid a flash of the wrong
 // theme. Light is the default; dark only when explicitly chosen.
-const themeScript = `try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;\n
+const themeScript = `try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

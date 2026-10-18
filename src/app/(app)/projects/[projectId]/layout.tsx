@@ -16,7 +16,8 @@ export default async function ProjectLayout(props: {
   children: React.ReactNode;
   params: Promise<{ projectId: string }>;
 }) {
-  const params = await props.params;\n  const { children } = props;
+  const params = await props.params;
+  const { children } = props;
 
   const actor = await getActor();
   if (!actor) redirect("/sign-in");

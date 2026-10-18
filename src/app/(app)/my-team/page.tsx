@@ -24,7 +24,8 @@ export default async function MyTeamPage() {
         className="mb-6"
       />
 
-      {!manages ? (\n        <Card>
+      {!manages ? (
+        <Card>
           <EmptyState
             icon={<Network className="h-6 w-6 text-muted-foreground" />}
             title="You don't manage a team yet"
