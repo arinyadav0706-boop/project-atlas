@@ -29,25 +29,4 @@ export interface BadgeProps
 }
 
 function Badge({ className, variant, dot = false, children, ...props }: BadgeProps) {
-  return (
-    <span className={cn(badgeVariants({ variant }), className)} {...props}>
-      {dot && (
-        <span
-          className={cn(
-            "h-1.5 w-1.5 rounded-full shrink-0",
-            variant === "success" && "bg-emerald-500",
-            variant === "warning" && "bg-amber-500",
-            variant === "destructive" && "bg-rose-500",
-            variant === "info" && "bg-sky-500",
-            variant === "purple" && "bg-purple-500",
-            (!variant || variant === "default") && "bg-muted-foreground",
-            (variant === "accent" || variant === "primary") && "bg-primary"
-          )}
-        />
-      )}
-      {children}
-    </span>
-  );
-}
-
-export { Badge, badgeVariants };
+  return (\n    <span className={cn(badgeVariants({ variant }), className)} {...props}>\n      {dot && (\n        <span\n          className={cn(\n            \"h-1.5 w-1.5 rounded-full shrink-0\",\n            variant === \"success\" && \"bg-emerald-500\",\n            variant === \"warning\" && \"bg-amber-500\",\n            variant === \"destructive\" && \"bg-rose-500\",\n            variant === \"info\" && \"bg-sky-500\",\n            variant === \"purple\" && \"bg-purple-500\",\n            (!variant || variant === \"default\") && \"bg-muted-foreground\",\n            (variant === \"accent\" || variant === \"primary\") && \"bg-primary\"\n          )}\n        />\n      )}\n      {children}\n    </span>\n  );\n}\n\nexport { Badge, badgeVariants };\n

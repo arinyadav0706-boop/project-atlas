@@ -12,6 +12,7 @@ import {
   ColumnFiltersState,
 } from "@tanstack/react-table";
 import { cn } from "@/shared/lib/utils";
+import { DataPagination, type DataPaginationProps } from "@/shared/components/ui/data-pagination";
 
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -19,8 +20,12 @@ export interface DataTableProps<TData, TValue> {
   density?: "compact" | "comfortable";
   onRowClick?: (row: TData) => void;
   className?: string;
-  emptyMessage?: string;
+  tableClassName?: string;
+  emptyMessage?: React.ReactNode;
   isLoading?: boolean;
+  pagination?: DataPaginationProps;
+  /** Sticky header height or container bounds (e.g. max-h-[calc(100vh-280px)]) */
+  maxHeight?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -29,8 +34,11 @@ export function DataTable<TData, TValue>({
   density = "compact",
   onRowClick,
   className,
+  tableClassName,
   emptyMessage = "No results found.",
   isLoading = false,
+  pagination,
+  maxHeight,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -49,22 +57,22 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  const rowHeightClass = density === "compact" ? "h-8 py-1 px-3 text-xs" : "h-10 py-2 px-4 text-sm";
-  const headerHeightClass = density === "compact" ? "h-8 px-3 text-[11px]" : "h-9 px-4 text-xs";
+  const rowHeightClass = density === "compact" ? "h-9 py-1 px-3 text-xs" : "h-11 py-2 px-4 text-sm";
+  const headerHeightClass = density === "compact" ? "h-8 px-3 text-[11px]" : "h-10 px-4 text-xs";
 
   return (
-    <div className={cn("w-full overflow-hidden rounded-lg border border-border bg-surface", className)}>
-      <div className="relative w-full overflow-auto">
-        <table className="w-full caption-bottom text-left text-foreground">
-          <thead className="sticky top-0 z-10 border-b border-border bg-surface-sunken">
+    <div className={cn("flex flex-col w-full overflow-hidden rounded-xl border border-border bg-surface shadow-2xs", className)}>
+      <div className={cn("relative w-full overflow-auto", maxHeight && maxHeight)}>
+        <table className={cn("w-full caption-bottom text-left text-foreground", tableClassName)}>
+          <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 backdrop-blur-xs">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b transition-colors">
+              <tr key={headerGroup.id} className="border-b border-border/80 transition-colors">
                 {headerGroup.headers.map((header) => {
                   return (
                     <th
                       key={header.id}
                       className={cn(
-                        "font-medium uppercase tracking-wider text-muted-foreground select-none",
+                        "font-semibold uppercase tracking-wider text-muted-foreground select-none",
                         headerHeightClass
                       )}
                     >
@@ -75,15 +83,14 @@ export function DataTable<TData, TValue>({
                   );
                 })}
               </tr>
-            ))}
-          </thead>
-          <tbody className="divide-y divide-border-subtle bg-surface">
+            ))}\n          </thead>
+          <tbody className="divide-y divide-border/50 bg-surface">
             {isLoading ? (
               <tr>
-                <td colSpan={columns.length} className="h-24 text-center">
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading data...
+                <td colSpan={columns.length} className="h-32 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span>Loading records…</span>
                   </div>
                 </td>
               </tr>
@@ -93,12 +100,12 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   onClick={() => onRowClick && onRowClick(row.original)}
                   className={cn(
-                    "transition-colors hover:bg-muted/60 data-[state=selected]:bg-muted",
+                    "group transition-colors hover:bg-muted/40 data-[state=selected]:bg-muted/60",
                     onRowClick && "cursor-pointer"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className={cn("align-middle font-normal", rowHeightClass)}>
+                    <td key={cell.id} className={cn("align-middle font-normal text-foreground", rowHeightClass)}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -106,14 +113,18 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">
-                  {emptyMessage}
+                <td colSpan={columns.length} className="h-32 text-center text-xs text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center gap-1.5 py-4">
+                    {emptyMessage}
+                  </div>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {pagination && <DataPagination {...pagination} />}
     </div>
   );
 }
