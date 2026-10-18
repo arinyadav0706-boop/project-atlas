@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, History, Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { AlertTriangle, History, Loader2, Pencil, Plus, Search, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   Dialog,
@@ -23,13 +24,8 @@ import type {
 import { RuleBuilder, type BuilderOptions } from "@/features/automations/components/rule-builder";
 import type { WorkflowDto } from "@/features/workflow/types/workflow.types";
 import type { LabelListDto } from "@/features/labels/types/label.types";
-
-// The rule list and run log (31_automations.md §6).
-//
-// Both are visible to anyone who can see the project (BR-9). Only the controls
-// are gated: automated behaviour that only admins can explain is worse than no
-// automation, because the person asking "why did my ticket move" is rarely the
-// person who wrote the rule.
+import { usePagination } from "@/shared/hooks/use-pagination";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
 
 const OUTCOME_STYLE: Record<AutomationRunOutcomeDto, { label: string; className: string }> = {
   SUCCESS: { label: "Ran", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
@@ -61,6 +57,66 @@ function OutcomeChip({ outcome }: { outcome: AutomationRunOutcomeDto }) {
   );
 }
 
+function RunLogDialog({
+  runs,
+  onClose,
+}: {
+  runs: AutomationRunDto[] | null;
+  onClose: () => void;
+}) {
+  const items = runs ?? [];
+  const { paginatedItems, paginationProps } = usePagination({
+    items,
+    initialPageSize: 8,
+    itemLabel: "runs",
+  });
+
+  return (
+    <Dialog open={runs !== null} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[85vh] w-[min(680px,94vw)] flex flex-col">
+        <DialogTitle>Run log</DialogTitle>
+        <DialogDescription>
+          Every evaluation, newest first — including the ones that decided not to act.
+          “Why didn’t my rule fire” is the more common question.
+        </DialogDescription>
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 py-2 custom-scrollbar">
+          {items.length === 0 ? (
+            <p className="py-8 text-center text-[13px] text-muted-foreground">
+              Nothing has run yet.
+            </p>
+          ) : (
+            paginatedItems.map((run) => (
+              <div
+                key={run.id}
+                className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-card p-3 text-xs"
+              >
+                <OutcomeChip outcome={run.outcome} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-foreground font-medium">
+                    {run.ruleName}
+                    {run.issueKey && (
+                      <span className="font-mono text-muted-foreground"> · {run.issueKey}</span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{run.detail}</p>
+                </div>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {ago(run.createdAt)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+        {items.length > 8 && (
+          <div className="border-t border-border/60 pt-2">
+            <DataPagination {...paginationProps} />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function AutomationsManager({
   projectId,
   members,
@@ -74,6 +130,7 @@ export function AutomationsManager({
   const [editing, setEditing] = useState<{ rule: AutomationRuleDto | null } | null>(null);
   const [deleting, setDeleting] = useState<AutomationRuleDto | null>(null);
   const [runs, setRuns] = useState<AutomationRunDto[] | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -134,6 +191,26 @@ export function AutomationsManager({
     }
   }, [projectId]);
 
+  const rules = data?.rules ?? [];
+  const canManage = data?.canManage ?? false;
+
+  const filteredRules = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rules;
+    return rules.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        describeRule(r, names).toLowerCase().includes(q),
+    );
+  }, [rules, search, names]);
+
+  const { paginatedItems: pagedRules, paginationProps: rulesPaginationProps } = usePagination({
+    items: filteredRules,
+    initialPageSize: 8,
+    itemLabel: "rules",
+    resetDeps: [search],
+  });
+
   if (!data) {
     return (
       <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -143,34 +220,44 @@ export function AutomationsManager({
     );
   }
 
-  const { rules, canManage } = data;
-
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground">
           {rules.length === 0
             ? "No rules yet."
             : `${rules.length} rule${rules.length === 1 ? "" : "s"}, ${rules.filter((r) => r.enabled).length} active.`}
         </p>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={openRunLog}>
-            <History className="mr-1 size-3.5" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openRunLog} className="h-8 text-xs">
+            <History className="mr-1.5 size-3.5" />
             Run log
           </Button>
           {canManage && (
-            <Button size="sm" onClick={() => setEditing({ rule: null })}>
-              <Plus className="mr-1 size-3.5" />
+            <Button size="sm" onClick={() => setEditing({ rule: null })} className="h-8 text-xs">
+              <Plus className="mr-1.5 size-3.5" />
               New rule
             </Button>
           )}
         </div>
       </div>
 
+      {rules.length > 4 && (
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Filter automation rules..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+      )}
+
       {rules.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-          <Zap className="mx-auto mb-2 size-5 text-muted-foreground" />
-          <p className="text-[13px] font-medium text-foreground">
+        <div className="rounded-2xl border border-dashed border-border px-6 py-10 text-center bg-surface-sunken/40">
+          <Zap className="mx-auto mb-3 size-6 text-primary" />
+          <p className="text-sm font-semibold text-foreground">
             Let the project do its own admin
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
@@ -180,89 +267,100 @@ export function AutomationsManager({
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {rules.map((rule) => (
-            <li
-              key={rule.id}
-              className={cn(
-                "rounded-xl border border-border bg-background p-3",
-                !rule.enabled && "opacity-60",
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-[13px] font-medium text-foreground">
-                      {rule.name}
-                    </span>
-                    {rule.broken && (
-                      <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
-                        <AlertTriangle className="size-3" />
-                        Needs fixing
+        <div className="space-y-2">
+          {filteredRules.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">
+              No matching rules found.
+            </p>
+          ) : (
+            pagedRules.map((rule) => (
+              <div
+                key={rule.id}
+                className={cn(
+                  "rounded-xl border border-border/80 bg-card p-4 shadow-2xs transition-all hover:border-border",
+                  !rule.enabled && "opacity-60",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {rule.name}
                       </span>
+                      {rule.broken && (
+                        <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                          <AlertTriangle className="size-3" />
+                          Needs fixing
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {rule.broken
+                        ? `This rule ${rule.broken}. Edit it to fix.`
+                        : describeRule(rule, names)}
+                    </p>
+                    {rule.lastRun && (
+                      <p className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <OutcomeChip outcome={rule.lastRun.outcome} />
+                        <span className="truncate">
+                          {rule.lastRun.detail} · {ago(rule.lastRun.createdAt)}
+                        </span>
+                      </p>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {rule.broken
-                      ? `This rule ${rule.broken}. Edit it to fix.`
-                      : describeRule(rule, names)}
-                  </p>
-                  {rule.lastRun && (
-                    <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <OutcomeChip outcome={rule.lastRun.outcome} />
-                      <span className="truncate">
-                        {rule.lastRun.detail} · {ago(rule.lastRun.createdAt)}
-                      </span>
-                    </p>
+                  {canManage && (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Switch
+                        checked={rule.enabled}
+                        disabled={busy}
+                        aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
+                        onCheckedChange={(enabled) =>
+                          void mutate(
+                            () =>
+                              apiRequest(`/api/projects/${projectId}/automations/${rule.id}`, {
+                                method: "PATCH",
+                                body: { enabled },
+                              }),
+                            enabled ? "Rule enabled." : "Rule disabled.",
+                          )
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        aria-label={`Edit ${rule.name}`}
+                        onClick={() => setEditing({ rule })}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground hover:text-destructive"
+                        aria-label={`Delete ${rule.name}`}
+                        onClick={() => setDeleting(rule)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   )}
                 </div>
-                {canManage && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Switch
-                      checked={rule.enabled}
-                      disabled={busy}
-                      aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
-                      onCheckedChange={(enabled) =>
-                        void mutate(
-                          () =>
-                            apiRequest(`/api/projects/${projectId}/automations/${rule.id}`, {
-                              method: "PATCH",
-                              body: { enabled },
-                            }),
-                          enabled ? "Rule enabled." : "Rule disabled.",
-                        )
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      aria-label={`Edit ${rule.name}`}
-                      onClick={() => setEditing({ rule })}
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      aria-label={`Delete ${rule.name}`}
-                      onClick={() => setDeleting(rule)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                )}
               </div>
-            </li>
-          ))}
-        </ul>
+            ))
+          )}
+
+          {filteredRules.length > 8 && (
+            <div className="pt-2 border-t border-border/60">
+              <DataPagination {...rulesPaginationProps} />
+            </div>
+          )}
+        </div>
       )}
 
+      {/* ── Rule builder modal ── */}
       {editing && (
         <RuleBuilder
-          // Remounts per rule, so the form's state starts from the rule being
-          // edited rather than from whatever was open last.
           key={editing.rule?.id ?? "new"}
           open
           rule={editing.rule}
@@ -288,14 +386,15 @@ export function AutomationsManager({
         />
       )}
 
-      <Dialog open={Boolean(deleting)} onOpenChange={(v) => !v && setDeleting(null)}>
-        <DialogContent className="w-[min(440px,94vw)]">
-          <DialogTitle>Delete “{deleting?.name}”?</DialogTitle>
+      {/* ── Confirm delete ── */}
+      <Dialog open={deleting !== null} onOpenChange={(v) => !v && setDeleting(null)}>
+        <DialogContent className="w-[min(480px,94vw)]">
+          <DialogTitle>Delete automation rule?</DialogTitle>
           <DialogDescription>
-            It stops running immediately. Its run log stays — the record of what an
-            automation did outlives the rule. Disabling it instead keeps it editable.
+            “{deleting?.name}” will stop running immediately. Past runs remain in the
+            audit log.
           </DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-5 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setDeleting(null)} disabled={busy}>
               Cancel
             </Button>
@@ -320,42 +419,10 @@ export function AutomationsManager({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={runs !== null} onOpenChange={(v) => !v && setRuns(null)}>
-        <DialogContent className="max-h-[80vh] w-[min(640px,94vw)] overflow-y-auto">
-          <DialogTitle>Run log</DialogTitle>
-          <DialogDescription>
-            Every evaluation, newest first — including the ones that decided not to act.
-            “Why didn’t my rule fire” is the more common question.
-          </DialogDescription>
-          <ul className="mt-4 space-y-1.5">
-            {runs?.length === 0 && (
-              <li className="py-6 text-center text-[13px] text-muted-foreground">
-                Nothing has run yet.
-              </li>
-            )}
-            {runs?.map((run) => (
-              <li
-                key={run.id}
-                className="flex items-start gap-2 rounded-lg border border-border px-3 py-2"
-              >
-                <OutcomeChip outcome={run.outcome} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-foreground">
-                    <span className="font-medium">{run.ruleName}</span>
-                    {run.issueKey && (
-                      <span className="text-muted-foreground"> · {run.issueKey}</span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{run.detail}</p>
-                </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {ago(run.createdAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
+      {/* ── Run log modal ── */}
+      {runs !== null && (
+        <RunLogDialog runs={runs} onClose={() => setRuns(null)} />
+      )}
     </div>
   );
 }
