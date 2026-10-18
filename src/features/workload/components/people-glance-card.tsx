@@ -41,24 +41,24 @@ export function PeopleAtAGlanceCard({
             return (
               <div
                 key={status}
-                className="rounded-xl border border-border bg-muted/25 px-2.5 py-2.5"
+                className="rounded-lg border border-border/70 bg-surface-sunken/40 px-2.5 py-2 shadow-2xs"
               >
                 <span
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-lg",
+                    "flex h-6 w-6 items-center justify-center rounded-md",
                     meta.tile,
                   )}
                   aria-hidden
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-3 w-3" />
                 </span>
-                <p className="mt-2 text-[21px] font-semibold leading-none tracking-[-0.02em] text-foreground">
+                <p className="mt-1.5 text-lg font-bold leading-none tracking-tight text-foreground">
                   {countByStatus(rows, status)}
                 </p>
-                <p className="mt-1.5 whitespace-nowrap text-[11px] font-medium leading-tight tracking-tight text-foreground">
+                <p className="mt-1 whitespace-nowrap text-[11px] font-medium leading-tight tracking-tight text-foreground">
                   {meta.label}
                 </p>
-                <p className="mt-0.5 whitespace-nowrap text-[10.5px] leading-tight text-muted-foreground">
+                <p className="mt-0.5 whitespace-nowrap text-[10px] leading-tight text-muted-foreground">
                   {meta.band}
                 </p>
               </div>
@@ -68,10 +68,10 @@ export function PeopleAtAGlanceCard({
 
         <Link
           href={viewAllHref}
-          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           View all people
-          <ArrowRight className="h-3.5 w-3.5" />
+          <ArrowRight className="h-3 w-3" />
         </Link>
       </CardContent>
     </Card>

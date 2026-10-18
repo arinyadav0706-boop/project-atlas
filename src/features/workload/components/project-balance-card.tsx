@@ -82,12 +82,12 @@ export function ProjectBalanceCard({
             {viewAllHref && (
               <Link
                 href={viewAllHref}
-                className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {hidden > 0
                   ? `View all ${projects.length} projects`
                   : "View project detail"}
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-3 w-3" />
               </Link>
             )}
           </>

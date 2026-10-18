@@ -100,7 +100,7 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
           </Select>
         </div>
         <div
-          className="flex rounded-xl border border-border bg-background p-0.5 shadow-card"
+          className="flex rounded-md border border-border/80 bg-surface-sunken p-0.5 shadow-2xs"
           role="group"
           aria-label="View"
         >
@@ -201,9 +201,9 @@ function ModeButton({
       onClick={() => onSelect(value)}
       aria-pressed={active}
       className={cn(
-        "rounded-[0.6rem] px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "rounded px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
         active
-          ? "bg-accent text-accent-foreground"
+          ? "bg-card text-foreground shadow-2xs font-semibold"
           : "text-muted-foreground hover:text-foreground",
       )}
     >
