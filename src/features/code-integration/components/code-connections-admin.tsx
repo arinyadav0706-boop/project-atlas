@@ -276,7 +276,8 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                 aria-label="Provider"
                 className="grid grid-cols-2 gap-2"
               >
-                {PROVIDER_LIST.map((option) => (\n                  <button
+                {PROVIDER_LIST.map((option) => (
+                  <button
                     key={option.id}
                     type="button"
                     role="radio"
