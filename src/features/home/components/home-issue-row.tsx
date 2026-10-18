@@ -48,7 +48,8 @@ export function HomeIssueRow({ item }: { item: IssueListItemDto }) {
 
       <StatusPill status={item.status} />
 
-      {item.assignee && (\n        <Avatar className="h-5 w-5 shrink-0 ring-1 ring-border">
+      {item.assignee && (
+        <Avatar className="h-5 w-5 shrink-0 ring-1 ring-border">
           {item.assignee.avatarUrl && (
             <AvatarImage src={item.assignee.avatarUrl} alt={item.assignee.name} />
           )}

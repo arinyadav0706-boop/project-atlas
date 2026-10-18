@@ -8,7 +8,8 @@ import { cn } from "@/shared/lib/utils";
 export const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean; flush?: boolean }
->(({ className, interactive = false, flush = false, ...props }, ref) => (\n  <div
+>(({ className, interactive = false, flush = false, ...props }, ref) => (
+  <div
     ref={ref}
     className={cn(
       "rounded-lg border border-border bg-surface shadow-card transition-all duration-150",

@@ -65,7 +65,8 @@ export function PeopleSection({
   // top of a seventeen-row list. Runs once per target rather than on every
   // render, so a later manual collapse is not undone.
   useEffect(() => {
-    if (!focusUserId) return;\n    const target = document.getElementById(personRowId(focusUserId));
+    if (!focusUserId) return;
+    const target = document.getElementById(personRowId(focusUserId));
     if (!target) return;
     const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
@@ -98,15 +99,18 @@ export function PeopleSection({
                 {STATUS_META[status].label}
                 <span className="font-normal normal-case">({group.length})</span>
               </h3>
-              <div className="flex flex-col gap-1.5">
-                {group.map((row) => (
-                  <PersonRow
-                    key={row.userId}
-                    row={row}
-                    open={expanded.has(row.userId)}
-                    onToggle={() => toggle(row.userId)}
-                  />
-                ))}
+              <div className="divide-y divide-border rounded-md border border-border">
+                {group.map((r) => {
+                  const isExpanded = expanded.has(r.userId);
+                  return (
+                    <PersonRow
+                      key={r.userId}
+                      row={r}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggle(r.userId)}
+                    />
+                  );
+                })}
               </div>
             </section>
           );
@@ -118,121 +122,122 @@ export function PeopleSection({
 
 function PersonRow({
   row,
-  open,
+  isExpanded,
   onToggle,
 }: {
   row: WorkloadRowDto;
-  open: boolean;
+  isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const [issues, setIssues] = useState<WorkloadIssueDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const requested = useRef(false);
-
-  // Keyed off `open`, not off the click. The row can also be opened by the
-  // Overloaded / Has-room cards, which never touch this component — hanging the
-  // fetch on the button's handler left those rows expanded on a permanent
-  // "Loading issues…". The ref keeps it to one request per row for the life of
-  // the page: collapsing and reopening should not re-fetch.
-  useEffect(() => {
-    if (!open || requested.current) return;
-    requested.current = true;
-
-    let cancelled = false;
-    apiRequest<WorkloadIssueDto[]>(`/api/workload/users/${row.userId}`)
-      .then((data) => {
-        if (!cancelled) setIssues(data);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Couldn't load their issues.");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, row.userId]);
-
+  const meta = STATUS_META[row.status];
   return (
-    <div
-      id={personRowId(row.userId)}
-      className={cn(
-        "scroll-mt-24 rounded-lg border bg-card shadow-2xs transition-colors",
-        open ? "border-primary/40" : "border-border",
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        )}
-        <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border/50">
-          {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
-          <AvatarFallback className="text-[10px]">
-            {row.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-
-        {/* The band is the group heading and the load bar lives in the chart
-            above, so the row carries the name and the two figures only. */}
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
-          {row.name}
-        </span>
-
-        <span className="w-36 shrink-0 text-right">
-          <span className="block text-xs font-bold tabular-nums text-foreground">
-            {weeksLabel(row)}
-          </span>
-          <span className="block text-[11px] text-muted-foreground">
-            {rowCaption(row)}
-          </span>
-        </span>
-      </button>
-
-      {open && (
-        <div className="border-t border-border px-3 py-2">
-          {error ? (
-            <p className="text-xs text-destructive">{error}</p>
-          ) : !issues ? (
-            <p className="text-xs text-muted-foreground">Loading issues…</p>
-          ) : issues.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No open issues.</p>
+    <article id={personRowId(row.userId)} className="bg-card">
+      <div className="flex flex-col gap-2 p-3 md:flex-row md:items-center md:justify-between">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isExpanded}
+          aria-controls={`issues-${row.userId}`}
+          className="flex flex-1 items-center gap-3 text-left hover:opacity-80"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           ) : (
-            <ul className="divide-y divide-border/60">
-              {issues.map((issue) => (
-                <li key={issue.id} className="flex items-center gap-2.5 py-1.5 text-xs">
-                  <Link
-                    href={`/projects/${issue.projectId}/issues/${issue.id}`}
-                    className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-medium text-primary hover:underline bg-primary/5"
-                  >
-                    {issue.key}
-                  </Link>
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-                    {issue.title}
-                  </span>
-                  <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
-                    {issue.projectKey}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {issue.status.replace("_", " ").toLowerCase()}
-                  </span>
-                  <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
-                    {issue.estimateMinutes === null
-                      ? "no est."
-                      : hours(issue.remainingMinutes)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           )}
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={row.userAvatarUrl ?? undefined} alt={row.userName} />
+            <AvatarFallback>{row.userName.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-sm font-medium">{row.userName}</span>
+              <span className="text-xs text-muted-foreground">({row.assignedIssueCount})</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{rowCaption(row)}</p>
+          </div>
+        </button>
+
+        <div className="flex items-center justify-between gap-4 pl-7 md:pl-0">
+          <div className="flex items-baseline gap-1.5">
+            <span className={cn("text-base font-semibold tabular-nums", meta.fg)}>
+              {Math.round(row.utilizationPct)}%
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {hours(row.allocatedHours)} / {hours(row.weeklyCapacityHours)} {weeksLabel(row.totalWeeks)}
+            </span>
+          </div>
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+              meta.badge,
+            )}
+          >
+            {meta.label}
+          </span>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div id={`issues-${row.userId}`} className="border-t border-border bg-muted/30 p-3">
+          <PersonIssues userId={row.userId} />
         </div>
       )}
-    </div>
+    </article>
+  );
+}
+
+function PersonIssues({ userId }: { userId: string }) {
+  const [issues, setIssues] = useState<WorkloadIssueDto[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loadingRef = useRef(false);
+
+  useEffect(() => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    apiRequest<WorkloadIssueDto[]>(`/api/workload/users/${userId}`)
+      .then((data) => setIssues(data))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load issues");
+      });
+  }, [userId]);
+
+  if (error) {
+    return <p className="text-xs text-destructive">{error}</p>;
+  }
+  if (!issues) {
+    return <p className="text-xs text-muted-foreground">Loading assigned issues...</p>;
+  }
+  if (issues.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No active issues assigned in this window.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-1.5" aria-label="Assigned issues">
+      {issues.map((i) => (
+        <li
+          key={i.id}
+          className="flex flex-col gap-1 rounded border border-border bg-card p-2 text-xs md:flex-row md:items-center md:justify-between"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={`/projects/${i.projectId}/issues/${i.id}`}
+              className="font-mono text-primary hover:underline"
+            >
+              {i.key}
+            </Link>
+            <span className="truncate text-foreground">{i.title}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{i.status}</span>
+            <span className="tabular-nums">{hours(i.remainingHours)} remaining</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

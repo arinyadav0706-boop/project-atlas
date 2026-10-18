@@ -78,7 +78,8 @@ export function DataTable<TData, TValue>({
             ))}
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface">
-            {isLoading ? (\n              <tr>
+            {isLoading ? (
+              <tr>
                 <td colSpan={columns.length} className="h-24 text-center">
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
