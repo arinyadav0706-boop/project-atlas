@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Users, Search } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Card, CardHeader } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
+import { usePagination } from "@/shared/hooks/use-pagination";
 import {
   SECTION_ORDER,
   STATUS_META,
@@ -17,21 +20,8 @@ import {
 import type {
   WorkloadIssueDto,
   WorkloadRowDto,
+  WorkloadStatus,
 } from "@/features/workload/types/workload.types";
-
-// Everyone on the team, grouped by band, most urgent group first — and the only
-// place in the feature that can answer "what work, exactly" (BR-11).
-//
-// This used to live at the bottom of the Workload dashboard, where seventeen
-// ~90px rows made the page 3.1 screens tall and pushed every chart above the
-// fold out of reach. It is now its own route (/workload/people); the dashboard
-// links here instead of scrolling to an anchor, which is what made "View all
-// people" feel like it went nowhere.
-//
-// Expansion is owned here, not by a parent: the focus lists now navigate rather
-// than reach in and open a row. The loaded issues stay row-local — they are a
-// cache of a fetch, not shared state, and hoisting them would re-render the
-// whole team on every drill-in.
 
 /** Anchor id, used to bring a deep-linked person into view. */
 export function personRowId(userId: string): string {
@@ -40,15 +30,15 @@ export function personRowId(userId: string): string {
 
 export function PeopleSection({
   rows,
-  /** Deep link from the dashboard's focus lists: expand and reveal this person. */
   focusUserId,
-  /** Suppressed on /workload/people, where the page title already says it. */
   hideHeader = false,
 }: {
   rows: WorkloadRowDto[];
   focusUserId?: string;
   hideHeader?: boolean;
 }) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | WorkloadStatus>("ALL");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(focusUserId ? [focusUserId] : []),
   );
@@ -61,9 +51,6 @@ export function PeopleSection({
     });
   }, []);
 
-  // Arriving from "View all overloaded" should land ON the person, not at the
-  // top of a seventeen-row list. Runs once per target rather than on every
-  // render, so a later manual collapse is not undone.
   useEffect(() => {
     if (!focusUserId) return;
     const target = document.getElementById(personRowId(focusUserId));
@@ -71,6 +58,27 @@ export function PeopleSection({
     const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
   }, [focusUserId]);
+
+  // Filtered rows
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (!query.trim()) return true;
+      const q = query.toLowerCase().trim();
+      return r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q);
+    });
+  }, [rows, statusFilter, query]);
+
+  // Integrated pagination
+  const {
+    paginatedItems,
+    paginationProps,
+  } = usePagination({
+    items: filteredRows,
+    initialPageSize: 10,
+    itemLabel: "people",
+    resetDeps: [query, statusFilter],
+  });
 
   return (
     <Card>
@@ -85,34 +93,72 @@ export function PeopleSection({
           }
         />
       )}
-      <div className={cn("flex flex-col gap-5 px-5 pb-5", hideHeader && "pt-5")}>
-        {SECTION_ORDER.map((status) => {
-          const group = rows.filter((r) => r.status === status);
-          if (group.length === 0) return null;
-          return (
-            <section key={status}>
-              <h3 className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                <span
-                  className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)}
-                  aria-hidden
-                />
-                {STATUS_META[status].label}
-                <span className="font-normal normal-case">({group.length})</span>
-              </h3>
-              <div className="flex flex-col gap-1.5">
-                {group.map((row) => (
-                  <PersonRow
-                    key={row.userId}
-                    row={row}
-                    open={expanded.has(row.userId)}
-                    onToggle={() => toggle(row.userId)}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
+
+      {/* Search & Band Filters */}
+      <div className="flex flex-col gap-3 border-b border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search team members…"
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("ALL")}
+            className={`rounded-md px-2 py-1 font-medium transition-all ${
+              statusFilter === "ALL"
+                ? "bg-surface font-semibold text-foreground shadow-2xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            All ({rows.length})
+          </button>
+          {SECTION_ORDER.map((status) => {
+            const count = rows.filter((r) => r.status === status).length;
+            if (count === 0) return null;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setStatusFilter(status)}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-all ${
+                  statusFilter === status
+                    ? "bg-surface font-semibold text-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[status].dot)} />
+                <span>{STATUS_META[status].label}</span>
+                <span className="text-[10px] text-muted-foreground">({count})</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      <div className="flex flex-col gap-2 p-4">
+        {filteredRows.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            No team members match &ldquo;{query}&rdquo;.
+          </div>
+        ) : (
+          paginatedItems.map((row) => (
+            <PersonRow
+              key={row.userId}
+              row={row}
+              open={expanded.has(row.userId)}
+              onToggle={() => toggle(row.userId)}
+            />
+          ))
+        )}
+      </div>
+
+      <DataPagination {...paginationProps} pageSizeOptions={[5, 10, 20]} />
     </Card>
   );
 }
@@ -130,11 +176,6 @@ function PersonRow({
   const [error, setError] = useState<string | null>(null);
   const requested = useRef(false);
 
-  // Keyed off `open`, not off the click. The row can also be opened by the
-  // Overloaded / Has-room cards, which never touch this component — hanging the
-  // fetch on the button's handler left those rows expanded on a permanent
-  // "Loading issues…". The ref keeps it to one request per row for the life of
-  // the page: collapsing and reopening should not re-fetch.
   useEffect(() => {
     if (!open || requested.current) return;
     requested.current = true;
@@ -180,18 +221,22 @@ function PersonRow({
           </AvatarFallback>
         </Avatar>
 
-        {/* The band is the group heading and the load bar lives in the chart
-            above, so the row carries the name and the two figures only. */}
         <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
           {row.name}
         </span>
 
-        <span className="w-36 shrink-0 text-right">
-          <span className="block text-xs font-bold tabular-nums text-foreground">
-            {weeksLabel(row)}
-          </span>
-          <span className="block text-[11px] text-muted-foreground">
-            {rowCaption(row)}
+        <span className="flex items-center gap-2 shrink-0">
+          <span
+            className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[row.status].dot)}
+            aria-hidden
+          />
+          <span className="w-32 text-right">
+            <span className="block text-xs font-bold tabular-nums text-foreground">
+              {weeksLabel(row)}
+            </span>
+            <span className="block text-[11px] text-muted-foreground">
+              {rowCaption(row)}
+            </span>
           </span>
         </span>
       </button>
