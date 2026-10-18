@@ -136,20 +136,20 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinitionD
           />
         </Card>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background shadow-card">
+        <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border bg-card shadow-2xs">
           {fields.map((field) => (
-            <li key={field.id} className="flex items-center gap-3 px-4 py-3">
+            <li key={field.id} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/30">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-medium text-foreground">{field.name}</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className="text-xs font-semibold text-foreground">{field.name}</span>
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-muted/60 text-muted-foreground">
                     {TYPE_LABEL[field.type]}
                   </span>
                   {field.required && (
-                    <span className="text-[11px] font-medium text-warning">Required</span>
+                    <span className="text-[10px] font-semibold text-warning">Required</span>
                   )}
                 </div>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {field.description ? `${field.description} · ` : ""}
                   {/* The "is this safe to remove" signal. */}
                   {field.projectCount === 0
@@ -162,6 +162,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinitionD
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7 px-2.5 text-xs"
                 onClick={() =>
                   setDraft({
                     id: field.id,
@@ -178,6 +179,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinitionD
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-7 px-2 text-xs"
                 aria-label={`Remove ${field.name}`}
                 onClick={() => remove(field)}
               >

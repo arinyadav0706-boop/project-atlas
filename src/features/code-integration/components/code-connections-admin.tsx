@@ -177,7 +177,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
             <li
               key={connection.id}
               className={cn(
-                "rounded-2xl border border-border bg-background p-5 shadow-card",
+                "rounded-lg border border-border bg-card p-4 shadow-2xs transition-colors",
                 !connection.active && "opacity-60",
               )}
             >
@@ -276,8 +276,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
                 aria-label="Provider"
                 className="grid grid-cols-2 gap-2"
               >
-                {PROVIDER_LIST.map((option) => (
-                  <button
+                {PROVIDER_LIST.map((option) => (\n                  <button
                     key={option.id}
                     type="button"
                     role="radio"
