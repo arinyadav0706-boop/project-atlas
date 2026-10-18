@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "vercel-build": "prisma generate && (prisma migrate deploy || true) && next build",
+    "build": "next build --webpack",
+    "vercel-build": "prisma generate && (prisma migrate deploy || true) && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
