@@ -331,7 +331,8 @@ export function IssueWorkspace({
 
           {loading ? (
             <Card className="overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (\n                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
               ))}
             </Card>
           ) : items.length === 0 ? (
@@ -353,7 +354,8 @@ export function IssueWorkspace({
                 }
               />
             </Card>
-          ) : (\n            <>
+          ) : (
+            <>
               <Card className="overflow-hidden">
                 {/* Selects this PAGE, and says so. Deliberately not "select all
                     3,600 matching" — see ADR-0041 §3. */}
