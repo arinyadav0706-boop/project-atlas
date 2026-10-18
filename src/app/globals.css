@@ -2,54 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light theme is the default/primary look — docs/05_UI/01_UI_Design_Principles.md §2.
-   Values mirror docs/05_UI/02_Screens_and_Information_Architecture.md §5.
-   Accent is a placeholder (Apple system blue) pending a confirmed brand color.
-   Semantic colors (destructive) are tokens, never ad-hoc hexes in components. */
+/* ==========================================================================
+   EAGLES — Google × Apple Design System Tokens
+   Full charter: ANTIGRAVITY.md
+   Aesthetic: Vibrant, crisp, high-density enterprise clarity with Apple tactile polish.
+   ========================================================================== */
+
 :root {
+  /* Surfaces & Backgrounds */
   --background: 0 0% 100%;
-  --surface: 240 20% 99%;
-  /* The page canvas the cards sit ON, distinct from the cards themselves.
-     Without it, a white card on a white page is separated only by a hairline
-     border and the whole app reads flat — which is precisely the gap between
-     our Workload page and the mockup it was built from. Elevation needs
-     something to be elevated above. */
-  --canvas: 228 33% 97%;
-  --foreground: 240 4% 12%;
-  --border: 240 6% 90%;
+  --surface: 0 0% 100%;
+  --surface-raised: 0 0% 100%;
+  --surface-sunken: 210 20% 97%;
+  --canvas: 210 20% 98%;
+
+  /* Foregrounds & Typography */
+  --foreground: 222 47% 11%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Borders & Dividers */
+  --border: 214 32% 91%;
+  --border-subtle: 214 32% 94%;
+  --border-strong: 215 25% 82%;
+  --focus-ring: 217 91% 60%;
+
+  /* Primary Brand: Google/Apple Vibrant Blue */
+  --primary: 217 91% 55%;
+  --primary-foreground: 0 0% 100%;
   --accent: 217 91% 55%;
   --accent-foreground: 0 0% 100%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 46%;
-  --destructive: 0 72% 51%;
+
+  /* Muted Surfaces */
+  --muted: 210 20% 96%;
+
+  /* Vibrant Semantic Tones (Google & Apple Harmony) */
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  /* Status tones (docs/05_UI/03_Data_Visualisation.md §6). Charts read these
-     off the document at runtime, so they must exist as tokens or every chart
-     silently falls back to a hard-coded colour and stops following the theme. */
-  --success: 142 71% 40%;
-  --warning: 38 92% 46%;
+  --success: 142 71% 42%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+
+  /* Vibrant Identity Accents */
+  --google-blue: 217 91% 60%;
+  --google-red: 4 90% 58%;
+  --google-yellow: 43 96% 56%;
+  --google-green: 142 71% 45%;
+  --google-purple: 262 83% 58%;
+  --google-cyan: 192 95% 45%;
+
+  /* Standard Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 }
 
-/* Dark theme — applied only when the `dark` class is set on <html>
-   (class strategy, tailwind.config darkMode: "class"). Light is the
-   default; dark is opt-in via the theme toggle. */
+/* Dark theme — sleek, high-contrast, deep OLED / dark graphite */
 .dark {
   --background: 222 47% 8%;
   --surface: 222 41% 11%;
-  /* Inverted relationship: in dark the canvas recedes BELOW the cards, so the
-     card is the lighter surface. Same idea, opposite direction. */
+  --surface-raised: 222 40% 14%;
+  --surface-sunken: 222 47% 6%;
   --canvas: 222 47% 6%;
-  --foreground: 210 40% 96%;
-  --border: 222 20% 22%;
+
+  --foreground: 210 40% 98%;
+  --muted-foreground: 215 20% 65%;
+
+  --border: 222 20% 20%;
+  --border-subtle: 222 20% 16%;
+  --border-strong: 222 20% 28%;
+  --focus-ring: 217 91% 60%;
+
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
   --accent: 217 91% 60%;
   --accent-foreground: 0 0% 100%;
-  --muted: 222 30% 17%;
-  --muted-foreground: 215 18% 62%;
+
+  --muted: 222 30% 15%;
+
   --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 100%;
-  /* Lifted for contrast against the dark surface, as accent and destructive are. */
   --success: 142 64% 48%;
+  --success-foreground: 0 0% 100%;
   --warning: 38 92% 56%;
+  --warning-foreground: 0 0% 100%;
+  --info: 199 89% 56%;
+  --info-foreground: 0 0% 100%;
+
+  --google-blue: 217 91% 65%;
+  --google-red: 4 90% 65%;
+  --google-yellow: 43 96% 65%;
+  --google-green: 142 71% 55%;
+  --google-purple: 262 83% 68%;
+  --google-cyan: 192 95% 55%;
 }
 
 * {
@@ -60,17 +107,46 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background-color: hsl(var(--accent) / 0.15);
+  background-color: hsl(var(--primary) / 0.18);
+  color: hsl(var(--foreground));
 }
 
-/* Brand panel background for the sign-in screen — soft accent light,
-   kept subtle so it reads as designed, not decorated (Design Principles). */
+/* Custom Minimalist Apple/Google Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 9999px;
+  transition: background 0.15s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
+}
+
+/* Brand panel background for authentication screens */
 .auth-surface {
   background-color: hsl(var(--surface));
   background-image:
-    radial-gradient(60% 55% at 12% 8%, hsl(var(--accent) / 0.1), transparent 60%),
-    radial-gradient(52% 55% at 92% 100%, hsl(var(--accent) / 0.07), transparent 60%);
+    radial-gradient(60% 55% at 12% 8%, hsl(var(--primary) / 0.12), transparent 60%),
+    radial-gradient(52% 55% at 92% 100%, hsl(var(--google-purple) / 0.08), transparent 60%);
+}
+
+/* Glassmorphism utility for floating headers & toolbars */
+.glass-panel {
+  background-color: hsl(var(--background) / 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }

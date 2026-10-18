@@ -18,14 +18,8 @@ export function TopBar({
 }: {
   userName: string;
   userImage?: string | null;
-  // Gated by the platform.commandPalette feature flag (ADR-0023), decided
-  // server-side in the app layout.
   searchEnabled?: boolean;
 }) {
-  // Prefer the live client session over the server-rendered props so a profile
-  // edit (name/avatar) reflects here immediately after the page calls
-  // useSession().update() — no re-login, no full navigation (ADR-0027). The
-  // props are the SSR fallback for the first paint before the session loads.
   const { data: session } = useSession();
   const name = session?.user?.name ?? userName;
   const image = session?.user?.image ?? userImage;
@@ -38,32 +32,38 @@ export function TopBar({
     .toUpperCase();
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-5">
-      {/* Bounded rather than `flex-1`: a search field stretched across a
-          1600px window reads as a page-wide input, not a control. */}
-      <div className="flex-1 md:max-w-md">{searchEnabled && <SearchPalette />}</div>
-      {/* `ml-auto` pins the cluster to the right edge. Without it the bounded
-          search box stops stretching and the bell and avatar sit stranded in
-          the middle of a wide window instead of at the corner. */}
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 shadow-2xs select-none">
+      {/* Global ⌘K Search Omnibox */}
+      <div className="flex-1 md:max-w-md">
+        {searchEnabled && <SearchPalette />}
+      </div>
+
+      {/* Right Action Cluster */}
       <div className="ml-auto flex items-center gap-2">
         <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-              <Avatar className="h-8 w-8">
+            <button className="flex items-center gap-1.5 rounded-full p-0.5 transition-all hover:ring-2 hover:ring-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <Avatar className="h-7 w-7 ring-1 ring-border">
                 <AvatarImage src={image ?? undefined} alt={name} />
-                <AvatarFallback className="text-xs font-medium">
+                <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">{name}</div>
-            <DropdownMenuItem asChild>
-              <a href="/profile">Profile</a>
+          <DropdownMenuContent align="end" className="w-48 shadow-pop border-border">
+            <div className="px-2.5 py-2 text-xs border-b border-border/50">
+              <div className="font-medium text-foreground">{name}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{session?.user?.email}</div>
+            </div>
+            <DropdownMenuItem asChild className="text-xs cursor-pointer">
+              <a href="/profile">Profile & Settings</a>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/sign-in" })}>
+            <DropdownMenuItem
+              onSelect={() => signOut({ redirectTo: "/sign-in" })}
+              className="text-xs text-destructive cursor-pointer focus:text-destructive"
+            >
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

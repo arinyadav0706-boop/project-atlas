@@ -1,9 +1,8 @@
 import type { Config } from "tailwindcss";
 import animatePlugin from "tailwindcss-animate";
 
-// Color tokens mirror docs/05_UI/02_Screens_and_Information_Architecture.md §5.
-// Light theme is the default/primary look (docs/05_UI/01_UI_Design_Principles.md §2) —
-// dark mode is intentionally not wired up yet (secondary priority).
+// EAGLES — Google × Apple Design System Tailwind Configuration
+// Full specification: ANTIGRAVITY.md
 const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
@@ -11,10 +10,22 @@ const config: Config = {
     extend: {
       colors: {
         background: "hsl(var(--background))",
-        surface: "hsl(var(--surface))",
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          raised: "hsl(var(--surface-raised))",
+          sunken: "hsl(var(--surface-sunken))",
+        },
         canvas: "hsl(var(--canvas))",
         foreground: "hsl(var(--foreground))",
-        border: "hsl(var(--border))",
+        border: {
+          DEFAULT: "hsl(var(--border))",
+          subtle: "hsl(var(--border-subtle))",
+          strong: "hsl(var(--border-strong))",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
@@ -27,38 +38,49 @@ const config: Config = {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
-        // Status tones shared with the charts (03_Data_Visualisation.md §6), so
-        // a status is the same colour in a legend and in a status dot. No
-        // `-foreground` pair until something actually sets text on the fill.
-        success: "hsl(var(--success))",
-        warning: "hsl(var(--warning))",
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground, 0 0% 100%))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground, 0 0% 100%))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground, 0 0% 100%))",
+        },
+        google: {
+          blue: "hsl(var(--google-blue))",
+          red: "hsl(var(--google-red))",
+          yellow: "hsl(var(--google-yellow))",
+          green: "hsl(var(--google-green))",
+          purple: "hsl(var(--google-purple))",
+          cyan: "hsl(var(--google-cyan))",
+        },
       },
       borderRadius: {
-        lg: "0.75rem",
-        xl: "1rem",
-        // Surface radius. Cards read softer than controls on purpose — the
-        // container should feel like paper, the control like a button.
-        "2xl": "1.25rem",
+        sm: "var(--radius-sm, 4px)",
+        md: "var(--radius-md, 6px)",
+        lg: "var(--radius-lg, 8px)",
+        xl: "0.75rem",
+        "2xl": "1rem",
       },
-      // Elevation, as three named steps rather than ad-hoc shadow utilities.
-      //
-      // Deliberately very low alpha: at this radius a heavy shadow reads as a
-      // 2010 drop-shadow, and the mockups get their depth from a hairline
-      // border plus a barely-there lift. Two stacked shadows give the contact
-      // shadow and the ambient one, which is what makes it look lit rather
-      // than outlined.
       boxShadow: {
-        card: "0 1px 2px hsl(240 6% 10% / 0.04), 0 1px 3px hsl(240 6% 10% / 0.03)",
-        "card-hover": "0 2px 4px hsl(240 6% 10% / 0.05), 0 4px 12px hsl(240 6% 10% / 0.06)",
-        pop: "0 4px 8px hsl(240 6% 10% / 0.06), 0 12px 28px hsl(240 6% 10% / 0.10)",
+        card: "0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
+        "card-hover": "0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04)",
+        pop: "0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04)",
+        glow: "0 0 15px -3px hsl(var(--primary) / 0.2)",
       },
       fontFamily: {
         sans: [
-          "var(--font-inter)",
           "-apple-system",
           "BlinkMacSystemFont",
           "\"SF Pro Text\"",
+          "\"SF Pro Display\"",
+          "var(--font-inter)",
           "Inter",
+          "system-ui",
           "sans-serif",
         ],
       },
