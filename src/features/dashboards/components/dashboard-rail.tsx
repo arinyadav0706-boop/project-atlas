@@ -5,6 +5,10 @@ import { Card, CardHeader } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
 import type { DashboardSummaryDto } from "@/features/dashboards/types/dashboard.types";
 
+// The dashboards a reader may open: their own, plus everything shared.
+//
+// Same shape as the saved-view rail on /issues, deliberately — the two lists
+// answer the same kind of question and should not need learning twice.
 export function DashboardRail({
   dashboards,
   activeId,

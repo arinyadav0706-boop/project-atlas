@@ -83,7 +83,8 @@ export function DataTable<TData, TValue>({
                   );
                 })}
               </tr>
-            ))}\n          </thead>
+            ))}
+          </thead>
           <tbody className="divide-y divide-border/50 bg-surface">
             {isLoading ? (
               <tr>

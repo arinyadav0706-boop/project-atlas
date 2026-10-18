@@ -100,7 +100,8 @@ export function DataPagination(props: DataPaginationProps) {
                   <option key={opt} value={opt}>
                     {opt}
                   </option>
-                ))}\n              </select>
+                ))}
+              </select>
             </div>
           )}
 
