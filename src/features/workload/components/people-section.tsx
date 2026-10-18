@@ -65,8 +65,7 @@ export function PeopleSection({
   // top of a seventeen-row list. Runs once per target rather than on every
   // render, so a later manual collapse is not undone.
   useEffect(() => {
-    if (!focusUserId) return;
-    const target = document.getElementById(personRowId(focusUserId));
+    if (!focusUserId) return;\n    const target = document.getElementById(personRowId(focusUserId));
     if (!target) return;
     const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
@@ -158,72 +157,72 @@ function PersonRow({
     <div
       id={personRowId(row.userId)}
       className={cn(
-        "scroll-mt-24 rounded-xl border bg-background transition-colors",
-        open ? "border-accent/40" : "border-border",
+        "scroll-mt-24 rounded-lg border bg-card shadow-2xs transition-colors",
+        open ? "border-primary/40" : "border-border",
       )}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {open ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         )}
-        <Avatar className="h-8 w-8 shrink-0">
+        <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border/50">
           {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
-          <AvatarFallback className="text-xs">
+          <AvatarFallback className="text-[10px]">
             {row.name.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
 
         {/* The band is the group heading and the load bar lives in the chart
             above, so the row carries the name and the two figures only. */}
-        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground">
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
           {row.name}
         </span>
 
         <span className="w-36 shrink-0 text-right">
-          <span className="block text-[14px] font-semibold tabular-nums text-foreground">
+          <span className="block text-xs font-bold tabular-nums text-foreground">
             {weeksLabel(row)}
           </span>
-          <span className="block text-[12px] text-muted-foreground">
+          <span className="block text-[11px] text-muted-foreground">
             {rowCaption(row)}
           </span>
         </span>
       </button>
 
       {open && (
-        <div className="border-t border-border px-3 py-2.5">
+        <div className="border-t border-border px-3 py-2">
           {error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-xs text-destructive">{error}</p>
           ) : !issues ? (
-            <p className="text-sm text-muted-foreground">Loading issues…</p>
+            <p className="text-xs text-muted-foreground">Loading issues…</p>
           ) : issues.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No open issues.</p>
+            <p className="text-xs text-muted-foreground">No open issues.</p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-border/60">
               {issues.map((issue) => (
-                <li key={issue.id} className="flex items-center gap-3 py-2 text-sm">
+                <li key={issue.id} className="flex items-center gap-2.5 py-1.5 text-xs">
                   <Link
                     href={`/projects/${issue.projectId}/issues/${issue.id}`}
-                    className="shrink-0 font-mono text-xs text-accent hover:underline"
+                    className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-medium text-primary hover:underline bg-primary/5"
                   >
                     {issue.key}
                   </Link>
-                  <span className="min-w-0 flex-1 truncate text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                     {issue.title}
                   </span>
-                  <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+                  <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
                     {issue.projectKey}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
                     {issue.status.replace("_", " ").toLowerCase()}
                   </span>
-                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                  <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
                     {issue.estimateMinutes === null
                       ? "no est."
                       : hours(issue.remainingMinutes)}

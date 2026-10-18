@@ -35,8 +35,7 @@ export function ReportCard({
   result: ReportResultDto;
   projectId: string;
 }) {
-  return (
-    <section className="rounded-2xl border border-border bg-background p-4 shadow-card">
+  return (\n    <section className="rounded-lg border border-border bg-card p-4 shadow-2xs">
       <h2 className="text-sm font-semibold text-foreground">{result.name}</h2>
       <div className="mt-4">
         {result.chartType === "bar" && <VelocityChart data={result.data as VelocityData} />}
@@ -52,8 +51,7 @@ export function ReportCard({
   );
 }
 
-const UNITS: { value: BurndownAxisUnit; label: string }[] = [
-  { value: "points", label: "Points" },
+const UNITS: { value: BurndownAxisUnit; label: string }[] = [\n  { value: "points", label: "Points" },
   { value: "issues", label: "Issues" },
   { value: "hours", label: "Hours" },
 ];
@@ -114,7 +112,7 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             value={data.selectedSprintId ?? ""}
             onChange={(e) => reload({ sprintId: e.target.value })}
             aria-label="Sprint"
-            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="rounded-md border border-border/80 bg-surface-sunken px-2.5 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             {data.sprints.map((s) => (
               <option key={s.id} value={s.id}>
@@ -124,7 +122,7 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             ))}
           </select>
         )}
-        <div className="flex rounded-xl border border-border bg-background p-0.5 shadow-card" role="group" aria-label="Unit">
+        <div className="flex rounded-md border border-border/80 bg-surface-sunken p-0.5 shadow-2xs" role="group" aria-label="Unit">
           {UNITS.map((u) => (
             <button
               key={u.value}
@@ -132,9 +130,9 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
               onClick={() => reload({ unit: u.value })}
               aria-pressed={data.unit === u.value}
               className={cn(
-                "rounded px-2 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                "rounded px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 data.unit === u.value
-                  ? "bg-accent text-accent-foreground"
+                  ? "bg-card text-foreground shadow-2xs font-semibold"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -232,12 +230,10 @@ function StatusDonut({ data }: { data: StatusBreakdownData }) {
   const segments: StatusSegment[] = useMemo(
     () =>
       data.segments.map((s) => ({
-        status: s.status,
-        label: s.label,
+        status: s.status,\n        label: s.label,
         count: s.count,
         tone: STATUS_TONE[s.status] ?? "neutral",
-      })),
-    [data.segments],
+      })),\n    [data.segments],
   );
   const buildOption = useCallback(
     (theme: ChartTheme) => statusDonutOption(segments, data.total, theme),
