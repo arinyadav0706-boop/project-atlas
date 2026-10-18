@@ -26,8 +26,6 @@ import type {
   VelocityData,
 } from "@/features/reports/types/report.types";
 
-// Renders one report by its chartType (ADR-0020). Charts are ECharts, built
-// from the shared option builders (ADR-0036) — never hand-rolled per report.
 export function ReportCard({
   result,
   projectId,
@@ -58,10 +56,6 @@ const UNITS: { value: BurndownAxisUnit; label: string }[] = [
   { value: "hours", label: "Hours" },
 ];
 
-// A flat line reads as a broken chart. It usually isn't — it is an accurate
-// picture of a sprint in which nothing was completed, or one whose completions
-// predate recorded history. Naming the cause is the difference between a report
-// people distrust and one they can act on.
 const FLAT_REASON: Record<NonNullable<BurndownData["flatReason"]>, string> = {
   NOTHING_COMPLETED:
     "The line is flat because nothing in this sprint reached Done inside its dates — not because the chart failed.",
@@ -71,9 +65,6 @@ const FLAT_REASON: Record<NonNullable<BurndownData["flatReason"]>, string> = {
     "The line is flat because no issue in this sprint carries a value for this unit. Try another unit.",
 };
 
-// Sprint burndown (ADR-0037). The only interactive report: the sprint and the
-// unit are viewer choices, so this card refetches rather than reloading the
-// page. Seeded with the server-rendered result, so it draws before any fetch.
 function BurndownChart({ initial, projectId }: { initial: BurndownData; projectId: string }) {
   const [data, setData] = useState<BurndownData>(initial);
   const [loading, setLoading] = useState(false);
@@ -97,8 +88,6 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
     [data.selectedSprintId, data.unit, projectId],
   );
 
-  // Memoised: a fresh `[]` on every render would change the callback identity
-  // and tear the canvas down and rebuild it each time.
   const points = useMemo(() => data.series?.points ?? [], [data.series]);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const buildOption = useCallback(
@@ -145,8 +134,6 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
         {loading && <span className="text-xs text-muted-foreground">Loading…</span>}
       </div>
 
-      {/* Empty ≠ zero ≠ unknown: a sprint we cannot plot says why, rather than
-          drawing a flat line that reads as "nothing happened". */}
       {!data.series || points.length === 0 ? (
         <ChartEmpty>{data.reason ?? "Nothing to plot for this sprint yet."}</ChartEmpty>
       ) : (
@@ -167,9 +154,6 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
         {data.series && data.flatReason && (
           <p className="text-foreground">{FLAT_REASON[data.flatReason]}</p>
         )}
-        {/* The cohort caveat (ADR-0037 §1). Stated on the chart, every time —
-            this is the report's one approximation and hiding it would make the
-            rest of the numbers untrustworthy too. */}
         {data.series && (
           <p>
             Based on the {data.issueCount} {data.issueCount === 1 ? "issue" : "issues"} in this
@@ -177,10 +161,6 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
             mid-sprint aren&apos;t reflected yet. Status history is exact.
           </p>
         )}
-        {/* Only when it actually distorts the line. This fired at "671 of 1,229"
-            — a real warning about unusable data — but it also fired at "2 of
-            45", where it is noise that teaches the reader to distrust a chart
-            that is fine. A caveat shown unconditionally stops being read. */}
         {data.unsized / Math.max(data.issueCount, 1) > 0.1 && (
           <p>
             {data.unsized} of them have no {data.unit === "hours" ? "estimate" : "story points"},
@@ -199,7 +179,6 @@ function BurndownChart({ initial, projectId }: { initial: BurndownData; projectI
 }
 
 function VelocityChart({ data }: { data: VelocityData }) {
-  // Memoised so the canvas is not torn down and rebuilt on every parent render.
   const buildOption = useCallback(
     (theme: ChartTheme) => velocityOption(data.sprints, theme),
     [data.sprints],
@@ -220,7 +199,6 @@ function VelocityChart({ data }: { data: VelocityData }) {
   );
 }
 
-// Workflow order, not size order — the donut reads like the board.
 const STATUS_TONE: Record<string, ChartTone> = {
   TODO: "neutral",
   IN_PROGRESS: "accent",
@@ -262,7 +240,6 @@ function StatusDonut({ data }: { data: StatusBreakdownData }) {
   );
 }
 
-// A single number is not a chart (ADR-0036): no canvas here.
 function CycleTimeKpi({ data }: { data: CycleTimeData }) {
   return (
     <div>
