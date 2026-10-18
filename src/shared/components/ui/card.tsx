@@ -1,9 +1,7 @@
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
 
-// EAGLES Card Primitive — Google × Apple Material Surface
-// Full specification: ANTIGRAVITY.md
-// Clean 8px radius, subtle 1px border, tonal surface background.
+// EAGLES Card Primitive — Spatial Squircle Surface with Soft Ambient Elevation
 
 export const Card = React.forwardRef<
   HTMLDivElement,
@@ -12,10 +10,10 @@ export const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border border-border bg-surface shadow-card transition-all duration-150",
-      flush && "overflow-hidden p-0",
+      "rounded-2xl border border-border/60 bg-surface shadow-card transition-all duration-200",
+      flush ? "overflow-hidden p-0" : "p-5",
       interactive &&
-        "hover:border-border-strong hover:shadow-card-hover focus-within:ring-2 focus-within:ring-primary/20",
+        "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover focus-within:ring-4 focus-within:ring-primary/15",
       className
     )}
     {...props}
@@ -35,9 +33,20 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-2.5 border-b border-border-subtle px-4 py-3", className)}>
-      {icon && <span className="text-muted-foreground [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
-      <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">{title}</h2>
+    <div
+      className={cn(
+        "flex items-center gap-3 border-b border-border-subtle/80 px-5 py-4",
+        className
+      )}
+    >
+      {icon && (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary [&>svg]:h-4 [&>svg]:w-4">
+          {icon}
+        </span>
+      )}
+      <h2 className="text-[15px] font-semibold tracking-tight text-foreground">
+        {title}
+      </h2>
       {action && <div className="ml-auto flex items-center gap-2">{action}</div>}
     </div>
   );
@@ -47,12 +56,12 @@ export function CardContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-4", className)} {...props} />;
+  return <div className={cn("p-5", className)} {...props} />;
 }
 
 export function CardRows({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("divide-y divide-border-subtle", className)} {...props} />;
+  return <div className={cn("divide-y divide-border-subtle/80", className)} {...props} />;
 }

@@ -3,100 +3,103 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   EAGLES — Google × Apple Design System Tokens
-   Full charter: ANTIGRAVITY.md
-   Aesthetic: Vibrant, crisp, high-density enterprise clarity with Apple tactile polish.
+   EAGLES — Next-Gen Spatial Design System (Apple × Google × Linear × Stripe)
+   Aesthetic: Fluid squircle geometry, soft ambient depth, vibrant multi-tone
+   accents, and effortless visual hierarchy.
    ========================================================================== */
 
 :root {
-  /* Surfaces & Backgrounds */
+  /* Atmospheric Canvas & Layered Surfaces */
+  --canvas: 220 28% 96.5%;
   --background: 0 0% 100%;
   --surface: 0 0% 100%;
   --surface-raised: 0 0% 100%;
-  --surface-sunken: 210 20% 97%;
-  --canvas: 210 20% 98%;
+  --surface-sunken: 220 24% 95.5%;
 
-  /* Foregrounds & Typography */
-  --foreground: 222 47% 11%;
-  --muted-foreground: 215 16% 47%;
+  /* Typography & Ink Hierarchy */
+  --foreground: 224 48% 11%;
+  --muted-foreground: 220 15% 44%;
 
-  /* Borders & Dividers */
-  --border: 214 32% 91%;
-  --border-subtle: 214 32% 94%;
-  --border-strong: 215 25% 82%;
-  --focus-ring: 217 91% 60%;
+  /* Soft Translucent Borders & Focus Glow */
+  --border: 220 22% 90%;
+  --border-subtle: 220 24% 93.5%;
+  --border-strong: 220 20% 82%;
+  --focus-ring: 226 88% 60%;
 
-  /* Primary Brand: Google/Apple Vibrant Blue */
-  --primary: 217 91% 55%;
+  /* Primary Brand: Luminous Indigo-Blue */
+  --primary: 226 85% 56%;
   --primary-foreground: 0 0% 100%;
-  --accent: 217 91% 55%;
+  --accent: 226 85% 56%;
   --accent-foreground: 0 0% 100%;
 
-  /* Muted Surfaces */
-  --muted: 210 20% 96%;
+  /* Tonal Muted Fill */
+  --muted: 220 24% 95%;
 
-  /* Vibrant Semantic Tones (Google & Apple Harmony) */
-  --destructive: 0 84% 60%;
+  /* Vibrant Semantic Palette */
+  --destructive: 350 84% 58%;
   --destructive-foreground: 0 0% 100%;
-  --success: 142 71% 42%;
+  --success: 152 69% 40%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
+  --warning: 36 95% 50%;
   --warning-foreground: 0 0% 100%;
-  --info: 199 89% 48%;
+  --info: 196 94% 46%;
   --info-foreground: 0 0% 100%;
 
-  /* Vibrant Identity Accents */
-  --google-blue: 217 91% 60%;
-  --google-red: 4 90% 58%;
-  --google-yellow: 43 96% 56%;
-  --google-green: 142 71% 45%;
+  /* Multi-Tone Expressive Accents */
+  --google-blue: 221 91% 58%;
+  --google-red: 352 86% 58%;
+  --google-yellow: 40 96% 53%;
+  --google-green: 152 69% 42%;
   --google-purple: 262 83% 58%;
-  --google-cyan: 192 95% 45%;
+  --google-cyan: 190 92% 44%;
 
-  /* Standard Radii */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* Generous Apple Squircle Radii */
+  --radius-sm: 0.5rem;     /* 8px */
+  --radius-md: 0.75rem;    /* 12px */
+  --radius-lg: 1rem;       /* 16px */
+  --radius-xl: 1.25rem;    /* 20px */
+  --radius-2xl: 1.5rem;    /* 24px */
+  --radius-3xl: 1.875rem;  /* 30px */
 }
 
-/* Dark theme — sleek, high-contrast, deep OLED / dark graphite */
+/* Dark Theme — Deep Obsidian with Luminous Glass & Subtle Rim Lighting */
 .dark {
-  --background: 222 47% 8%;
-  --surface: 222 41% 11%;
-  --surface-raised: 222 40% 14%;
-  --surface-sunken: 222 47% 6%;
-  --canvas: 222 47% 6%;
+  --canvas: 225 42% 6%;
+  --background: 225 38% 9%;
+  --surface: 225 35% 11%;
+  --surface-raised: 225 32% 14%;
+  --surface-sunken: 225 40% 7.5%;
 
-  --foreground: 210 40% 98%;
-  --muted-foreground: 215 20% 65%;
+  --foreground: 214 35% 97%;
+  --muted-foreground: 218 18% 64%;
 
-  --border: 222 20% 20%;
-  --border-subtle: 222 20% 16%;
-  --border-strong: 222 20% 28%;
-  --focus-ring: 217 91% 60%;
+  --border: 224 22% 18%;
+  --border-subtle: 224 22% 14%;
+  --border-strong: 224 22% 26%;
+  --focus-ring: 226 90% 64%;
 
-  --primary: 217 91% 60%;
+  --primary: 226 88% 62%;
   --primary-foreground: 0 0% 100%;
-  --accent: 217 91% 60%;
+  --accent: 226 88% 62%;
   --accent-foreground: 0 0% 100%;
 
-  --muted: 222 30% 15%;
+  --muted: 224 28% 15%;
 
-  --destructive: 0 72% 55%;
+  --destructive: 350 78% 60%;
   --destructive-foreground: 0 0% 100%;
-  --success: 142 64% 48%;
+  --success: 152 64% 48%;
   --success-foreground: 0 0% 100%;
   --warning: 38 92% 56%;
   --warning-foreground: 0 0% 100%;
-  --info: 199 89% 56%;
+  --info: 196 90% 54%;
   --info-foreground: 0 0% 100%;
 
-  --google-blue: 217 91% 65%;
-  --google-red: 4 90% 65%;
-  --google-yellow: 43 96% 65%;
-  --google-green: 142 71% 55%;
+  --google-blue: 221 91% 65%;
+  --google-red: 352 86% 65%;
+  --google-yellow: 42 96% 62%;
+  --google-green: 152 69% 52%;
   --google-purple: 262 83% 68%;
-  --google-cyan: 192 95% 55%;
+  --google-cyan: 190 92% 54%;
 }
 
 * {
@@ -104,7 +107,7 @@
 }
 
 body {
-  background-color: hsl(var(--background));
+  background-color: hsl(var(--canvas));
   color: hsl(var(--foreground));
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -116,7 +119,7 @@ body {
   color: hsl(var(--foreground));
 }
 
-/* Custom Minimalist Apple/Google Scrollbars */
+/* Smooth Minimalist Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -127,26 +130,44 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.25);
+  background: hsl(var(--muted-foreground) / 0.22);
   border-radius: 9999px;
-  transition: background 0.15s ease;
+  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.45);
+  background: hsl(var(--muted-foreground) / 0.4);
 }
 
-/* Brand panel background for authentication screens */
+/* Ambient Workspace Backdrop */
+.bg-ambient-canvas {
+  background-color: hsl(var(--canvas));
+  background-image:
+    radial-gradient(45% 40% at 8% 4%, hsl(var(--primary) / 0.07), transparent 70%),
+    radial-gradient(40% 45% at 92% 12%, hsl(var(--google-purple) / 0.06), transparent 70%),
+    radial-gradient(50% 40% at 50% 98%, hsl(var(--google-cyan) / 0.05), transparent 70%);
+}
+
+/* Hero Mesh Surface */
+.hero-mesh {
+  background-color: hsl(var(--surface));
+  background-image:
+    radial-gradient(70% 90% at 0% 0%, hsl(var(--primary) / 0.10), transparent 60%),
+    radial-gradient(60% 80% at 100% 0%, hsl(var(--google-purple) / 0.09), transparent 55%),
+    radial-gradient(60% 80% at 80% 100%, hsl(var(--google-cyan) / 0.07), transparent 60%);
+}
+
+/* Authentication Brand Backdrop */
 .auth-surface {
   background-color: hsl(var(--surface));
   background-image:
-    radial-gradient(60% 55% at 12% 8%, hsl(var(--primary) / 0.12), transparent 60%),
-    radial-gradient(52% 55% at 92% 100%, hsl(var(--google-purple) / 0.08), transparent 60%);
+    radial-gradient(65% 60% at 12% 8%, hsl(var(--primary) / 0.14), transparent 60%),
+    radial-gradient(55% 60% at 90% 96%, hsl(var(--google-purple) / 0.12), transparent 60%);
 }
 
-/* Glassmorphism utility for floating headers & toolbars */
+/* Frosted Glass Panel */
 .glass-panel {
-  background-color: hsl(var(--background) / 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background-color: hsl(var(--surface) / 0.82);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
 }

@@ -1,8 +1,7 @@
 import type { Config } from "tailwindcss";
 import animatePlugin from "tailwindcss-animate";
 
-// EAGLES — Google × Apple Design System Tailwind Configuration
-// Full specification: ANTIGRAVITY.md
+// EAGLES — Next-Gen Spatial Design System (Apple × Google × Linear × Stripe)
 const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
@@ -10,6 +9,7 @@ const config: Config = {
     extend: {
       colors: {
         background: "hsl(var(--background))",
+        card: "hsl(var(--surface))",
         surface: {
           DEFAULT: "hsl(var(--surface))",
           raised: "hsl(var(--surface-raised))",
@@ -60,17 +60,21 @@ const config: Config = {
         },
       },
       borderRadius: {
-        sm: "var(--radius-sm, 4px)",
-        md: "var(--radius-md, 6px)",
-        lg: "var(--radius-lg, 8px)",
-        xl: "0.75rem",
-        "2xl": "1rem",
+        sm: "var(--radius-sm, 0.5rem)",
+        md: "var(--radius-md, 0.75rem)",
+        lg: "var(--radius-lg, 1rem)",
+        xl: "var(--radius-xl, 1.25rem)",
+        "2xl": "var(--radius-2xl, 1.5rem)",
+        "3xl": "var(--radius-3xl, 1.875rem)",
       },
       boxShadow: {
-        card: "0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
-        "card-hover": "0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04)",
-        pop: "0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04)",
-        glow: "0 0 15px -3px hsl(var(--primary) / 0.2)",
+        "2xs": "0 1px 2px 0 rgb(15 23 42 / 0.03)",
+        xs: "0 2px 6px -1px rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.02)",
+        card: "0 4px 20px -2px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03)",
+        "card-hover":
+          "0 14px 32px -4px rgb(15 23 42 / 0.08), 0 4px 12px -2px rgb(15 23 42 / 0.04)",
+        pop: "0 20px 40px -8px rgb(15 23 42 / 0.12), 0 8px 16px -4px rgb(15 23 42 / 0.06)",
+        glow: "0 4px 20px -2px hsl(var(--primary) / 0.32)",
       },
       fontFamily: {
         sans: [

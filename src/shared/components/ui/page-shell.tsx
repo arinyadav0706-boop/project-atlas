@@ -1,12 +1,10 @@
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
 
-// Full-bleed responsive container for pages using PageShell
-// Eliminates the 168-232px dead gutters measured in 04_Modernization_Audit.md
 const WIDTHS = {
-  wide: "w-full max-w-full",
-  regular: "w-full max-w-full",
-  reading: "max-w-5xl mx-auto",
+  wide: "w-full max-w-full px-5 py-5 md:px-8 md:py-6",
+  regular: "w-full max-w-full px-5 py-5 md:px-8 md:py-6",
+  reading: "max-w-5xl mx-auto px-5 py-5 md:px-8 md:py-6",
 } as const;
 
 export function PageShell({

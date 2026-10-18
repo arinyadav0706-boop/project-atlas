@@ -11,7 +11,7 @@ export function Toolbar({ children, className, ...props }: ToolbarProps) {
   return (
     <div
       className={cn(
-        "flex h-10 w-full shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-4 text-sm text-foreground",
+        "flex h-12 w-full shrink-0 items-center justify-between gap-3 rounded-2xl border border-border/60 bg-surface px-4 text-sm text-foreground shadow-2xs",
         className
       )}
       {...props}
@@ -27,7 +27,7 @@ export function ToolbarGroup({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-1.5", className)} {...props}>
+    <div className={cn("flex items-center gap-2", className)} {...props}>
       {children}
     </div>
   );
@@ -39,7 +39,7 @@ export function ToolbarSeparator({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mx-1 h-4 w-px bg-border", className)}
+      className={cn("mx-1.5 h-4 w-px bg-border/70", className)}
       {...props}
     />
   );
