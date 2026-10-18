@@ -264,9 +264,9 @@ export function BoardView({
             fixed 4-up grid squeezed twelve statuses into unreadable slivers.
             A scrolling row of fixed-width columns is what ClickUp and Jira both
             do, and it degrades honestly — the board gets wider, not denser. */}
-        <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+        <div className="flex snap-x gap-3.5 overflow-x-auto pb-4 pt-1 custom-scrollbar">
           {statuses.map((status) => (
-            <div key={status.id} className="w-[300px] shrink-0 snap-start">
+            <div key={status.id} className="snap-start shrink-0">
               <BoardColumn
                 projectId={projectId}
                 status={status}

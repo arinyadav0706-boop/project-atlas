@@ -35,38 +35,38 @@ export function BoardCard({
       style={style}
       {...dragProps}
       className={cn(
-        "group rounded-md border border-border bg-surface p-2.5 shadow-2xs transition-all duration-150",
+        "group relative rounded-lg border border-border/70 bg-card p-3 shadow-2xs transition-all duration-150 select-none",
         canWrite && "cursor-grab active:cursor-grabbing",
-        sortable.isDragging && "opacity-40",
-        overlay && "rotate-1 cursor-grabbing shadow-pop ring-2 ring-primary bg-surface",
-        "hover:border-border-strong hover:shadow-card"
+        sortable.isDragging && "opacity-30 scale-[0.98]",
+        overlay && "rotate-1 cursor-grabbing shadow-pop ring-2 ring-primary/60 bg-background/95 backdrop-blur-md",
+        "hover:border-primary/40 hover:shadow-card hover:-translate-y-0.5",
       )}
     >
-      <div className="flex items-start justify-between gap-1.5">
+      <div className="flex items-start justify-between gap-2">
         <Link
           href={`/projects/${projectId}/issues/${item.id}`}
           draggable={false}
           onClick={(e) => sortable.isDragging && e.preventDefault()}
-          className="line-clamp-2 text-xs font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:underline"
+          className="line-clamp-2 text-xs font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:underline transition-colors"
         >
           {item.title}
         </Link>
         <PriorityIcon priority={item.priority} className="mt-0.5 shrink-0" />
       </div>
 
-      <IssueChips item={item} className="mt-1.5" />
+      <IssueChips item={item} className="mt-2" />
 
-      <div className="mt-2 flex items-center justify-between text-xs">
-        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-medium text-muted-foreground group-hover:text-foreground">
-          <IssueTypeIcon type={item.type} className="h-3 w-3" />
+      <div className="mt-2.5 flex items-center justify-between text-xs pt-1.5 border-t border-border/40">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+          <IssueTypeIcon type={item.type} className="h-3.5 w-3.5" />
           {item.key}
         </span>
         {item.assignee && (
-          <Avatar className="h-4.5 w-4.5 ring-1 ring-border">
+          <Avatar className="h-5 w-5 ring-1 ring-border/60">
             {item.assignee.avatarUrl && (
               <AvatarImage src={item.assignee.avatarUrl} alt={item.assignee.name} />
             )}
-            <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+            <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-medium">
               {item.assignee.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
