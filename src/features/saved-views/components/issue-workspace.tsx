@@ -272,6 +272,7 @@ export function IssueWorkspace({
   return (
     <PageShell width="wide">
       <PageHeader
+        compact
         icon={<ListFilter />}
         title="Issues"
         subtitle="Every project you can see, in one list."
@@ -283,7 +284,7 @@ export function IssueWorkspace({
             </Button>
           )
         }
-        className="mb-5"
+        className="mb-3"
       />
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[15rem_1fr]">
@@ -330,8 +331,7 @@ export function IssueWorkspace({
 
           {loading ? (
             <Card className="overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
+              {Array.from({ length: 8 }).map((_, i) => (\n                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
               ))}
             </Card>
           ) : items.length === 0 ? (
@@ -353,8 +353,7 @@ export function IssueWorkspace({
                 }
               />
             </Card>
-          ) : (
-            <>
+          ) : (\n            <>
               <Card className="overflow-hidden">
                 {/* Selects this PAGE, and says so. Deliberately not "select all
                     3,600 matching" — see ADR-0041 §3. */}
