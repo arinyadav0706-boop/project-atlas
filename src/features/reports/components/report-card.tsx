@@ -35,7 +35,8 @@ export function ReportCard({
   result: ReportResultDto;
   projectId: string;
 }) {
-  return (\n    <section className="rounded-lg border border-border bg-card p-4 shadow-2xs">
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 shadow-2xs">
       <h2 className="text-sm font-semibold text-foreground">{result.name}</h2>
       <div className="mt-4">
         {result.chartType === "bar" && <VelocityChart data={result.data as VelocityData} />}
@@ -51,7 +52,8 @@ export function ReportCard({
   );
 }
 
-const UNITS: { value: BurndownAxisUnit; label: string }[] = [\n  { value: "points", label: "Points" },
+const UNITS: { value: BurndownAxisUnit; label: string }[] = [
+  { value: "points", label: "Points" },
   { value: "issues", label: "Issues" },
   { value: "hours", label: "Hours" },
 ];
@@ -230,10 +232,12 @@ function StatusDonut({ data }: { data: StatusBreakdownData }) {
   const segments: StatusSegment[] = useMemo(
     () =>
       data.segments.map((s) => ({
-        status: s.status,\n        label: s.label,
+        status: s.status,
+        label: s.label,
         count: s.count,
         tone: STATUS_TONE[s.status] ?? "neutral",
-      })),\n    [data.segments],
+      })),
+    [data.segments],
   );
   const buildOption = useCallback(
     (theme: ChartTheme) => statusDonutOption(segments, data.total, theme),
