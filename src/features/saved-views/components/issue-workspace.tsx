@@ -1,19 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ListFilter, Save, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import {
+  ListFilter,
+  Save,
+  ArrowUpDown,
+} from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
-import { Card } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PageShell } from "@/shared/components/ui/page-shell";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { DataPagination } from "@/shared/components/ui/data-pagination";
+import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
 import { issueFilterToQuery } from "@/features/issues/lib/issue-filter-query";
 import type { IssueFilter } from "@/features/issues/types/issue-filter.types";
-import { Checkbox } from "@/shared/components/ui/checkbox";
-import { BulkActionBar } from "@/features/bulk-edit/components/bulk-action-bar";
 import type { WorkflowStatusDto } from "@/features/workflow/types/workflow.types";
 import type { BulkEditChanges } from "@/features/bulk-edit/validation/bulk-edit.schemas";
 import type { BulkEditResultDto } from "@/features/bulk-edit/types/bulk-edit.types";
@@ -34,24 +46,29 @@ import {
   type SavedViewSortDto,
 } from "@/features/saved-views/types/saved-view.types";
 
-// The cross-project issue list and its saved views (22_saved_views.md §5).
-//
-// The filter is mirrored into the URL on every change, so any state is
-// shareable as a link without saving anything. Saving is for the queries worth
-// naming — which is the distinction Jira blurs by making every filter a stored
-// object.
-
-function buildQuery(filter: IssueFilter, sort: SavedViewSortDto, cursor?: string) {
+function buildQuery(
+  filter: IssueFilter,
+  sort: SavedViewSortDto,
+  cursor?: string,
+  take?: number
+) {
   const q = issueFilterToQuery(filter);
   if (sort !== DEFAULT_SORT) q.set("sort", sort);
   if (cursor) q.set("cursor", cursor);
+  if (take) q.set("take", String(take));
   return q;
 }
 
-/** Same filter, ignoring key order — decides whether "Save" is offered. */
 function sameFilter(a: IssueFilter, b: IssueFilter): boolean {
   return issueFilterToQuery(a).toString() === issueFilterToQuery(b).toString();
 }
+
+const SORT_OPTIONS: { value: SavedViewSortDto; label: string }[] = [
+  { value: "UPDATED_DESC", label: "Recently updated" },
+  { value: "CREATED_DESC", label: "Recently created" },
+  { value: "PRIORITY_DESC", label: "Highest priority" },
+  { value: "DUE_DATE_ASC", label: "Due date (earliest)" },
+];
 
 export function IssueWorkspace({
   projects,
@@ -63,76 +80,88 @@ export function IssueWorkspace({
   projects: ProjectOption[];
   currentUserId: string;
   initialViews: SavedViewDto[];
-  /** Fields at least one project enables — the ones worth offering (ADR-0043). */
   filterableFields: CustomFieldDefinitionDto[];
-  /** Parsed from the URL server-side, so a shared link opens filtered. */
   initialFilter: IssueFilter;
 }) {
   const [views, setViews] = useState(initialViews);
   const [activeView, setActiveView] = useState<SavedViewDto | null>(null);
   const [filter, setFilter] = useState<IssueFilter>(initialFilter);
   const [sort, setSort] = useState<SavedViewSortDto>(DEFAULT_SORT);
+  const [pageSize, setPageSize] = useState<number>(25);
+
+  // Pagination state: cursor stack for previous/next navigation
+  const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([undefined]);
+  const [pageIndex, setPageIndex] = useState<number>(0);
 
   const [result, setResult] = useState<IssueQueryResultDto | null>(null);
   const [items, setItems] = useState<CrossProjectIssueDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [applying, setApplying] = useState(false);
-  // Anchor for shift-click range selection — the behaviour every list of
-  // checkboxes is expected to have and nobody mentions until it is missing.
-  const lastClicked = useRef<string | null>(null);
 
-  // Guards against a slow first request landing after a faster later one and
-  // overwriting it — the classic filter-as-you-type race.
+  const lastClicked = useRef<string | null>(null);
   const requestId = useRef(0);
 
-  const run = useCallback(async (nextFilter: IssueFilter, nextSort: SavedViewSortDto) => {
-    const id = ++requestId.current;
-    setLoading(true);
-    try {
-      const data = await apiRequest<IssueQueryResultDto>(
-        `/api/issues?${buildQuery(nextFilter, nextSort).toString()}`,
-      );
-      if (id !== requestId.current) return;
-      setResult(data);
-      setItems(data.items);
-      // A new question means a new list; carrying the selection would leave
-      // ids checked that are no longer on screen.
-      setSelected(new Set());
-    } catch (error) {
-      if (id !== requestId.current) return;
-      toast.error(error instanceof Error ? error.message : "Couldn't load issues.");
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
-  }, []);
+  const currentCursor = cursorStack[pageIndex];
 
-  // Re-query whenever the question changes, and keep the URL in step so the
-  // current list is always copy-pasteable. `replaceState` rather than a router
-  // push: typing in the search box should not add a history entry per keystroke.
+  // Fetch a page with specific cursor
+  const fetchPage = useCallback(
+    async (
+      nextFilter: IssueFilter,
+      nextSort: SavedViewSortDto,
+      cursor: string | undefined,
+      take: number
+    ) => {
+      const id = ++requestId.current;
+      setLoading(true);
+      try {
+        const queryStr = buildQuery(nextFilter, nextSort, cursor, take).toString();
+        const data = await apiRequest<IssueQueryResultDto>(`/api/issues?${queryStr}`);
+        if (id !== requestId.current) return;
+        setResult(data);
+        setItems(data.items);
+        setSelected(new Set());
+      } catch (error) {
+        if (id !== requestId.current) return;
+        toast.error(error instanceof Error ? error.message : "Couldn't load issues.");
+      } finally {
+        if (id === requestId.current) setLoading(false);
+      }
+    },
+    []
+  );
+
+  // When filter, sort, or pageSize changes, reset to page 1
   useEffect(() => {
-    void run(filter, sort);
-    const query = buildQuery(filter, sort).toString();
+    setCursorStack([undefined]);
+    setPageIndex(0);
+    void fetchPage(filter, sort, undefined, pageSize);
+    const query = buildQuery(filter, sort, undefined, pageSize).toString();
     window.history.replaceState(null, "", query ? `/issues?${query}` : "/issues");
-  }, [filter, sort, run]);
+  }, [filter, sort, pageSize, fetchPage]);
 
-  const loadMore = useCallback(async () => {
+  // When navigating via cursor stack (Next/Prev)
+  const handleNextPage = useCallback(() => {
     if (!result?.nextCursor) return;
-    setLoadingMore(true);
-    try {
-      const data = await apiRequest<IssueQueryResultDto>(
-        `/api/issues?${buildQuery(filter, sort, result.nextCursor).toString()}`,
-      );
-      setResult(data);
-      setItems((prev) => [...prev, ...data.items]);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't load more.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [filter, sort, result]);
+    const nextCursor = result.nextCursor;
+    const nextIndex = pageIndex + 1;
+    setCursorStack((prev) => {
+      const updated = prev.slice(0, nextIndex);
+      updated.push(nextCursor);
+      return updated;
+    });
+    setPageIndex(nextIndex);
+    void fetchPage(filter, sort, nextCursor, pageSize);
+  }, [result?.nextCursor, pageIndex, filter, sort, pageSize, fetchPage]);
+
+  const handlePrevPage = useCallback(() => {
+    if (pageIndex <= 0) return;
+    const prevIndex = pageIndex - 1;
+    const prevCursor = cursorStack[prevIndex];
+    setPageIndex(prevIndex);
+    void fetchPage(filter, sort, prevCursor, pageSize);
+  }, [pageIndex, cursorStack, filter, sort, pageSize, fetchPage]);
 
   const toggleRow = useCallback(
     (id: string, shiftKey: boolean) => {
@@ -144,8 +173,6 @@ export function IssueWorkspace({
           const to = items.findIndex((i) => i.id === id);
           if (from !== -1 && to !== -1) {
             const [lo, hi] = from < to ? [from, to] : [to, from];
-            // The anchor's resulting state drives the range, matching how
-            // file managers and every mail client behave.
             const turnOn = !prev.has(id);
             for (const item of items.slice(lo, hi + 1)) {
               if (turnOn) next.add(item.id);
@@ -159,23 +186,14 @@ export function IssueWorkspace({
       });
       lastClicked.current = id;
     },
-    [items],
+    [items]
   );
 
   const allOnPageSelected = items.length > 0 && items.every((i) => selected.has(i.id));
 
-  /**
-   * Statuses to offer for a bulk status change — only when the selection sits
-   * in ONE project.
-   *
-   * Statuses are per-project (30_workflow BR-1), so a status id means nothing
-   * to a selection spanning two of them. Rather than offer options the server
-   * would refuse per issue, the control hides — the same reasoning that already
-   * keeps the assignee and sprint pickers out of a cross-project selection.
-   */
   const selectedProjectId = useMemo(() => {
     const ids = new Set(
-      items.filter((i) => selected.has(i.id)).map((i) => i.projectId),
+      items.filter((i) => selected.has(i.id)).map((i) => i.projectId)
     );
     return ids.size === 1 ? [...ids][0]! : null;
   }, [items, selected]);
@@ -190,11 +208,10 @@ export function IssueWorkspace({
     void (async () => {
       try {
         const res = await apiRequest<{ statuses: WorkflowStatusDto[] }>(
-          `/api/projects/${selectedProjectId}/statuses`,
+          `/api/projects/${selectedProjectId}/statuses`
         );
         if (!cancelled) setBulkStatuses(res.statuses);
       } catch {
-        // A failed lookup hides the control rather than showing a stale list.
         if (!cancelled) setBulkStatuses([]);
       }
     })();
@@ -216,8 +233,6 @@ export function IssueWorkspace({
       if (res.failed > 0) parts.push(`${res.failed} couldn't be changed`);
 
       if (res.failed > 0) {
-        // The failures are the point. Naming the first few (and why) is what
-        // stops someone repeating the same impossible edit.
         const reasons = res.results
           .filter((r) => r.outcome === "failed")
           .slice(0, 3)
@@ -232,7 +247,7 @@ export function IssueWorkspace({
       }
 
       setSelected(new Set());
-      await run(filter, sort);
+      await fetchPage(filter, sort, currentCursor, pageSize);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't apply the changes.");
     } finally {
@@ -263,167 +278,224 @@ export function IssueWorkspace({
     }
   }
 
-  // Offered when the filter has drifted from the loaded view, or when nothing
-  // is loaded and the filter actually says something.
-  const dirty = activeView
-    ? !sameFilter(activeView.filter, filter) || activeView.sort !== sort
-    : buildQuery(filter, sort).toString().length > 0;
+  const rangeStart = pageIndex * pageSize + 1;
+  const rangeEnd = rangeStart + items.length - 1;
+  const rangeLabel = items.length > 0 ? `${rangeStart}–${rangeEnd}` : "0";
 
   return (
-    <PageShell width="wide">
+    <PageShell>
       <PageHeader
-        compact
-        icon={<ListFilter />}
-        title="Issues"
-        subtitle="Every project you can see, in one list."
-        actions={
-          dirty && (
-            <Button size="sm" onClick={() => setSaveOpen(true)}>
-              <Save className="h-3.5 w-3.5" />
-              Save view
-            </Button>
-          )
+        title={activeView ? activeView.name : "All issues"}
+        subtitle={
+          activeView
+            ? "Filtered saved view across your accessible projects."
+            : "Search, filter, paginate, and bulk-manage issues across your projects."
         }
-        className="mb-3"
+        actions={
+          <div className="flex items-center gap-2">
+            {!activeView && !sameFilter(filter, {}) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSaveOpen(true)}
+                className="gap-1.5"
+              >
+                <Save className="h-3.5 w-3.5 text-primary" />
+                <span>Save view</span>
+              </Button>
+            )}
+            {activeView && (
+              <Button variant="ghost" size="sm" onClick={clearView}>
+                Clear view
+              </Button>
+            )}
+          </div>
+        }
       />
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[15rem_1fr]">
-        <ViewRail
-          views={views}
-          activeId={activeView?.id ?? null}
-          onSelect={selectView}
-          onClear={clearView}
-          onDelete={deleteView}
-        />
-
-        <div className="min-w-0 space-y-4">
-          <IssueFilterBar
-            filter={filter}
-            projects={projects}
-            currentUserId={currentUserId}
-            onChange={(next) => setFilter(next)}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Saved Views Rail */}
+        <div className="w-full shrink-0 lg:w-56">
+          <ViewRail
+            views={views}
+            activeId={activeView?.id ?? null}
+            onSelect={selectView}
+            onClear={clearView}
+            onDelete={deleteView}
           />
+        </div>
 
-          {/* Custom-field predicates get their own row: each is a compound
-              control (field · operator · value) and mixing them into the fixed
-              filter bar would make both harder to read. */}
-          <CustomFieldFilters
-            fields={filterableFields}
-            predicates={filter.customFields ?? []}
-            onChange={(customFields) =>
-              setFilter({
-                ...filter,
-                customFields: customFields.length ? customFields : undefined,
-              })
-            }
-          />
+        {/* Main Issue Directory */}
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          {/* Filter Bar & Sort Controls */}
+          <div className="rounded-xl border border-border bg-surface p-3 shadow-2xs">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex-1">
+                <IssueFilterBar
+                  filter={filter}
+                  onChange={setFilter}
+                  projects={projects}
+                  currentUserId={currentUserId}
+                />
+              </div>
 
-          {activeView?.filterCorrupt && (
-            <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning/[0.07] px-4 py-3">
-              <TriangleAlert className="mt-px h-4 w-4 shrink-0 text-warning" aria-hidden />
-              <p className="text-[13px] leading-relaxed text-foreground">
-                <span className="font-medium">This view&apos;s saved filter couldn&apos;t be read</span>
-                , so it is showing everything. Set the filter you want and save the
-                view again to repair it.
-              </p>
+              {/* Sort selector */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                <Select
+                  value={sort}
+                  onValueChange={(val) => setSort(val as SavedViewSortDto)}
+                >
+                  <SelectTrigger className="h-8 w-44 text-xs font-medium">
+                    <SelectValue placeholder="Sort by…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
 
-          {loading ? (
-            <Card className="overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-11 border-b border-border last:border-b-0" />
-              ))}
-            </Card>
-          ) : items.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<ListFilter />}
-                title={
-                  result?.projectsInScope === 0
-                    ? "No projects in scope"
-                    : "Nothing matches this filter"
-                }
-                // BR-3: "zero results" and "you are in none of these projects"
-                // are different answers, and conflating them makes a shared
-                // view look broken to the person who cannot see its projects.
-                description={
-                  result?.projectsInScope === 0
-                    ? "You're not a member of any project this view covers. Ask a project lead to add you."
-                    : "Try widening the filter, or clear it to see everything."
-                }
-              />
-            </Card>
-          ) : (
-            <>
-              <Card className="overflow-hidden">
-                {/* Selects this PAGE, and says so. Deliberately not "select all
-                    3,600 matching" — see ADR-0041 §3. */}
-                <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
-                  <Checkbox
-                    checked={allOnPageSelected}
-                    aria-label="Select all issues on this page"
-                    onClick={() =>
-                      setSelected(allOnPageSelected ? new Set() : new Set(items.map((i) => i.id)))
+            {filterableFields.length > 0 && (
+              <div className="mt-3 border-t border-border/60 pt-3">
+                <CustomFieldFilters
+                  fields={filterableFields}
+                  predicates={filter.customFields ?? []}
+                  onChange={(predicates) =>
+                    setFilter((prev) => ({
+                      ...prev,
+                      customFields: predicates.length > 0 ? predicates : undefined,
+                    }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Table Container */}
+          <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+            {/* Table Header Row with Sticky Top */}
+            <div className="sticky top-0 z-10 flex h-9 items-center gap-2.5 border-b border-border bg-muted/40 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">
+              <div className="flex items-center pl-1">
+                <Checkbox
+                  checked={allOnPageSelected}
+                  aria-label="Select all on this page"
+                  onClick={() => {
+                    setSelected((prev) => {
+                      if (allOnPageSelected) {
+                        const next = new Set(prev);
+                        for (const item of items) next.delete(item.id);
+                        return next;
+                      }
+                      const next = new Set(prev);
+                      for (const item of items) next.add(item.id);
+                      return next;
+                    });
+                  }}
+                />
+              </div>
+              <span className="w-7 text-center">Type</span>
+              <span className="w-16">Project</span>
+              <span className="w-20">Key</span>
+              <span className="flex-1">Title</span>
+              <span className="hidden w-16 text-right sm:block">Due</span>
+              <span className="hidden w-24 sm:block">Status</span>
+              <span className="w-8 text-center">Pri</span>
+              <span className="w-8 text-right">Owner</span>
+            </div>
+
+            {/* List Body */}
+            <div className="divide-y divide-border/50">
+              {loading ? (
+                <div className="flex flex-col gap-2 p-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="flex h-9 items-center gap-3">
+                      <Skeleton className="h-4 w-4 rounded" />
+                      <Skeleton className="h-4 w-12 rounded" />
+                      <Skeleton className="h-4 w-16 rounded" />
+                      <Skeleton className="h-4 flex-1 rounded" />
+                      <Skeleton className="h-4 w-20 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                <div className="py-12">
+                  <EmptyState
+                    icon={<ListFilter className="h-6 w-6 text-muted-foreground" />}
+                    title="No issues match this view"
+                    description={
+                      result && result.projectsInScope === 0
+                        ? "You are not a member of any projects with open issues yet."
+                        : "Try loosening your filters, search query, or project selection."
+                    }
+                    action={
+                      !sameFilter(filter, {}) && (
+                        <Button variant="outline" size="sm" onClick={() => setFilter({})}>
+                          Reset filters
+                        </Button>
+                      )
                     }
                   />
-                  <span className="text-[12px] text-muted-foreground">
-                    {selected.size > 0
-                      ? `${selected.size} selected`
-                      : `Select all ${items.length} on this page`}
-                  </span>
                 </div>
-                <ul className="divide-y divide-border">
-                  {items.map((item) => (
-                    <li key={item.id}>
-                      <CrossProjectRow
-                        item={item}
-                        selected={selected.has(item.id)}
-                        onToggle={toggleRow}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-
-              {selected.size > 0 && (
-                <BulkActionBar
-                  count={selected.size}
-                  currentUserId={currentUserId}
-                  statuses={bulkStatuses}
-                  applying={applying}
-                  onApply={applyBulk}
-                  onClear={() => setSelected(new Set())}
-                />
+              ) : (
+                items.map((item) => (
+                  <CrossProjectRow
+                    key={item.id}
+                    item={item}
+                    selected={selected.has(item.id)}
+                    onToggle={toggleRow}
+                  />
+                ))
               )}
+            </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  {items.length} shown across {result?.projectsInScope ?? 0}{" "}
-                  {result?.projectsInScope === 1 ? "project" : "projects"}
-                </p>
-                {result?.nextCursor && (
-                  <Button variant="outline" size="sm" onClick={loadMore} loading={loadingMore}>
-                    Load more
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
+            {/* Reusable DataPagination Footer */}
+            <DataPagination
+              mode="cursor"
+              hasPrev={pageIndex > 0}
+              hasNext={Boolean(result?.nextCursor)}
+              onPrev={handlePrevPage}
+              onNext={handleNextPage}
+              rangeLabel={rangeLabel}
+              totalLabel={
+                result
+                  ? `${result.items.length >= pageSize ? "more" : items.length} across ${result.projectsInScope} ${
+                      result.projectsInScope === 1 ? "project" : "projects"
+                    }`
+                  : undefined
+              }
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+            />
+          </div>
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        count={selected.size}
+        currentUserId={currentUserId}
+        statuses={bulkStatuses}
+        applying={applying}
+        onApply={applyBulk}
+        onClear={() => setSelected(new Set())}
+      />
+
+      {/* Save View Modal */}
       <SaveViewDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
         filter={filter}
         sort={sort}
         existing={activeView}
-        onSaved={(view, replaced) => {
-          setViews((prev) =>
-            replaced ? prev.map((v) => (v.id === view.id ? view : v)) : [...prev, view],
-          );
-          setActiveView(view);
+        onSaved={(created) => {
+          setViews((prev) => [...prev, created]);
+          setActiveView(created);
         }}
       />
     </PageShell>
