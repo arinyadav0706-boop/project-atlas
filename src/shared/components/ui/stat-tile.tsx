@@ -1,18 +1,13 @@
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
 
-// A headline number with its label and a tinted icon chip.
-//
-// Tones map to the existing semantic tokens rather than introducing new
-// palette entries: a tile is neutral unless the number itself carries meaning
-// (overloaded is bad, capacity is good). Ad-hoc hexes are banned in components
-// and a "nice purple" is exactly how that ban gets broken.
 const TONES = {
-  neutral: "bg-muted text-muted-foreground",
-  accent: "bg-accent/10 text-accent",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger: "bg-destructive/10 text-destructive",
+  neutral: "bg-muted/80 text-muted-foreground border border-border/40",
+  accent: "bg-primary/10 text-primary border border-primary/20",
+  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20",
+  danger: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+  purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20",
 } as const;
 
 export type StatTone = keyof typeof TONES;
@@ -26,36 +21,26 @@ export function StatTile({
   className,
 }: {
   label: string;
-  /** Pre-formatted. The tile does not know whether this is hours or people. */
   value: React.ReactNode;
   icon?: React.ReactNode;
   tone?: StatTone;
-  /**
-   * Change against an earlier period. Omit it entirely when there is nothing
-   * truthful to show — a tile with no delta is honest, a tile showing "↑0" or
-   * an invented baseline is not.
-   */
   delta?: { value: string; direction: "up" | "down" | "flat"; label: string };
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-background px-4 py-3.5 shadow-card",
-        className,
+        "rounded-lg border border-border bg-surface px-4 py-3 shadow-card transition-all hover:border-border-strong",
+        className
       )}
     >
-      {/* The mockup's tile carries a trend line and a sparkline under the
-          number, which is what gives it its height. We show neither (no
-          historical series — backlog UI-4), so the same height left a third of
-          the tile empty. Sized to what it actually holds instead. */}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
         {icon && (
           <span
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl [&>svg]:h-4 [&>svg]:w-4",
-              TONES[tone],
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md [&>svg]:h-3.5 [&>svg]:w-3.5",
+              TONES[tone]
             )}
           >
             {icon}
@@ -63,28 +48,23 @@ export function StatTile({
         )}
       </div>
 
-      <p className="mt-2.5 text-[27px] font-semibold leading-none tracking-[-0.025em] text-foreground">
-        {value}
-      </p>
-
-      {delta && (
-        <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+      <div className="mt-2 flex items-baseline justify-between gap-2">
+        <span className="text-xl font-bold tracking-tight text-foreground">{value}</span>
+        {delta && (
           <span
             className={cn(
-              "font-medium",
-              // Direction is coloured, not judged: more open issues is not
-              // automatically bad, so up/down get neutral-positive tones and
-              // the caller picks the tile's own tone for meaning.
-              delta.direction === "up" && "text-foreground",
-              delta.direction === "down" && "text-foreground",
+              "text-[11px] font-medium",
+              delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",
+              delta.direction === "down" && "text-rose-600 dark:text-rose-400",
+              delta.direction === "flat" && "text-muted-foreground"
             )}
           >
-            {delta.direction === "up" ? "↑" : delta.direction === "down" ? "↓" : "→"}{" "}
+            {delta.direction === "up" && "↑"}
+            {delta.direction === "down" && "↓"}
             {delta.value}
           </span>
-          {delta.label}
-        </p>
-      )}
+        )}
+      </div>
     </div>
   );
 }

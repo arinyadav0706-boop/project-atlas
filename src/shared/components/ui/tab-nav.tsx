@@ -34,19 +34,19 @@ export function TabNav({ items, className }: { items: TabItem[]; className?: str
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex items-center gap-2 px-3 py-2.5 text-[14px] font-medium transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+              "relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              active ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {item.icon && (
-              <item.icon className="h-4 w-4" strokeWidth={active ? 2.2 : 1.8} />
+              <item.icon className="h-3.5 w-3.5" strokeWidth={active ? 2.2 : 1.8} />
             )}
             {item.label}
             {/* Sits ON the border rather than replacing it, so the rule below
                 the tab strip stays unbroken as the marker moves. */}
             {active && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />
+              <span className="absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-primary" />
             )}
           </Link>
         );
