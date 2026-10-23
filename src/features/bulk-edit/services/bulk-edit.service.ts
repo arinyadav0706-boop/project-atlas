@@ -269,6 +269,20 @@ export const BulkEditService = {
         });
       }
 
+      // Same trail as a single reassignment (HOME-5), or Home's activity feed
+      // misses every bulk reassign.
+      if (pending.assigneeId !== undefined) {
+        await AuditLogService.record({
+          organizationId: facts.organizationId,
+          actorId: actor.userId,
+          action: "ISSUE_ASSIGNEE_CHANGED",
+          entityType: "Issue",
+          entityId: issueId,
+          beforeData: { assigneeId: issue.assigneeId },
+          afterData: { assigneeId: pending.assigneeId },
+        });
+      }
+
       // Closing a blocker in bulk unblocks people just as closing one singly
       // does (ADR-0046 §6). Not capped by MAX_BULK_NOTIFICATIONS: that cap
       // exists so a 100-issue reassignment does not land as 100 messages to

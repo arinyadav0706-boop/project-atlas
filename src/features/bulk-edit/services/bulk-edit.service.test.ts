@@ -216,6 +216,18 @@ describe("assignee and sprint must belong to the issue's project", () => {
 });
 
 describe("audit and notifications", () => {
+  it("audits a bulk reassignment like a single one (HOME-5)", async () => {
+    issues.findDetail.mockResolvedValue(issue({ assigneeId: "someone" }) as never);
+    await run(["a"], { assigneeId: null });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ISSUE_ASSIGNEE_CHANGED",
+        beforeData: { assigneeId: "someone" },
+        afterData: { assigneeId: null },
+      }),
+    );
+  });
+
   it("audits a bulk status change like a single one (BR-12)", async () => {
     await run(["a"], { statusId: "st-ip" });
     expect(audit.record).toHaveBeenCalledWith(

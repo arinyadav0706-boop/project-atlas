@@ -580,6 +580,20 @@ export const IssueService = {
       );
     }
     await RecentItemService.record(actor, "ISSUE", issueId, "EDITED");
+    // Who reassigned what, when (ADR-0057; HOME-5). Home's activity feed reads
+    // this, and nothing else records it — the automation trigger below fires
+    // and is gone. Compared against `existing` for the same reason as triggers.
+    if (input.assigneeId !== undefined && input.assigneeId !== existing.assigneeId) {
+      await AuditLogService.record({
+        organizationId: context.organizationId,
+        actorId: actor.userId,
+        action: "ISSUE_ASSIGNEE_CHANGED",
+        entityType: "Issue",
+        entityId: issueId,
+        beforeData: { assigneeId: existing.assigneeId },
+        afterData: { assigneeId: input.assigneeId },
+      });
+    }
     // Notify a newly-assigned user (reassignment to someone else — ADR-0019).
     if (
       input.assigneeId !== undefined &&

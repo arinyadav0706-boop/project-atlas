@@ -406,6 +406,33 @@ describe("update (edit)", () => {
     expect(dto.title).toBe("New");
   });
 
+  it("audits a reassignment with who it moved from and to (HOME-5)", async () => {
+    repo.findDetail.mockResolvedValue(issueRow({ assigneeId: "user-a" }) as never);
+    repo.updateWithVersion.mockResolvedValue(issueRow({ assigneeId: "user-b" }) as never);
+
+    await IssueService.update(actor, "issue-1", { assigneeId: "user-b", expectedVersion: 3 });
+
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ISSUE_ASSIGNEE_CHANGED",
+        entityId: "issue-1",
+        beforeData: { assigneeId: "user-a" },
+        afterData: { assigneeId: "user-b" },
+      }),
+    );
+  });
+
+  it("does not audit a save that re-sends the current assignee", async () => {
+    repo.findDetail.mockResolvedValue(issueRow({ assigneeId: "user-a" }) as never);
+    repo.updateWithVersion.mockResolvedValue(issueRow({ assigneeId: "user-a" }) as never);
+
+    await IssueService.update(actor, "issue-1", { assigneeId: "user-a", expectedVersion: 3 });
+
+    expect(audit.record).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "ISSUE_ASSIGNEE_CHANGED" }),
+    );
+  });
+
   it("rejects a stale edit (lost update) with a conflict (ADR-0011)", async () => {
     repo.findDetail.mockResolvedValue(issueRow() as never);
     repo.updateWithVersion.mockResolvedValue(null as never);
