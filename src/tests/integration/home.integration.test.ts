@@ -4,6 +4,7 @@ import { HomeService } from "@/features/home/services/home.service";
 import { RecentItemService } from "@/features/home/services/recent-item.service";
 import { FavoriteService } from "@/features/home/services/favorite.service";
 import { IssueService } from "@/features/issues/services/issue.service";
+import { CommentService } from "@/features/comments/services/comment.service";
 import type { Actor } from "@/shared/types/actor";
 import { createProjectWithStatuses, statusFor } from "./helpers/workflow";
 
@@ -194,5 +195,116 @@ describe("Your focus (BR-11)", () => {
     const ids = await HomeService.memberProjectIds(actor);
     const { items } = await HomeService.focus(actor, ids);
     expect(items.map((i) => i.title)).toEqual(["due in two days", "high, no date", "low, no date"]);
+  });
+});
+
+// A second member of p1, so there is somebody other than "me" to act.
+async function colleague(org: { id: string }, projectId: string) {
+  const user = await prisma.user.create({
+    data: { organizationId: org.id, email: "colleague@example.com", name: "Colleague" },
+  });
+  await prisma.projectMember.create({ data: { projectId, userId: user.id, role: "MEMBER" } });
+  const actor: Actor = { userId: user.id, orgRole: "MEMBER", organizationId: org.id };
+  return { user, actor };
+}
+
+describe("Recent activity (BR-14)", () => {
+  it("shows what others did to my issues, from real events, and nothing I did", async () => {
+    const { org, actor, user, p1 } = await seed();
+    const other = await colleague(org, p1.id);
+    const mine = await assignIssue(p1.id, user.id, "mine");
+    const notMine = await assignIssue(p1.id, other.user.id, "theirs");
+    await prisma.issue.update({ where: { id: notMine.id }, data: { reporterId: other.user.id } });
+    const toBeMine = await assignIssue(p1.id, other.user.id, "handed to me");
+
+    await CommentService.create(other.actor, mine.id, { body: "Looks good to me" });
+    await CommentService.create(actor, mine.id, { body: "my own note" });
+    await CommentService.create(other.actor, notMine.id, { body: "not about my work" });
+    await IssueService.transition(other.actor, mine.id, await statusFor(p1.id, "IN_PROGRESS"), mine.version);
+    await IssueService.update(other.actor, toBeMine.id, {
+      assigneeId: user.id,
+      expectedVersion: toBeMine.version,
+    });
+
+    const ids = await HomeService.memberProjectIds(actor);
+    const { items } = await HomeService.activity(actor, ids);
+    const kinds = items.map((i) => i.kind).sort();
+    expect(kinds).toEqual(["ASSIGNMENT", "COMMENT", "STATUS"]);
+    expect(items.every((i) => i.actor?.id === other.user.id)).toBe(true);
+    const assignment = items.find((i) => i.kind === "ASSIGNMENT");
+    expect(assignment?.kind === "ASSIGNMENT" && assignment.toMe).toBe(true);
+    const status = items.find((i) => i.kind === "STATUS");
+    expect(status?.kind === "STATUS" && status.status).toBe("In Progress");
+
+    const onlyComments = await HomeService.activity(actor, ids, "comments");
+    expect(onlyComments.items.map((i) => i.kind)).toEqual(["COMMENT"]);
+  });
+});
+
+describe("My Work tabs (BR-13)", () => {
+  it("lists issues where someone @mentioned me, even when not assigned to me", async () => {
+    const { org, actor, user, p1 } = await seed();
+    const other = await colleague(org, p1.id);
+    const issue = await assignIssue(p1.id, other.user.id, "needs my eyes");
+    await CommentService.create(other.actor, issue.id, {
+      body: `@[${user.name}](user:${user.id}) can you check this?`,
+    });
+
+    const ids = await HomeService.memberProjectIds(actor);
+    const { items } = await HomeService.workTab(actor, ids, "mentioned");
+    expect(items.map((i) => i.title)).toEqual(["needs my eyes"]);
+  });
+
+  it("lists open issues I reported", async () => {
+    const { actor, user, p1 } = await seed();
+    await assignIssue(p1.id, user.id, "reported and assigned");
+    const ids = await HomeService.memberProjectIds(actor);
+    const { items } = await HomeService.workTab(actor, ids, "reported");
+    expect(items.map((i) => i.title)).toEqual(["reported and assigned"]);
+  });
+});
+
+describe("Project card stats (BR-15)", () => {
+  it("counts issues, done, active sprints and members per project", async () => {
+    const { actor, user, p1 } = await seed();
+    await assignIssue(p1.id, user.id, "open one");
+    const done = await assignIssue(p1.id, user.id, "done one");
+    await prisma.issue.update({
+      where: { id: done.id },
+      data: { status: "DONE", statusId: await statusFor(p1.id, "DONE") },
+    });
+    await prisma.sprint.create({ data: { projectId: p1.id, name: "S1", status: "ACTIVE" } });
+    await prisma.sprint.create({ data: { projectId: p1.id, name: "S2", status: "PLANNED" } });
+    await FavoriteService.starProject(actor, p1.id);
+
+    const { starredProjects } = await HomeService.projectStrip(actor);
+    expect(starredProjects[0]!.stats).toEqual({
+      issueCount: 2,
+      doneCount: 1,
+      activeSprints: 1,
+      memberCount: 1,
+    });
+  });
+});
+
+describe("Upcoming (BR-16)", () => {
+  it("merges my due dates with sprint boundaries in my projects only", async () => {
+    const { actor, user, p1, p3 } = await seed();
+    const day = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+    const due = await assignIssue(p1.id, user.id, "due in 3 days");
+    await prisma.issue.update({ where: { id: due.id }, data: { dueDate: day(3) } });
+    await prisma.sprint.create({
+      data: { projectId: p1.id, name: "Ending", status: "ACTIVE", startDate: day(-10), endDate: day(1) },
+    });
+    await prisma.sprint.create({
+      data: { projectId: p1.id, name: "Starting", status: "PLANNED", startDate: day(5) },
+    });
+    await prisma.sprint.create({
+      data: { projectId: p3.id, name: "Not my project", status: "PLANNED", startDate: day(2) },
+    });
+
+    const ids = await HomeService.memberProjectIds(actor);
+    const items = await HomeService.upcoming(actor, ids);
+    expect(items.map((i) => i.title)).toEqual(["Ending", "due in 3 days", "Starting"]);
   });
 });

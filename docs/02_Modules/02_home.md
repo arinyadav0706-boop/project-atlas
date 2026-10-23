@@ -1,6 +1,6 @@
 # Module: Home
 
-**Status:** v3.0 (personal work dashboard; phase 1 in build) · **Owner:** Founding CTO · **Last Updated:** 2026-10-23
+**Status:** v3.1 (personal work dashboard; phases 1–2 built, Quick actions pending) · **Owner:** Founding CTO · **Last Updated:** 2026-10-23
 · **Decisions:** ADR-0057 (nine-panel personal dashboard; supersedes ADR-0012's frozen section set), ADR-0012 (unified attention model, still in force)
 · **Supersedes:** the "Dashboard" concept (renamed — see §Naming)
 
@@ -36,7 +36,7 @@ never by adding a box.
 | # | Panel | Phase | Data |
 |---|---|---|---|
 | 1 | **Summary**: open, due this week, in progress (+ in review), blocked, completed (30 days) | 1 | `Issue`, `IssueLink`, `AuditLog` (BR-10) |
-| 2 | **My Work**: Assigned to me (phase 1); Created by me, Mentioned (phase 2) | 1 / 2 | `Issue`, `CommentMention` |
+| 2 | **My Work**: Assigned to me (phase 1); Reported by me, Mentioned (phase 2) | 1 / 2 | `Issue`, `CommentMention` |
 | 3 | **Needs your attention**: the unified `AttentionSource` stream (BR-2) | 1 | existing sources |
 | 4 | **Your focus**: due soon first, then my highest-priority open work (BR-11). Absorbs "Due soon" | 1 | `Issue` |
 | 5 | **Projects**: starred + recent (BR-5); progress and active-sprint counts in phase 2 | 1 / 2 | `Favorite`, `RecentItem`, `Project`, `Sprint` |
@@ -122,6 +122,44 @@ never by adding a box.
 - **BR-11 (Your focus):** my open issues due within 7 days or overdue, soonest
   first; then my highest-priority open issues without a near due date, to fill
   the panel. Bounded (~5). No goal ring or meetings (BR-12).
+- **BR-13 (My Work tabs):** selected by the `work` URL parameter, so a tab is
+  linkable and survives a reload.
+  - *Assigned to me* (default): BR-1.
+  - *Reported by me*: open issues whose `reporterId` is me, same order as BR-1.
+    No "View all": `IssueFilter` has no reporter facet, and a link that lands
+    on a different question breaks BR-9.
+  - *Mentioned*: open issues with a non-deleted comment that mentions me
+    (`CommentMention`), most recent mention first. No "View all", for the same
+    reason.
+- **BR-14 (Recent activity):** what other people did to my work in the last 14
+  days, newest first, capped at 10 (BR-8). "My work" means non-deleted issues
+  in my member projects where I am the assignee or the reporter. The candidate
+  set is the 500 most recently updated of them, which keeps every read bounded.
+  Three event kinds:
+  - *Comment*: a non-deleted comment on one of those issues, from the
+    `Comment` table, with a plain-text excerpt. A comment a rule posted shows
+    as "An automation".
+  - *Status change*: an `ISSUE_STATUS_CHANGED` audit row, showing the new
+    status's name.
+  - *Assignment*: an `ISSUE_ASSIGNEE_CHANGED` audit row (recorded since
+    2026-10-23, HOME-5).
+
+  My own actions are excluded. Tabs (All, Comments, Status changes,
+  Assignments) are selected by the `activity` URL parameter.
+- **BR-15 (Project cards):** each strip project shows total non-deleted issues,
+  % done (DONE-category issues ÷ total), active sprints and member count. These
+  come from three grouped queries no matter how many cards there are, never
+  one query per card.
+- **BR-16 (Upcoming):** the next 14 days, in date order, capped at 6: due dates
+  of my open issues, plus start dates of PLANNED sprints and end dates of ACTIVE
+  sprints in my member projects. No meetings (BR-12).
+- **BR-17 (Workload panel):** my own queue, using the Workload module's
+  definitions: remaining effort ÷ weekly capacity, the same status bands, and
+  unestimated issues counted but never guessed. Home shows **no team
+  comparison**. Workload only lets team managers and admins see other people's
+  load (Workload BR-8), and a team median on everyone's Home would leak that
+  through the back door. People who can open the Workload page get a link to
+  it.
 - **BR-12 (Real data or nothing):** no element on Home ships with sample,
   estimated or decorative values. An element whose data does not exist is left
   out (see "Mockup elements we cannot back yet"), never imitated.
@@ -172,9 +210,19 @@ No changes to existing entities.
     attention: HomeList<AttentionItemDto>
     continueWorking: IssueListItemDto[]
     focus: HomeList<IssueListItemDto>     // Your focus (BR-11); replaces dueSoon
-    starredProjects: HomeProjectDto[]
+    activity: HomeList<ActivityItemDto>   // BR-14, default tab
+    upcoming: UpcomingItemDto[]           // BR-16
+    workload: PersonalWorkloadDto         // BR-17
+    starredProjects: HomeProjectDto[]     // each with stats (BR-15)
     recentProjects: HomeProjectDto[]
   }
+  ActivityItemDto = { id, kind: COMMENT | STATUS | ASSIGNMENT, occurredAt,
+    occurredAgo, actor | null, issue { id, key, title, projectId }, href }
+    + excerpt (COMMENT) | status (STATUS) | assignee, toMe (ASSIGNMENT)
+  UpcomingItemDto = { id, kind: DUE | SPRINT_START | SPRINT_END, date, title,
+    context, href }
+  PersonalWorkloadDto = { openIssues, unestimated, remainingMinutes,
+    weeksOfWork, status, workingWeek, truncated, canViewTeam }
   HomeSummaryDto {
     open: number; dueThisWeek: number; inProgress: number;
     inReview: number; blocked: number; completedLast30Days: number
@@ -193,12 +241,14 @@ See `docs/04_API/openapi.yaml`.
 Layout follows the management-approved mockup (design canvas "0 · Home"). A
 greeting header with today's date, then the Summary row; below it a main
 column (My Work beside Needs your attention, then Projects, then Recent
-activity beside Workload) and a right rail (Your focus, Upcoming, Quick
-actions). Below about 1100px the rail drops under the main column, and side-by-side
+activity beside Workload) and a right rail (Your focus, Upcoming, Continue
+working; Quick actions once built). Below about 1100px the rail drops under the main column, and side-by-side
 pairs stack. **Each panel is its own streamed `<Suspense>` boundary** (the
 Performance doc pattern). Every list is bounded, with a "View all" link to the
-page that answers the same question (BR-9). Phase 1 renders panels 1–5 plus
-Continue working. Later panels appear only when their data exists (BR-12).
+page that answers the same question (BR-9). Panels 1–8 and Continue working
+render today. Quick actions waits on HOME-9. Panel tabs are links that change
+one URL parameter each (`work`, `activity`), so switching one panel never
+resets another.
 `/dashboard` redirects to `/home`.
 
 ## Acceptance Criteria
@@ -236,10 +286,11 @@ can see. All reads are org/membership-scoped server-side (BR-7). Bounds
 
 ## Future Scope
 
-- **Phase 2 (ADR-0057):** Created by me / Mentioned tabs; Recent activity from
-  `AuditLog`; `ISSUE_ASSIGNEE_CHANGED` auditing; project progress and sprint
-  counts; personal Workload panel; Upcoming from due dates and sprints; Quick
-  actions with permission checks (needs the project-create check).
+- **Phase 2 (ADR-0057):** built 2026-10-23: Reported by me / Mentioned tabs,
+  Recent activity, `ISSUE_ASSIGNEE_CHANGED` auditing, project card stats,
+  personal Workload panel, Upcoming. Still open: Quick actions (HOME-9), which
+  needs a project-agnostic Create issue flow and the project-create permission
+  decision.
 - **Phase 3 (each its own ADR):** trend arrows, calendar meetings, goals, PR
   review requests, focus mode.
 

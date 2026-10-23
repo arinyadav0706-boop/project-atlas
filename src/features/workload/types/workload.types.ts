@@ -150,3 +150,18 @@ export interface WorkloadIssueDto {
   remainingMinutes: number;
   dueDate: string | null;
 }
+
+// One person's own queue (Home's Workload panel, 02_home.md BR-17). Same
+// definitions as a row of the team view; no colleague is ever in it.
+export interface PersonalWorkloadDto {
+  openIssues: number;
+  unestimated: number;
+  remainingMinutes: number;
+  weeksOfWork: number;
+  status: WorkloadStatus;
+  workingWeek: WorkingWeekDto;
+  /** More open issues than the read covers; the totals are a floor. */
+  truncated: boolean;
+  /** The caller may open the team Workload page (manages a team, or admin). */
+  canViewTeam: boolean;
+}

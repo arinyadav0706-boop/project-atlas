@@ -92,6 +92,22 @@ export const WorkloadRepository = {
     });
   },
 
+  // Home's personal panel: just enough of one person's open issues to total
+  // their remaining effort.
+  openEstimatesForUser(userId: string, organizationId: string, take: number) {
+    return prisma.issue.findMany({
+      where: {
+        assigneeId: userId,
+        status: { not: "DONE" },
+        deletedAt: null,
+        project: { organizationId, deletedAt: null },
+      },
+      select: { id: true, estimateMinutes: true },
+      orderBy: { id: "asc" },
+      take,
+    });
+  },
+
   // The person drill-in (BR-11): their open issues with project context.
   openIssuesForUserDetailed(userId: string, organizationId: string, take: number) {
     return prisma.issue.findMany({

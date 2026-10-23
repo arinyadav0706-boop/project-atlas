@@ -3578,12 +3578,106 @@ components:
         focus:
           allOf: [{ $ref: "#/components/schemas/HomeIssueList" }]
           description: Due within 7 days or overdue first, then open work by priority (BR-11).
+        activity:
+          type: object
+          description: Recent activity on my issues, last 14 days, default tab (BR-14).
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/HomeActivityItem" }
+            truncated: { type: boolean }
+        upcoming:
+          type: array
+          description: My due dates and sprint boundaries, next 14 days, at most 6 (BR-16).
+          items: { $ref: "#/components/schemas/HomeUpcomingItem" }
+        workload: { $ref: "#/components/schemas/PersonalWorkload" }
         starredProjects:
           type: array
-          items: { $ref: "#/components/schemas/Project" }
+          items: { $ref: "#/components/schemas/HomeProject" }
         recentProjects:
           type: array
-          items: { $ref: "#/components/schemas/Project" }
+          items: { $ref: "#/components/schemas/HomeProject" }
+
+    HomeProject:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        starred: { type: boolean }
+        stats:
+          type: object
+          description: BR-15. Progress is doneCount ÷ issueCount.
+          properties:
+            issueCount: { type: integer }
+            doneCount: { type: integer }
+            activeSprints: { type: integer }
+            memberCount: { type: integer }
+
+    HomeActivityItem:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [COMMENT, STATUS, ASSIGNMENT] }
+        occurredAt: { type: string, format: date-time }
+        occurredAgo: { type: string, example: 3h ago }
+        actor:
+          type: object
+          nullable: true
+          description: Null for a rule's comment or a removed actor.
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
+        issue:
+          type: object
+          properties:
+            id: { type: string }
+            key: { type: string }
+            title: { type: string }
+            projectId: { type: string }
+        href: { type: string }
+        excerpt: { type: string, description: COMMENT only. }
+        status: { type: string, description: STATUS only — the new status's name. }
+        assignee:
+          type: object
+          nullable: true
+          description: ASSIGNMENT only; null means unassigned.
+          properties:
+            id: { type: string }
+            name: { type: string }
+            avatarUrl: { type: string, nullable: true }
+        toMe: { type: boolean, description: ASSIGNMENT only. }
+
+    HomeUpcomingItem:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [DUE, SPRINT_START, SPRINT_END] }
+        date: { type: string, format: date-time }
+        title: { type: string }
+        context: { type: string, description: Issue key or project name. }
+        href: { type: string }
+
+    PersonalWorkload:
+      type: object
+      description: The caller's own queue, by Workload's definitions; never anyone else's (BR-17).
+      properties:
+        openIssues: { type: integer }
+        unestimated: { type: integer }
+        remainingMinutes: { type: integer }
+        weeksOfWork: { type: number }
+        status: { type: string, enum: [IDLE, LIGHT, BALANCED, OVERLOADED] }
+        workingWeek:
+          type: object
+          properties:
+            minutesPerDay: { type: integer }
+            daysPerWeek: { type: integer }
+            weeklyMinutes: { type: integer }
+            label: { type: string }
+        truncated: { type: boolean }
+        canViewTeam: { type: boolean }
 
     HomeIssueList:
       type: object

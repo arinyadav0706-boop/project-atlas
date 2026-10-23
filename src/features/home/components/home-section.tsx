@@ -18,6 +18,7 @@ export function HomeSection({
   countLabel,
   countTruncated,
   viewAll,
+  action,
   children,
   className,
 }: {
@@ -29,6 +30,8 @@ export function HomeSection({
   /** The list is capped and there are more — renders "10+". */
   countTruncated?: boolean;
   viewAll?: { href: string; label?: string };
+  /** Header control left of "View all" — Home uses it for panel tabs. */
+  action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -40,6 +43,7 @@ export function HomeSection({
       countLabel={countLabel}
       countTruncated={countTruncated}
       link={viewAll}
+      action={action}
       className={className}
     >
       {children}

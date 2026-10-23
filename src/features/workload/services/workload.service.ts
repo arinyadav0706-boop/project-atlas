@@ -16,6 +16,7 @@ import { distributeAcrossWeeks } from "@/features/scheduling/lib/distribute";
 import { resolveWindow } from "@/features/scheduling/lib/resolve-window";
 import { buildHorizon, formatWeekLabel, startOfUtcWeek } from "@/features/scheduling/lib/weeks";
 import type {
+  PersonalWorkloadDto,
   WorkloadDto,
   WorkloadGridCellDto,
   WorkloadGridDto,
@@ -32,6 +33,9 @@ import type {
 // (BR-8).
 
 const DRILL_IN_LIMIT = 50;
+// A safety bound on one person's open issues; above it Home says the totals
+// are a floor rather than reading an unbounded list.
+const MY_QUEUE_CAP = 500;
 
 // Four week columns, fixed (ADR-0035 §3). Twelve would be quarter-planning
 // nobody has asked for, on a page that is already dense.
@@ -471,6 +475,36 @@ export const WorkloadService = {
         };
       })
       .sort((a, b) => b.remainingMinutes - a.remainingMinutes);
+  },
+
+  // The caller's own queue, for Home (02_home.md BR-17). Always allowed — it is
+  // their own work — and never includes anyone else, so it needs no scope check.
+  async getMyQueue(actor: Actor): Promise<PersonalWorkloadDto> {
+    const [week, issues, scope] = await Promise.all([
+      workingWeekFor(actor.organizationId),
+      WorkloadRepository.openEstimatesForUser(actor.userId, actor.organizationId, MY_QUEUE_CAP + 1),
+      resolveScope(actor),
+    ]);
+    const counted = issues.slice(0, MY_QUEUE_CAP);
+    const grouped = counted.length
+      ? await WorkloadRepository.loggedByIssue(counted.map((i) => i.id))
+      : [];
+    const logged = new Map(grouped.map((g) => [g.issueId, g._sum.minutes ?? 0]));
+    const remaining = counted.reduce(
+      (sum, i) => sum + remainingMinutes(i.estimateMinutes, logged.get(i.id) ?? 0),
+      0,
+    );
+    const weeks = weeksOfWork(remaining, weeklyCapacityMinutes(week));
+    return {
+      openIssues: counted.length,
+      unestimated: counted.filter((i) => i.estimateMinutes === null).length,
+      remainingMinutes: remaining,
+      weeksOfWork: weeks,
+      status: workloadStatus(weeks, counted.length),
+      workingWeek: toWorkingWeekDto(week),
+      truncated: issues.length > MY_QUEUE_CAP,
+      canViewTeam: scope === null || scope.length > 0,
+    };
   },
 
   // A caller may see a person only if that person is a direct member of a team

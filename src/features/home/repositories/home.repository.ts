@@ -148,6 +148,176 @@ export const HomeRepository = {
     return rows.length;
   },
 
+  // BR-13 "Reported by me": the BR-1 query, keyed on the reporter.
+  myReported(projectIds: string[], userId: string, take: number) {
+    return prisma.issue.findMany({
+      where: {
+        projectId: { in: projectIds },
+        reporterId: userId,
+        deletedAt: null,
+        status: { not: "DONE" },
+      },
+      select: issueCardSelect,
+      orderBy: [
+        { dueDate: { sort: "asc", nulls: "last" } },
+        { priority: "desc" },
+        { updatedAt: "desc" },
+        { id: "asc" },
+      ],
+      take,
+    });
+  },
+
+  // BR-13 "Mentioned": issue ids in most-recent-mention order, possibly
+  // repeated (several mentions on one issue). The service dedupes; `take` is
+  // the number of mentions read, not issues.
+  async mentionedIssueIds(projectIds: string[], userId: string, take: number) {
+    const rows = await prisma.commentMention.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        comment: {
+          deletedAt: null,
+          issue: { projectId: { in: projectIds }, deletedAt: null, status: { not: "DONE" } },
+        },
+      },
+      select: { comment: { select: { issueId: true } } },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take,
+    });
+    return rows.map((r) => r.comment.issueId);
+  },
+
+  // BR-14: the issues whose activity is "about my work" — assigned to me or
+  // reported by me — most recently touched first, capped so the event reads
+  // below always get a bounded IN list.
+  activityCandidates(projectIds: string[], userId: string, take: number) {
+    return prisma.issue.findMany({
+      where: {
+        projectId: { in: projectIds },
+        deletedAt: null,
+        OR: [{ assigneeId: userId }, { reporterId: userId }],
+      },
+      select: { id: true, key: true, title: true, projectId: true },
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      take,
+    });
+  },
+
+  // BR-14 comments: everyone's but mine. A rule's comment has no author, and
+  // `authorId <> me` alone would drop it (SQL NULL never compares unequal).
+  recentComments(issueIds: string[], userId: string, since: Date, take: number) {
+    return prisma.comment.findMany({
+      where: {
+        issueId: { in: issueIds },
+        deletedAt: null,
+        createdAt: { gte: since },
+        OR: [{ authorId: null }, { authorId: { not: userId } }],
+      },
+      select: {
+        id: true,
+        issueId: true,
+        body: true,
+        createdAt: true,
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take,
+    });
+  },
+
+  // BR-14 status changes and reassignments, from the audit trail.
+  recentIssueEvents(
+    issueIds: string[],
+    userId: string,
+    since: Date,
+    actions: ("ISSUE_STATUS_CHANGED" | "ISSUE_ASSIGNEE_CHANGED")[],
+    take: number,
+  ) {
+    return prisma.auditLog.findMany({
+      where: {
+        entityType: "Issue",
+        action: { in: actions },
+        entityId: { in: issueIds },
+        createdAt: { gte: since },
+        OR: [{ actorId: null }, { actorId: { not: userId } }],
+      },
+      select: { id: true, action: true, entityId: true, actorId: true, afterData: true, createdAt: true },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take,
+    });
+  },
+
+  usersByIds(ids: string[], organizationId: string) {
+    return prisma.user.findMany({
+      where: { id: { in: ids }, organizationId },
+      select: { id: true, name: true, avatarUrl: true },
+    });
+  },
+
+  // BR-15: three grouped reads for the whole strip, whatever its length.
+  async projectStats(projectIds: string[]) {
+    const [byStatus, activeSprints, members] = await Promise.all([
+      prisma.issue.groupBy({
+        by: ["projectId", "status"],
+        where: { projectId: { in: projectIds }, deletedAt: null },
+        _count: { _all: true },
+      }),
+      prisma.sprint.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projectIds }, status: "ACTIVE", deletedAt: null },
+        _count: { _all: true },
+      }),
+      prisma.projectMember.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projectIds }, deletedAt: null },
+        _count: { _all: true },
+      }),
+    ]);
+    return { byStatus, activeSprints, members };
+  },
+
+  // BR-16: my open issues due between now and the end of the window.
+  upcomingDue(projectIds: string[], userId: string, from: Date, to: Date, take: number) {
+    return prisma.issue.findMany({
+      where: {
+        projectId: { in: projectIds },
+        assigneeId: userId,
+        deletedAt: null,
+        status: { not: "DONE" },
+        dueDate: { gte: from, lte: to },
+      },
+      select: { id: true, key: true, title: true, projectId: true, dueDate: true },
+      orderBy: [{ dueDate: "asc" }, { id: "asc" }],
+      take,
+    });
+  },
+
+  // BR-16: sprints starting (planned) or ending (active) inside the window.
+  upcomingSprints(projectIds: string[], from: Date, to: Date, take: number) {
+    return prisma.sprint.findMany({
+      where: {
+        projectId: { in: projectIds },
+        deletedAt: null,
+        project: { deletedAt: null },
+        OR: [
+          { status: "PLANNED", startDate: { gte: from, lte: to } },
+          { status: "ACTIVE", endDate: { gte: from, lte: to } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        project: { select: { id: true, key: true, name: true } },
+      },
+      orderBy: [{ startDate: "asc" }, { id: "asc" }],
+      take,
+    });
+  },
+
   // Live issues for "Continue working" candidate ids, scoped + not done. Order
   // is re-applied by the engagement score in the service.
   issuesByIds(ids: string[], projectIds: string[]) {

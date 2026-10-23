@@ -6,10 +6,11 @@ import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection } from "@/features/home/components/home-section";
 import { StarButton } from "@/features/home/components/star-button";
 import type { Actor } from "@/shared/types/actor";
-import type { HomeProjectDto } from "@/features/home/types/home.types";
+import type { HomeProjectDto, HomeProjectStatsDto } from "@/features/home/types/home.types";
 
 // Personal navigation strip — starred (explicit) then recent (implicit). NOT
 // the catalog (that's the Projects module). Always shows a path to Projects.
+// Each card carries the BR-15 figures: issues, active sprints, members, % done.
 export async function ProjectStripSection({ actor }: { actor: Actor }) {
   const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
   const projects = [...starredProjects, ...recentProjects];
@@ -79,6 +80,7 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         <span className="mt-0.5 line-clamp-1 block text-meta leading-snug text-muted-foreground">
           {project.description || "No description"}
         </span>
+        <ProjectStats stats={project.stats} />
         {/* Covers the card so the whole tile is clickable, while the star stays
             above it in stacking order. */}
         <span className="absolute inset-0" aria-hidden />
@@ -90,5 +92,30 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         <StarButton projectId={project.id} initialStarred={project.starred} />
       </span>
     </div>
+  );
+}
+
+function ProjectStats({ stats }: { stats: HomeProjectStatsDto }) {
+  // No issues is 0%, not NaN% — and the bar still renders, empty, so cards in a
+  // row keep the same height.
+  const pct = stats.issueCount === 0 ? 0 : Math.round((stats.doneCount / stats.issueCount) * 100);
+  return (
+    <span className="mt-2 block">
+      <span className="block text-meta text-muted-foreground tabular-nums">
+        {stats.issueCount.toLocaleString()} {stats.issueCount === 1 ? "issue" : "issues"} ·{" "}
+        {stats.activeSprints} active {stats.activeSprints === 1 ? "sprint" : "sprints"} ·{" "}
+        {stats.memberCount} {stats.memberCount === 1 ? "member" : "members"}
+      </span>
+      <span className="mt-1.5 flex items-center gap-2">
+        <span
+          className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+          role="img"
+          aria-label={`${pct}% of issues done`}
+        >
+          <span className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="text-meta font-medium tabular-nums text-foreground">{pct}%</span>
+      </span>
+    </span>
   );
 }

@@ -1,4 +1,5 @@
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
+import type { PersonalWorkloadDto } from "@/features/workload/types/workload.types";
 
 // DTOs for the Home landing page (ADR-0057, docs/02_Modules/02_home.md). Home
 // has a CLOSED set of nine panels; future modules feed these, never adding new
@@ -55,6 +56,14 @@ export interface HomeList<T> {
   truncated: boolean;
 }
 
+/** BR-15. `doneCount ÷ issueCount` is the card's progress; zero issues is 0%. */
+export interface HomeProjectStatsDto {
+  issueCount: number;
+  doneCount: number;
+  activeSprints: number;
+  memberCount: number;
+}
+
 // Lean project shape for the Home navigation strip (not the catalog).
 export interface HomeProjectDto {
   id: string;
@@ -63,6 +72,49 @@ export interface HomeProjectDto {
   /** Shown as the tile's second line; null renders a neutral placeholder. */
   description: string | null;
   starred: boolean;
+  stats: HomeProjectStatsDto;
+}
+
+/** BR-13: which list the My Work panel shows, from the `work` URL parameter. */
+export type HomeWorkTab = "assigned" | "reported" | "mentioned";
+
+/** BR-14: which events Recent activity shows, from the `activity` URL parameter. */
+export type HomeActivityTab = "all" | "comments" | "status" | "assignments";
+
+export interface ActivityPersonDto {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+interface ActivityBase {
+  /** Source-namespaced ("comment:<id>", "audit:<id>") for React keys. */
+  id: string;
+  occurredAt: string; // ISO
+  /** "3h ago", decided by the service against one request clock. */
+  occurredAgo: string;
+  /** Null when no person did it — a rule's comment, or an actor since removed. */
+  actor: ActivityPersonDto | null;
+  issue: { id: string; key: string; title: string; projectId: string };
+  href: string;
+}
+
+// One event in Recent activity (BR-14). A union rather than one bag of
+// optional fields, so a status row can never render without its status.
+export type ActivityItemDto =
+  | (ActivityBase & { kind: "COMMENT"; excerpt: string })
+  | (ActivityBase & { kind: "STATUS"; status: string })
+  | (ActivityBase & { kind: "ASSIGNMENT"; assignee: ActivityPersonDto | null; toMe: boolean });
+
+/** BR-16. `date` is a calendar day the reader acts on, ISO. */
+export interface UpcomingItemDto {
+  id: string;
+  kind: "DUE" | "SPRINT_START" | "SPRINT_END";
+  date: string;
+  title: string;
+  /** Issue key or project name — what the date belongs to. */
+  context: string;
+  href: string;
 }
 
 /**
@@ -91,6 +143,9 @@ export interface HomeDto {
   continueWorking: IssueListItemDto[];
   /** Due soon first, then the highest-priority open work (BR-11). */
   focus: HomeList<IssueListItemDto>;
+  activity: HomeList<ActivityItemDto>;
+  upcoming: UpcomingItemDto[];
+  workload: PersonalWorkloadDto;
   starredProjects: HomeProjectDto[];
   recentProjects: HomeProjectDto[];
 }

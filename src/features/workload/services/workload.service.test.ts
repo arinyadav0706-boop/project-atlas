@@ -12,6 +12,7 @@ vi.mock("@/features/workload/repositories/workload.repository", () => ({
     openIssuesForUsers: vi.fn(),
     loggedByIssue: vi.fn(),
     openIssuesForUserDetailed: vi.fn(),
+    openEstimatesForUser: vi.fn(),
   },
 }));
 vi.mock("@/features/teams/services/team.service", () => ({
@@ -559,5 +560,39 @@ describe("time-phased grid (BR-13, ADR-0035)", () => {
     const res = await WorkloadService.getWorkload(manager, undefined, NOW);
     expect(res.grid.weeks).toHaveLength(4);
     expect(res.grid.rows).toEqual([]);
+  });
+});
+
+describe("getMyQueue (Home, 02_home.md BR-17)", () => {
+  it("totals the caller's own remaining effort with the team view's definitions", async () => {
+    // 40h week. 30h + 50h estimated, 10h already logged on the second: 70h left.
+    repo.openEstimatesForUser.mockResolvedValue([
+      { id: "i1", estimateMinutes: 30 * 60 },
+      { id: "i2", estimateMinutes: 50 * 60 },
+      { id: "i3", estimateMinutes: null },
+    ] as never);
+    repo.loggedByIssue.mockResolvedValue([{ issueId: "i2", _sum: { minutes: 10 * 60 } }] as never);
+    teams.getManagedTeamIds.mockResolvedValue([]);
+
+    const q = await WorkloadService.getMyQueue(member);
+    expect(q).toMatchObject({
+      openIssues: 3,
+      unestimated: 1,
+      remainingMinutes: 70 * 60,
+      weeksOfWork: 1.8,
+      status: "BALANCED",
+      truncated: false,
+      canViewTeam: false,
+    });
+    expect(repo.openEstimatesForUser).toHaveBeenCalledWith("u-9", "org-1", expect.any(Number));
+  });
+
+  it("is idle, with no logged-time read, when nothing is open", async () => {
+    repo.openEstimatesForUser.mockResolvedValue([] as never);
+    const q = await WorkloadService.getMyQueue(manager);
+    expect(q.status).toBe("IDLE");
+    expect(repo.loggedByIssue).not.toHaveBeenCalled();
+    // A manager can open the team page; Home links to it.
+    expect(q.canViewTeam).toBe(true);
   });
 });

@@ -38,6 +38,18 @@ it("200 with the composed home payload", async () => {
     attention: { items: [], truncated: false },
     continueWorking: [],
     focus: { items: [], truncated: false },
+    activity: { items: [], truncated: false },
+    upcoming: [],
+    workload: {
+      openIssues: 0,
+      unestimated: 0,
+      remainingMinutes: 0,
+      weeksOfWork: 0,
+      status: "IDLE",
+      workingWeek: { minutesPerDay: 480, daysPerWeek: 5, weeklyMinutes: 2400, label: "8h × 5 days" },
+      truncated: false,
+      canViewTeam: false,
+    },
     starredProjects: [],
     recentProjects: [],
   });

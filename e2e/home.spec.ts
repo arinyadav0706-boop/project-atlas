@@ -32,8 +32,11 @@ test("every section renders, including the ones that are empty", async ({ page }
     "My work",
     "Needs your attention",
     "Your focus",
+    "Upcoming",
     "Continue working",
     "Projects",
+    "Recent activity",
+    "Workload",
   ]) {
     await expect(panel(page, name)).toBeVisible({ timeout: 20000 });
   }
@@ -53,6 +56,22 @@ test("'View all' on My work lands on this person's open issues", async ({ page }
   await expect(page.getByRole("navigation", { name: /pagination/i })).toBeVisible({
     timeout: 20000,
   });
+});
+
+test("a My work tab changes the list and keeps the other panel's tab", async ({ page }) => {
+  await signInAs(page, DEMO_USERS.lead);
+  await page.goto("/home?activity=comments");
+
+  const myWork = panel(page, "My work");
+  await myWork.getByRole("link", { name: "Reported by me" }).click();
+  await expect(page).toHaveURL(/work=reported/, { timeout: 20000 });
+  // Switching one panel must not reset the other.
+  await expect(page).toHaveURL(/activity=comments/);
+  await expect(
+    panel(page, "My work").getByRole("link", { name: "Reported by me" }),
+  ).toHaveAttribute("aria-current", "page");
+  // No "View all" here: there is no list page that answers "reported by me".
+  await expect(panel(page, "My work").getByRole("link", { name: /view all/i })).toHaveCount(0);
 });
 
 test("'View all' on Your focus sorts by due date", async ({ page }) => {
