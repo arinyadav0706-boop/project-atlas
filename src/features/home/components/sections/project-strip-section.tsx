@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/shared/lib/utils";
 import { ArrowRight } from "lucide-react";
-import { FolderOpen } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection } from "@/features/home/components/home-section";
 import { StarButton } from "@/features/home/components/star-button";
@@ -18,11 +17,10 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
   return (
     <HomeSection
       title="Projects"
-      icon={<FolderOpen />}
       viewAll={{ href: "/projects", label: "View all projects" }}
     >
       {projects.length > 0 ? (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(13.5rem,1fr))] gap-3">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -60,7 +58,7 @@ function toneFor(key: string): string {
 
 function ProjectCard({ project }: { project: HomeProjectDto }) {
   return (
-    <div className="group relative flex items-start gap-3 rounded-control border border-border bg-background p-3 transition-shadow hover:shadow-card-hover">
+    <div className="group relative flex items-start gap-3 rounded-[10px] border border-border bg-background p-3.5 transition-colors hover:border-border-strong">
       <span
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-control text-label font-semibold",
@@ -74,7 +72,7 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         href={`/projects/${project.id}/issues`}
         className="min-w-0 flex-1 rounded-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <span className="block truncate text-body font-medium text-foreground">
+        <span className="block truncate text-[14px] font-semibold text-foreground">
           {project.name}
         </span>
         <span className="mt-0.5 line-clamp-1 block text-meta leading-snug text-muted-foreground">
@@ -101,9 +99,11 @@ function ProjectStats({ stats }: { stats: HomeProjectStatsDto }) {
   const pct = stats.issueCount === 0 ? 0 : Math.round((stats.doneCount / stats.issueCount) * 100);
   return (
     <span className="mt-2 block">
-      <span className="block text-meta text-muted-foreground tabular-nums">
+      <span className="block truncate text-[12px] text-muted-foreground tabular-nums">
         {stats.issueCount.toLocaleString()} {stats.issueCount === 1 ? "issue" : "issues"} ·{" "}
-        {stats.activeSprints} active {stats.activeSprints === 1 ? "sprint" : "sprints"} ·{" "}
+        {stats.activeSprints} {stats.activeSprints === 1 ? "sprint" : "sprints"} active
+      </span>
+      <span className="block text-[12px] text-muted-foreground tabular-nums">
         {stats.memberCount} {stats.memberCount === 1 ? "member" : "members"}
       </span>
       <span className="mt-1.5 flex items-center gap-2">

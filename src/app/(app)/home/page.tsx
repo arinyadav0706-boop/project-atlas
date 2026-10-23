@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getActor, getSession } from "@/features/authentication/services/actor.service";
 import { HomeService, parseActivityTab, parseWorkTab } from "@/features/home/services/home.service";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { AppFrame, Workspace, WorkspaceHeader } from "@/shared/components/layout/app-frame";
+import { Sun } from "lucide-react";
+import { AppFrame, Workspace } from "@/shared/components/layout/app-frame";
 import { MyWorkSection } from "@/features/home/components/sections/my-work-section";
 import { AttentionSection } from "@/features/home/components/sections/attention-section";
 import { ContinueWorkingSection } from "@/features/home/components/sections/continue-working-section";
@@ -27,7 +28,7 @@ export default async function HomePage({
 }) {
   const [actor, session, params] = await Promise.all([getActor(), getSession(), searchParams]);
   if (!actor) redirect("/sign-in");
-  const firstName = (session?.user?.name ?? "there").split(" ")[0];
+  const firstName = (session?.user?.name ?? "there").split(" ")[0] ?? "there";
   // One membership query for the whole page; sections receive the scope and
   // stream independently (BR-7).
   const projectIds = await HomeService.memberProjectIds(actor);
@@ -39,75 +40,64 @@ export default async function HomePage({
 
   return (
     <AppFrame>
-      {/* The greeting IS the page title. It used to be a 28px line with a
-          15px sentence under it — 92px of chrome to say hello, on the screen
-          people see most often. The sentence said nothing the panels below do
-          not say better, so it is gone rather than demoted. */}
-      <WorkspaceHeader
-        title={`${greeting()}, ${firstName}`}
-        actions={<span className="text-meta text-muted-foreground">{today()}</span>}
-      />
-
       <Workspace className="p-4">
-        <div className="flex flex-col gap-4">
-          <Suspense fallback={<SummarySkeleton />}>
-            <SummarySection actor={actor} projectIds={projectIds} />
-          </Suspense>
+        {/*
+          Main column + right rail, from the approved reference: the rail runs
+          the full height beside everything, greeting included. It holds the
+          "what next" lists; the main column holds the work itself. Below xl
+          the rail drops under the main column rather than squeezing both.
 
-          {/*
-            Main column + right rail, the approved mockup's arrangement. The rail
-            holds the "what next" lists; the main column holds the work itself.
-            Below xl the rail drops under the main column rather than squeezing
-            both — a 20rem rail beside a 600px column is two cramped lists.
-
-            `items-start` matters: without it the grid stretches every panel in a
-            row to the tallest, so a five-item panel beside a ten-item one grows a
-            large empty area under its last row.
-          */}
-          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="flex min-w-0 flex-col gap-4">
-              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                <Suspense fallback={<SectionSkeleton rows={5} />}>
-                  <MyWorkSection
-                    actor={actor}
-                    projectIds={projectIds}
-                    tab={tabs.work}
-                    hrefFor={workHref}
-                  />
-                </Suspense>
-                <Suspense fallback={<SectionSkeleton rows={5} />}>
-                  <AttentionSection actor={actor} projectIds={projectIds} />
-                </Suspense>
-              </div>
-              <Suspense fallback={<SectionSkeleton rows={3} grid />}>
-                <ProjectStripSection actor={actor} />
-              </Suspense>
-              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                <Suspense fallback={<SectionSkeleton rows={5} />}>
-                  <ActivitySection
-                    actor={actor}
-                    projectIds={projectIds}
-                    tab={tabs.activity}
-                    hrefFor={activityHref}
-                  />
-                </Suspense>
-                <Suspense fallback={<SectionSkeleton rows={3} />}>
-                  <WorkloadSection actor={actor} />
-                </Suspense>
-              </div>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-4">
+          `items-start` matters: without it the grid stretches every panel in a
+          row to the tallest, so a five-item panel beside a ten-item one grows a
+          large empty area under its last row.
+        */}
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem] 2xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <Greeting name={firstName} />
+            <Suspense fallback={<SummarySkeleton />}>
+              <SummarySection actor={actor} projectIds={projectIds} />
+            </Suspense>
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
               <Suspense fallback={<SectionSkeleton rows={5} />}>
-                <FocusSection actor={actor} projectIds={projectIds} />
+                <MyWorkSection
+                  actor={actor}
+                  projectIds={projectIds}
+                  tab={tabs.work}
+                  hrefFor={workHref}
+                />
               </Suspense>
-              <Suspense fallback={<SectionSkeleton rows={4} />}>
-                <UpcomingSection actor={actor} projectIds={projectIds} />
-              </Suspense>
-              <Suspense fallback={<SectionSkeleton rows={4} />}>
-                <ContinueWorkingSection actor={actor} projectIds={projectIds} />
+              <Suspense fallback={<SectionSkeleton rows={5} />}>
+                <AttentionSection actor={actor} projectIds={projectIds} />
               </Suspense>
             </div>
+            <Suspense fallback={<SectionSkeleton rows={3} grid />}>
+              <ProjectStripSection actor={actor} />
+            </Suspense>
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <Suspense fallback={<SectionSkeleton rows={5} />}>
+                <ActivitySection
+                  actor={actor}
+                  projectIds={projectIds}
+                  tab={tabs.activity}
+                  hrefFor={activityHref}
+                />
+              </Suspense>
+              <Suspense fallback={<SectionSkeleton rows={3} />}>
+                <WorkloadSection actor={actor} />
+              </Suspense>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-4">
+            <Suspense fallback={<SectionSkeleton rows={5} />}>
+              <FocusSection actor={actor} projectIds={projectIds} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton rows={4} />}>
+              <UpcomingSection actor={actor} projectIds={projectIds} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton rows={4} />}>
+              <ContinueWorkingSection actor={actor} projectIds={projectIds} />
+            </Suspense>
           </div>
         </div>
       </Workspace>
@@ -132,6 +122,33 @@ function greeting(): string {
   return "Good evening";
 }
 
+/**
+ * The page's title block, as in the approved reference: a prominent greeting
+ * with a quiet line under it, and the date opposite. It replaces the compact
+ * 44px WorkspaceHeader the other pages use, on Home only (ADR-0057).
+ */
+function Greeting({ name }: { name: string }) {
+  return (
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+      <span
+        aria-hidden
+        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
+      >
+        <Sun className="size-6" strokeWidth={1.8} />
+      </span>
+      <div className="min-w-0">
+        <h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em] text-foreground">
+          {`${greeting()}, ${name}`}
+        </h1>
+        <p className="text-[15px] leading-5 text-muted-foreground">
+          Here&apos;s what&apos;s happening with your work today.
+        </p>
+      </div>
+      <p className="ml-auto self-start pt-1 text-[13px] text-muted-foreground">{today()}</p>
+    </header>
+  );
+}
+
 /** `/home` with only the non-default tabs in the query, so the plain URL stays plain. */
 function homeHref(tabs: { work: HomeWorkTab; activity: HomeActivityTab }): string {
   const query = new URLSearchParams();
@@ -143,10 +160,10 @@ function homeHref(tabs: { work: HomeWorkTab; activity: HomeActivityTab }): strin
 
 /** Today's date for the header, from the same server clock as greeting(). */
 function today(): string {
-  return new Date().toLocaleDateString("en-GB", {
+  return new Date().toLocaleDateString("en-US", {
     weekday: "short",
-    day: "numeric",
     month: "short",
+    day: "numeric",
     year: "numeric",
   });
 }
@@ -154,9 +171,9 @@ function today(): string {
 // Same grid and tile height as SummarySection, so streaming in shifts nothing.
 function SummarySkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-28 rounded-2xl" />
+        <Skeleton key={i} className="h-[98px] rounded-panel" />
       ))}
     </div>
   );

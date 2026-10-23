@@ -1,7 +1,12 @@
 import { ListChecks } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
-import { HomeIssueList } from "@/features/home/components/home-issue-row";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
+import { IssueTypeIcon } from "@/features/issues/components/issue-meta";
+import { PriorityPill, StatusPill } from "@/features/home/components/issue-pills";
+import { cn } from "@/shared/lib/utils";
+import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 import { PanelTabs } from "@/features/home/components/panel-tabs";
 import type { Actor } from "@/shared/types/actor";
 import type { HomeWorkTab } from "@/features/home/types/home.types";
@@ -45,11 +50,11 @@ export async function MyWorkSection({
   return (
     <HomeSection
       title="My work"
-      icon={<ListChecks />}
+      // A bare "10+": the tabs and the link share this header, and the noun is
+      // in the title already.
       count={items.length}
-      countLabel="open issue"
       countTruncated={truncated}
-      action={
+      tabs={
         <PanelTabs
           label="My work views"
           tabs={TABS.map((t) => ({
@@ -72,7 +77,7 @@ export async function MyWorkSection({
       }
     >
       {items.length > 0 ? (
-        <HomeIssueList items={items} />
+        <MyWorkTable items={items} showAssignee={tab !== "assigned"} />
       ) : (
         <HomeEmpty icon={<ListChecks />} title={EMPTY[tab].title}>
           {EMPTY[tab].body}
@@ -80,4 +85,90 @@ export async function MyWorkSection({
       )}
     </HomeSection>
   );
+}
+
+// Column tracks shared by the header and every row, so the columns line up.
+const COLUMNS = "grid-cols-[minmax(0,1fr)_92px_88px_60px]";
+const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_92px_88px_60px_24px]";
+
+/**
+ * My work as a table, as in the approved reference: Issue · Status · Priority ·
+ * Due. Not `DataTable` — ten rows in a half-width panel, no sorting, no paging.
+ * No row checkboxes: Home has no bulk action, and a checkbox that selects
+ * nothing is decoration.
+ */
+function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showAssignee: boolean }) {
+  const columns = showAssignee ? COLUMNS_WITH_ASSIGNEE : COLUMNS;
+  return (
+    <div role="table" aria-label="My work" className="-mx-2">
+      <div
+        role="row"
+        className={cn(
+          "grid h-8 items-center gap-3 border-y border-border-subtle bg-surface px-4 text-[12px] font-medium text-muted-foreground",
+          columns,
+        )}
+      >
+        <span role="columnheader">Issue</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader">Priority</span>
+        <span role="columnheader" className="text-right">
+          Due
+        </span>
+        {showAssignee && <span role="columnheader" className="sr-only">Assignee</span>}
+      </div>
+      {items.map((item) => (
+        <Link
+          key={item.id}
+          role="row"
+          href={`/projects/${item.projectId}/issues/${item.id}`}
+          className={cn(
+            "grid h-[38px] items-center gap-3 border-b border-border-subtle px-4 transition-colors last:border-b-0 hover:bg-muted",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus",
+            columns,
+          )}
+        >
+          <span role="cell" className="flex min-w-0 items-center gap-2">
+            <IssueTypeIcon type={item.type} className="size-3.5 shrink-0" />
+            <span className="shrink-0 text-[12px] font-medium text-accent">{item.key}</span>
+            <span className="min-w-0 truncate text-[13px] text-foreground">{item.title}</span>
+          </span>
+          <span role="cell" className="flex items-center">
+            <StatusPill status={item.status} />
+          </span>
+          <span role="cell" className="flex items-center">
+            <PriorityPill priority={item.priority} />
+          </span>
+          <span
+            role="cell"
+            className={cn(
+              "text-right text-[12px] tabular-nums whitespace-nowrap",
+              // Overdue is decided by the service against one request clock.
+              item.dueOverdue ? "font-medium text-destructive" : "text-foreground/80",
+            )}
+          >
+            {item.dueDate ? formatDue(item.dueDate) : "—"}
+          </span>
+          {showAssignee && (
+            <span role="cell">
+              {item.assignee ? (
+                <Avatar className="size-6" title={item.assignee.name}>
+                  {item.assignee.avatarUrl && <AvatarImage src={item.assignee.avatarUrl} alt="" />}
+                  <AvatarFallback className="text-micro">
+                    {item.assignee.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <span className="sr-only">Unassigned</span>
+              )}
+            </span>
+          )}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// A due date is a day: label it in UTC, the calendar the rest of the app uses.
+function formatDue(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 }

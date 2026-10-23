@@ -95,7 +95,8 @@ test("a capped section says so rather than reporting the cap as the total", asyn
   await signInAs(page, DEMO_USERS.lead);
   await openHome(page);
 
-  const badge = panel(page, "My work").getByText(/^\d+\+? open issues?$/);
+  // A bare "10" / "10+" since the tabs moved into this header.
+  const badge = panel(page, "My work").getByText(/^\d+\+?$/);
   await expect(badge).toBeVisible({ timeout: 20000 });
 
   const text = await badge.innerText();

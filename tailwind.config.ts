@@ -71,7 +71,9 @@ const config: Config = {
         // primitives; the old names are migrated page by page after the gate.
         chip: "4px",
         control: "6px",
-        panel: "8px",
+        // 12, matching the approved Home reference (ADR-0057). Panels only;
+        // controls stay at 6 so a button never looks like a card.
+        panel: "12px",
       },
       // Semantic type scale (§E3). Six roles, replacing the nine ad-hoc sizes
       // measured on a single page.

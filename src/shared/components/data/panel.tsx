@@ -23,6 +23,7 @@ export function Panel({
   countLabel,
   /** Renders the count as "10+" — the list is capped and there are more. */
   countTruncated = false,
+  tabs,
   action,
   link,
   children,
@@ -34,6 +35,8 @@ export function Panel({
   count?: number;
   countLabel?: string;
   countTruncated?: boolean;
+  /** Sits right after the title, as in the reference: views of this panel. */
+  tabs?: React.ReactNode;
   /** Arbitrary right-hand control. `link` is the common case. */
   action?: React.ReactNode;
   link?: { href: string; label?: string };
@@ -49,14 +52,18 @@ export function Panel({
         className,
       )}
     >
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-3">
+      {/* No rule under the header: the reference separates rows, not the
+          title from its own content. 52px, so a tab strip fits beside it. */}
+      <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2">
         {icon && (
           <span className="shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span>
         )}
-        <h2 className="min-w-0 truncate text-section text-foreground">{title}</h2>
+        <h2 className="min-w-0 truncate text-[17px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
+          {title}
+        </h2>
 
         {count !== undefined && count > 0 && (
-          <span className="shrink-0 rounded-chip bg-accent/10 px-1.5 text-meta font-medium tabular-nums text-accent">
+          <span className="shrink-0 rounded-full bg-accent/10 px-2 text-micro font-semibold leading-5 tabular-nums text-accent">
             {/* "10+" and not "10". The list is capped at ten; someone with
                 forty open issues was being shown "10 open issues" as a fact.
                 A number that is quietly a floor is worse than no number. */}
@@ -65,6 +72,8 @@ export function Panel({
             {countLabel && ` ${countLabel}${count === 1 && !countTruncated ? "" : "s"}`}
           </span>
         )}
+
+        {tabs && <div className="ml-2 min-w-0">{tabs}</div>}
 
         {(action || link) && (
           <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -82,7 +91,7 @@ export function Panel({
         )}
       </header>
 
-      <div className={cn("min-w-0 flex-1 p-2", bodyClassName)}>{children}</div>
+      <div className={cn("min-w-0 flex-1 px-2 pb-2", bodyClassName)}>{children}</div>
     </section>
   );
 }

@@ -186,6 +186,28 @@ list. One shape, one definition.
    what will fill it. In a multi-column grid an absent card is worse than an
    empty one — it leaves a hole and shifts every card below it out of its pair.
 
+### Home reference alignment (2026-10-23)
+
+Home was matched to the management-approved reference (ADR-0057), and the
+shared tokens moved with it, so every page shares the same palette:
+
+- **Tokens (light theme):** canvas `#F5F7FB`, ink `#111B35`, muted text
+  `#64748B`, accent `#246BFD`, border `#E7ECF3`, hover fill `#F3F6FB`, sidebar
+  `--surface` `#F8FAFD`. Destructive and success keep their darker shades: the
+  reference's `#F04452` and `#16A873` fall below 4.5:1 as text on white.
+- **The sidebar is now a pale rail** (`bg-surface`, 212px), not white. This
+  supersedes "the chrome stays `--background`" below for the sidebar only. The
+  top bar stays white.
+- **`rounded-panel` is 12px** (was 8). Controls stay at 6px.
+- **Status and priority pills** use Tailwind's palette shades (`blue-700` on
+  `blue-50` and so on) instead of the semantic tokens, because the tokens'
+  text-on-tint pairs miss 4.5:1. This is a documented exception to rule 3
+  above, confined to `features/home/components/issue-pills.tsx`.
+- **`cn()` now knows the type scale.** `tailwind-merge` read `text-meta`,
+  `text-body`… as colours and dropped the size whenever a `text-<colour>` sat
+  next to it, so text rendered at the inherited 16px across the app. Fixed in
+  `shared/lib/utils.ts`, with a regression test.
+
 ### Canvas vs. surface (2026-08-10)
 
 `--canvas` is the page body; `--background` is the card. They are different

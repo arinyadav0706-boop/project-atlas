@@ -32,7 +32,7 @@ export async function UpcomingSection({
 }) {
   const items = await HomeService.upcoming(actor, projectIds);
   return (
-    <HomeSection title="Upcoming" icon={<CalendarRange />}>
+    <HomeSection title="Upcoming">
       {items.length > 0 ? (
         <ul className="flex flex-col">
           {items.map((item) => (

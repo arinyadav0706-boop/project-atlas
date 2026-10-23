@@ -11,7 +11,7 @@ export async function FocusSection({ actor, projectIds }: { actor: Actor; projec
   const { items } = await HomeService.focus(actor, projectIds);
   if (items.length === 0) {
     return (
-      <HomeSection title="Your focus" icon={<Target />}>
+      <HomeSection title="Your focus">
         <HomeEmpty icon={<Target />} title="Nothing open">
           Issues assigned to you will appear here, the ones due soonest first.
         </HomeEmpty>
@@ -21,7 +21,6 @@ export async function FocusSection({ actor, projectIds }: { actor: Actor; projec
   return (
     <HomeSection
       title="Your focus"
-      icon={<Target />}
       // There is no due-date facet in IssueFilter, so this cannot reproduce the
       // window exactly. Sorting the reader's open work by due date is the
       // closest honest answer, and it is the list they were reaching for.

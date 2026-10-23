@@ -136,11 +136,12 @@ export function SearchPalette() {
         onClick={() => setOpen(true)}
         aria-label="Search"
         aria-keyshortcuts="Meta+K Control+K"
-        className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="flex h-9 w-full items-center gap-2 rounded-lg border border-border bg-muted/60 px-3 text-[13px] text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <Search className="h-4 w-4" />
-        <span className="hidden sm:inline">Search</span>
-        <kbd className="hidden rounded border border-border px-1 text-[10px] font-normal sm:inline-block">
+        <Search className="h-4 w-4 shrink-0" />
+        {/* Says what the palette actually searches, nothing more. */}
+        <span className="hidden truncate sm:inline">Search issues and projects…</span>
+        <kbd className="ml-auto hidden rounded border border-border bg-background px-1.5 text-[11px] font-normal sm:inline-block">
           ⌘K
         </kbd>
       </button>

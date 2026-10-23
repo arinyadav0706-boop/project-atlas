@@ -8,16 +8,18 @@ import type { Actor } from "@/shared/types/actor";
 export async function SummarySection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
   const s = await HomeService.summary(actor, projectIds);
   return (
-    <section aria-label="Summary" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-      <StatTile label="My open issues" value={s.open} icon={<CircleDot />} tone="accent" />
+    <section aria-label="Summary" className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
+      <StatTile layout="leading" label="My open issues" value={s.open} icon={<CircleDot />} tone="accent" />
       <StatTile
+        layout="leading"
         label="Due this week"
         value={s.dueThisWeek}
         icon={<CalendarClock />}
         tone={s.dueThisWeek > 0 ? "warning" : "neutral"}
-        hint="next 7 days, incl. overdue"
+        hint="incl. overdue"
       />
       <StatTile
+        layout="leading"
         label="In progress"
         value={s.inProgress}
         icon={<Loader />}
@@ -25,13 +27,15 @@ export async function SummarySection({ actor, projectIds }: { actor: Actor; proj
         hint={s.inReview > 0 ? `+${s.inReview} in review` : undefined}
       />
       <StatTile
+        layout="leading"
         label="Blocked"
         value={s.blocked}
         icon={<Ban />}
         tone={s.blocked > 0 ? "danger" : "neutral"}
-        hint="waiting on an open blocker"
+        hint="by an open issue"
       />
       <StatTile
+        layout="leading"
         label="Completed"
         value={s.completedLast30Days}
         icon={<CircleCheck />}

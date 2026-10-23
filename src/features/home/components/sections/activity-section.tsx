@@ -32,8 +32,7 @@ export async function ActivitySection({
   return (
     <HomeSection
       title="Recent activity"
-      icon={<Activity />}
-      action={
+      tabs={
         <PanelTabs
           label="Activity views"
           tabs={TABS.map((t) => ({
@@ -69,7 +68,7 @@ function ActivityRow({ item }: { item: ActivityItemDto }) {
       href={item.href}
       className="flex gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
-      <Avatar className="mt-0.5 size-6 shrink-0">
+      <Avatar className="mt-0.5 size-8 shrink-0">
         {item.actor?.avatarUrl && <AvatarImage src={item.actor.avatarUrl} alt="" />}
         <AvatarFallback className="text-micro">
           {who.charAt(0).toUpperCase()}
@@ -96,7 +95,7 @@ function ActivityRow({ item }: { item: ActivityItemDto }) {
 }
 
 function Key({ item }: { item: ActivityItemDto }) {
-  return <span className="font-mono text-meta text-accent">{item.issue.key}</span>;
+  return <span className="font-medium text-accent">{item.issue.key}</span>;
 }
 
 function Sentence({ item }: { item: ActivityItemDto }) {

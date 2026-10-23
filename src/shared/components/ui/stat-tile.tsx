@@ -24,6 +24,7 @@ export function StatTile({
   tone = "neutral",
   delta,
   hint,
+  layout = "stacked",
   className,
 }: {
   label: string;
@@ -39,8 +40,42 @@ export function StatTile({
   delta?: { value: string; direction: "up" | "down" | "flat"; label: string };
   /** One line of context under the number ("+2 in review"). Not a trend. */
   hint?: string;
+  /**
+   * `leading` puts a round icon to the left of label and number — Home's KPI
+   * row, from the approved reference. `stacked` (icon top-right) is the
+   * Workload page's original tile and stays its default.
+   */
+  layout?: "stacked" | "leading";
   className?: string;
 }) {
+  if (layout === "leading") {
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-3 rounded-panel border border-border bg-background px-3.5 py-4",
+          className,
+        )}
+      >
+        {icon && (
+          <span
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-full [&>svg]:size-[18px]",
+              TONES[tone],
+            )}
+          >
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium leading-[18px] text-foreground/85">{label}</p>
+          <p className="mt-1 text-[26px] font-bold leading-[30px] tracking-[-0.02em] tabular-nums text-foreground">
+            {value}
+          </p>
+          {hint && <p className="mt-1 text-meta text-muted-foreground">{hint}</p>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={cn(

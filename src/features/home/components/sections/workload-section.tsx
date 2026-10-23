@@ -1,4 +1,3 @@
-import { Gauge } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection } from "@/features/home/components/home-section";
 import {
@@ -32,7 +31,6 @@ export async function WorkloadSection({ actor }: { actor: Actor }) {
   return (
     <HomeSection
       title="Workload"
-      icon={<Gauge />}
       viewAll={w.canViewTeam ? { href: "/workload", label: "Open Workload" } : undefined}
     >
       <div className="flex flex-col gap-3 px-1 pb-1">

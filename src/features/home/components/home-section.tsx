@@ -13,24 +13,25 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 // may be a floor — and that default lives here.
 export function HomeSection({
   title,
-  icon,
   count,
   countLabel,
   countTruncated,
   viewAll,
+  tabs,
   action,
   children,
   className,
 }: {
   title: string;
-  icon?: React.ReactNode;
   count?: number;
   /** Singular noun, pluralised automatically: "open issue" → "2 open issues". */
   countLabel?: string;
   /** The list is capped and there are more — renders "10+". */
   countTruncated?: boolean;
   viewAll?: { href: string; label?: string };
-  /** Header control left of "View all" — Home uses it for panel tabs. */
+  /** Panel views, placed right after the title. */
+  tabs?: React.ReactNode;
+  /** Header control left of "View all". */
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -38,11 +39,11 @@ export function HomeSection({
   return (
     <Panel
       title={title}
-      icon={icon}
       count={count}
       countLabel={countLabel}
       countTruncated={countTruncated}
       link={viewAll}
+      tabs={tabs}
       action={action}
       className={className}
     >

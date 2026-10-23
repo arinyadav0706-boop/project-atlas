@@ -57,17 +57,18 @@ export function Sidebar({
   // Below md the sidebar collapses to an icon rail so the app stays usable
   // on small screens; a full mobile drawer is tracked as a later pass.
   return (
-    // White, like the cards — the tinted canvas is the page body only, so the
-    // chrome reads as one continuous frame around it.
-    <nav className="flex h-full w-14 shrink-0 flex-col border-r border-border bg-background md:w-60">
-      <div className="flex h-14 items-center justify-center gap-2 md:justify-start md:px-4">
+    // A pale rail, one step off white (the approved Home reference): quiet
+    // enough not to compete with the workspace, distinct enough from the
+    // white cards that the frame reads as a frame. 212px, as in the reference.
+    <nav className="flex h-full w-14 shrink-0 flex-col border-r border-border bg-surface md:w-[212px]">
+      <div className="flex h-[52px] items-center justify-center gap-2 md:justify-start md:px-4">
         <LogoMark className="h-7 w-7" />
-        <span className="hidden text-[15px] font-semibold tracking-tight text-foreground md:inline">
+        <span className="hidden text-[17px] font-bold tracking-tight text-foreground md:inline">
           EAGLES
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 px-2 pt-2 md:px-3">
+      <div className="flex flex-1 flex-col gap-0.5 px-2 pt-3 md:px-3">
         {items.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -77,11 +78,13 @@ export function Sidebar({
               href={item.href}
               title={item.label}
               className={cn(
-                "flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors duration-150 md:justify-start",
+                "flex h-9 items-center justify-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors duration-150 md:justify-start",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                // Labels are ink, not grey, as in the reference: a rail of grey
+                // words reads as disabled. The icon carries the quieter tone.
                 isActive
                   ? "bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  : "text-foreground/80 hover:bg-muted hover:text-foreground [&>svg]:text-muted-foreground",
               )}
             >
               <item.icon

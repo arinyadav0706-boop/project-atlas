@@ -8,19 +8,19 @@
    Semantic colors (destructive) are tokens, never ad-hoc hexes in components. */
 :root {
   --background: 0 0% 100%;
-  --surface: 240 20% 99%;
+  --surface: 216 56% 98%;
   /* The page canvas the cards sit ON, distinct from the cards themselves.
      Without it, a white card on a white page is separated only by a hairline
      border and the whole app reads flat — which is precisely the gap between
      our Workload page and the mockup it was built from. Elevation needs
      something to be elevated above. */
-  --canvas: 228 33% 97%;
-  --foreground: 240 4% 12%;
-  --border: 240 6% 90%;
-  --accent: 217 91% 55%;
+  --canvas: 220 43% 97%;
+  --foreground: 223 51% 14%;
+  --border: 215 33% 93%;
+  --accent: 220 98% 57%;
   --accent-foreground: 0 0% 100%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 46%;
+  --muted: 218 57% 97%;
+  --muted-foreground: 215 16% 47%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   /* Status tones (docs/05_UI/03_Data_Visualisation.md §6). Charts read these
@@ -40,7 +40,7 @@
      silently, and their selected states rendered identically to unselected
      (backlog UX-1). The alias makes that class of mistake inert; the lint
      rule in UX-2 makes it loud. */
-  --primary: 217 91% 55%;
+  --primary: 220 98% 57%;
   --primary-foreground: 0 0% 100%;
 
   /* Surfaces, as a three-step ladder rather than two. A toolbar and a table
@@ -50,8 +50,8 @@
 
   /* Two borders: the outline of a panel, and the hairline between its rows.
      One value for both is why dense tables read as a grey mesh. */
-  --border-subtle: 240 6% 93%;
-  --border-strong: 240 7% 84%;
+  --border-subtle: 216 33% 95%;
+  --border-strong: 215 25% 85%;
 
   /* The fourth semantic tone. success/warning/destructive existed; the
      neutral-informative case was being spelled with accent, which made every
@@ -59,7 +59,7 @@
   --info: 213 82% 52%;
 
   /* One focus colour, used by every interactive element. */
-  --focus-ring: 217 91% 55%;
+  --focus-ring: 220 98% 57%;
 
   /* Two more tokens the codebase was ALREADY using and this project never
      defined — found by the UX-2 guardrail on its first run, not by review:
@@ -68,9 +68,9 @@
      Both are shadcn vocabulary. Both resolved to nothing, so the select had no
      visible border and the composer's popover had no background. Same failure
      mode as UX-1, shipped, and invisible to every other check. */
-  --input: 240 6% 90%;
+  --input: 215 33% 90%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 4% 12%;
+  --popover-foreground: 223 51% 14%;
 }
 
 /* Dark theme — applied only when the `dark` class is set on <html>

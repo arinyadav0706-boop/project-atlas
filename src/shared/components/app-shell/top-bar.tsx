@@ -38,10 +38,11 @@ export function TopBar({
     .toUpperCase();
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-5">
+    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-background px-5">
       {/* Bounded rather than `flex-1`: a search field stretched across a
-          1600px window reads as a page-wide input, not a control. */}
-      <div className="flex-1 md:max-w-md">{searchEnabled && <SearchPalette />}</div>
+          1600px window reads as a page-wide input, not a control. 600px is the
+          approved reference's width. */}
+      <div className="flex-1 md:max-w-[600px]">{searchEnabled && <SearchPalette />}</div>
       {/* `ml-auto` pins the cluster to the right edge. Without it the bounded
           search box stops stretching and the bell and avatar sit stranded in
           the middle of a wide window instead of at the corner. */}

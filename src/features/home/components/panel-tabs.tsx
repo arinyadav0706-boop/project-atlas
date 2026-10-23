@@ -13,7 +13,7 @@ export function PanelTabs({
   tabs: { href: string; label: string; active: boolean }[];
 }) {
   return (
-    <nav aria-label={label} className="flex items-center gap-0.5">
+    <nav aria-label={label} className="flex items-center gap-4">
       {tabs.map((tab) => (
         <Link
           key={tab.href}
@@ -21,11 +21,12 @@ export function PanelTabs({
           scroll={false}
           aria-current={tab.active ? "page" : undefined}
           className={cn(
-            "rounded-chip px-2 py-0.5 text-meta font-medium whitespace-nowrap transition-colors",
+            // Underlined, as in the reference: a tab strip, not a row of chips.
+            "relative py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
             tab.active
-              ? "bg-accent/10 text-accent"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ? "text-accent after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-accent"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           {tab.label}
