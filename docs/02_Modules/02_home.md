@@ -65,14 +65,17 @@ never by adding a box.
 - **BR-1 (My Work):** non-deleted `Issue` rows where `assigneeId = me`, across
   every project I am a `ProjectMember` of, in non-`DONE` statuses by default,
   ordered by (dueDate nulls-last, then priority desc, then updatedAt). Bounded
-  (default 10, "view all" → filtered Issues list). Tenant-scoped to my org.
+  (6 on Home since 2026-10-23, so it balances Needs your attention beside it;
+  "view all" → filtered Issues list). Tenant-scoped to my org.
 - **BR-2 (Needs your attention):** a **unified, ranked stream** of items that
   need me, produced by composing one-or-more **AttentionSource** contributors
   (ADR-0012). V1 sources: *assigned-to-me-recently* and (as they ship)
   *@mentions*, *review requests*, *approvals waiting*. Each item is
   `{ id, kind, title, href, actorId?, occurredAt }`; the section renders them
   uniformly regardless of source. Adding a future source = implementing the
-  contract, **not** adding a widget. Bounded, newest/most-urgent first.
+  contract, **not** adding a widget. Bounded to 4 on Home (two-line items
+  beside My work's six rows), newest/most-urgent first, with "View all" →
+  `/issues?assigneeId=<me>&openOnly=true&sort=UPDATED_DESC`.
 - **BR-3 (Continue working):** my most recently *engaged* issues, from the
   `RecentItem` signal (§Database), excluding items I've completed. Ranking is a
   **recency-weighted engagement score** (see §Continue-working algorithm), not
@@ -132,7 +135,7 @@ never by adding a box.
     (`CommentMention`), most recent mention first. No "View all", for the same
     reason.
 - **BR-14 (Recent activity):** what other people did to my work in the last 14
-  days, newest first, capped at 10 (BR-8). "My work" means non-deleted issues
+  days, newest first, capped at 5 on Home so it sits level with Workload (BR-8). "My work" means non-deleted issues
   in my member projects where I am the assignee or the reporter. The candidate
   set is the 500 most recently updated of them, which keeps every read bounded.
   Three event kinds:

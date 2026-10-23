@@ -104,20 +104,20 @@ describe("myWork", () => {
   // ten. The repository is asked for limit + 1 and the extra row never ships.
   it("asks for one more than the cap, trims it, and reports the truncation", async () => {
     home.myWork.mockResolvedValue(
-      Array.from({ length: 11 }, (_, i) => issueRow(`i${i}`)) as never,
+      Array.from({ length: 7 }, (_, i) => issueRow(`i${i}`)) as never,
     );
     const { items, truncated } = await HomeService.myWork(actor, IDS);
-    expect(home.myWork.mock.calls[0]![2]).toBe(11);
-    expect(items).toHaveLength(10);
+    expect(home.myWork.mock.calls[0]![2]).toBe(7);
+    expect(items).toHaveLength(6);
     expect(truncated).toBe(true);
   });
 
   it("does not claim truncation when the list lands exactly on the cap", async () => {
     home.myWork.mockResolvedValue(
-      Array.from({ length: 10 }, (_, i) => issueRow(`i${i}`)) as never,
+      Array.from({ length: 6 }, (_, i) => issueRow(`i${i}`)) as never,
     );
     const { items, truncated } = await HomeService.myWork(actor, IDS);
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(6);
     expect(truncated).toBe(false);
   });
 });
@@ -417,9 +417,9 @@ describe("activity (BR-14)", () => {
     expect(items).toEqual([]);
   });
 
-  it("caps at ten and says there is more", async () => {
+  it("caps at five and says there is more", async () => {
     home.recentComments.mockResolvedValue(
-      Array.from({ length: 11 }, (_, n) => ({
+      Array.from({ length: 6 }, (_, n) => ({
         id: `c${n}`,
         issueId: "i1",
         body: "x",
@@ -429,7 +429,7 @@ describe("activity (BR-14)", () => {
     );
     home.recentIssueEvents.mockResolvedValue([] as never);
     const { items, truncated } = await HomeService.activity(actor, IDS);
-    expect(items).toHaveLength(10);
+    expect(items).toHaveLength(5);
     expect(truncated).toBe(true);
     // A rule's comment has no author, and must still render as an event.
     expect(items[0]!.actor).toBeNull();

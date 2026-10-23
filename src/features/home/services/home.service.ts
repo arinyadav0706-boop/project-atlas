@@ -28,15 +28,19 @@ import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 // separate <Suspense> boundaries; getHome() composes them for the API/tests.
 // Project membership is resolved once per request via React cache().
 
-const MY_WORK_LIMIT = 10;
+// Sized so My work and Needs your attention end at about the same height side
+// by side: six one-line rows beside four two-line items. Everything beyond the
+// cap is one "View all" away (BR-8, BR-9).
+const MY_WORK_LIMIT = 6;
 const FOCUS_LIMIT = 5;
 const CONTINUE_LIMIT = 5;
 const RECENT_PROJECTS_LIMIT = 6;
-const ATTENTION_LIMIT = 10;
+const ATTENTION_LIMIT = 4;
 const DUE_SOON_WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const COMPLETED_WINDOW_DAYS = 30;
-const ACTIVITY_LIMIT = 10;
+// Five, to sit level with the Workload panel beside it.
+const ACTIVITY_LIMIT = 5;
 const ACTIVITY_WINDOW_DAYS = 14;
 // BR-14: how many of my issues the event reads look at.
 const ACTIVITY_CANDIDATES = 500;

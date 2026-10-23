@@ -29,6 +29,13 @@ export async function AttentionSection({ actor, projectIds }: { actor: Actor; pr
       title="Needs your attention"
       count={items.length}
       countTruncated={truncated}
+      // Home shows the top four. The attention source today is "my issues that
+      // changed", so the full answer is my open work, most recently updated
+      // first — the same question, on the page that holds all of it (BR-9).
+      viewAll={{
+        href: `/issues?assigneeId=${actor.userId}&openOnly=true&sort=UPDATED_DESC`,
+        label: "View all",
+      }}
     >
       <ul className="-mx-2 flex flex-col">
         {items.map((item) => (
