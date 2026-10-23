@@ -1,6 +1,6 @@
 # ADR-0012: Home — Unified Attention Model (not per-module gadgets)
 
-**Status:** Accepted
+**Status:** Accepted — frozen section set superseded by ADR-0057 (2026-10-23); the AttentionSource model stands
 **Date:** 2026-07-20
 **Deciders:** Founding CTO; founder (product strategy workshop)
 

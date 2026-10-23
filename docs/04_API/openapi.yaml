@@ -285,7 +285,7 @@ paths:
   /home:
     get:
       tags: [home]
-      summary: Personal Home — My Work, attention inbox, continue working, due soon, projects (ADR-0012)
+      summary: Personal Home — summary counts, My Work, attention, your focus, continue working, projects (ADR-0057)
       responses:
         "200":
           description: OK
@@ -3559,28 +3559,52 @@ components:
     HomeResponse:
       type: object
       description: >
-        The composed Home payload (ADR-0012, docs/02_Modules/02_home.md). A FIXED
-        set of sections; future modules feed these (esp. `attention`), never
-        adding new ones.
+        The composed Home payload (ADR-0057, docs/02_Modules/02_home.md). A CLOSED
+        set of panels; future modules feed these (esp. `attention`), never adding
+        new ones. Capped lists carry `truncated` so a count is never a hidden floor.
       properties:
-        myWork:
-          type: array
-          items: { $ref: "#/components/schemas/Issue" }
+        summary: { $ref: "#/components/schemas/HomeSummary" }
+        myWork: { $ref: "#/components/schemas/HomeIssueList" }
         attention:
-          type: array
-          items: { $ref: "#/components/schemas/AttentionItem" }
+          type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/AttentionItem" }
+            truncated: { type: boolean }
         continueWorking:
           type: array
           items: { $ref: "#/components/schemas/Issue" }
-        dueSoon:
-          type: array
-          items: { $ref: "#/components/schemas/Issue" }
+        focus:
+          allOf: [{ $ref: "#/components/schemas/HomeIssueList" }]
+          description: Due within 7 days or overdue first, then open work by priority (BR-11).
         starredProjects:
           type: array
           items: { $ref: "#/components/schemas/Project" }
         recentProjects:
           type: array
           items: { $ref: "#/components/schemas/Project" }
+
+    HomeIssueList:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Issue" }
+        truncated: { type: boolean, description: At least one more beyond the cap. }
+
+    HomeSummary:
+      type: object
+      description: >
+        Counts over the caller's assigned issues in their member projects (BR-10).
+        No trend fields until weekly history exists.
+      properties:
+        open: { type: integer }
+        dueThisWeek: { type: integer, description: Due within 7 days or overdue. }
+        inProgress: { type: integer }
+        inReview: { type: integer }
+        blocked: { type: integer, description: Open, with an open BLOCKS link pointing at it. }
+        completedLast30Days: { type: integer, description: Entered a DONE-category status in the last 30 days (audit log). }
 
     AttentionItem:
       type: object

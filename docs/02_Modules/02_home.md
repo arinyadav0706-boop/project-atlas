@@ -1,18 +1,20 @@
 # Module: Home
 
-**Status:** v2.0 (design ratified) · **Owner:** Founding CTO · **Last Updated:** 2026-07-20
-· **Decisions:** ADR-0012 (unified attention model)
+**Status:** v3.0 (personal work dashboard; phase 1 in build) · **Owner:** Founding CTO · **Last Updated:** 2026-10-23
+· **Decisions:** ADR-0057 (nine-panel personal dashboard; supersedes ADR-0012's frozen section set), ADR-0012 (unified attention model, still in force)
 · **Supersedes:** the "Dashboard" concept (renamed — see §Naming)
 
 ## Overview
 
-**Home** is the personal landing page after sign-in. Its single job is to answer
-one question — **"What needs my attention right now?"** — and let the user *act*
-on it in one click. It is an **action launchpad, not a monitoring console.**
+**Home** is the personal landing page after sign-in. It answers **"What needs
+my attention right now, and how much of my work is in flight?"** and lets the
+user act in one click. Since ADR-0057 it is a **personal work dashboard**: a
+closed set of nine panels about *my* work. Team and organization analytics
+still belong in Reports and Dashboards.
 
-Home is deliberately **not** called "Dashboard": that word invites a passive grid
-of charts/gadgets (the Jira mistake). Reporting and charts live in the future
-**Reports** module; Home is for *doing*, scoped to the current user.
+Home is still not a configurable gadget grid (the Jira mistake). Its panel set
+is fixed by ADR-0057, and every element on it must be backed by real data
+(BR-12).
 
 ## Naming & information architecture
 
@@ -24,19 +26,39 @@ of charts/gadgets (the Jira mistake). Reporting and charts live in the future
   **nesting + global search/⌘K + pins**, not new top-level tabs or new Home
   widgets.
 
-## The frozen widget set (ADR-0012)
+## The panel set (ADR-0057)
 
-Home has a **fixed set of sections**. Future modules (Sprint, Backlog, Roadmap,
-Goals, Approvals, Forms, Portfolio, Knowledge Base, Time Tracking, …) **feed
-these sections; they never add new Home widgets.** This is the load-bearing rule
-that keeps Home calm at V5 (ADR-0012).
+Home has a **closed set of nine panels**. A tenth panel needs a new ADR.
+Modules reach Home through these panels (attention through `AttentionSource`,
+events through Recent activity and Upcoming, shortcuts through Quick actions),
+never by adding a box.
 
-1. **My Work** — issues assigned to me, across all my projects.
-2. **Needs your attention** — the unified attention inbox (the extension point).
-3. **Continue working** — what I was actively working on.
-4. **Due soon** — my time-sensitive items.
-5. **Starred + recent projects** — a small personal navigation strip (never the
-   catalog).
+| # | Panel | Phase | Data |
+|---|---|---|---|
+| 1 | **Summary**: open, due this week, in progress (+ in review), blocked, completed (30 days) | 1 | `Issue`, `IssueLink`, `AuditLog` (BR-10) |
+| 2 | **My Work**: Assigned to me (phase 1); Created by me, Mentioned (phase 2) | 1 / 2 | `Issue`, `CommentMention` |
+| 3 | **Needs your attention**: the unified `AttentionSource` stream (BR-2) | 1 | existing sources |
+| 4 | **Your focus**: due soon first, then my highest-priority open work (BR-11). Absorbs "Due soon" | 1 | `Issue` |
+| 5 | **Projects**: starred + recent (BR-5); progress and active-sprint counts in phase 2 | 1 / 2 | `Favorite`, `RecentItem`, `Project`, `Sprint` |
+| 6 | **Recent activity**: comments and status changes around my work; assignments once audited | 2 | `AuditLog` |
+| 7 | **Workload**: my queue compared with my team's, using the Workload module's definitions | 2 | Workload service |
+| 8 | **Upcoming**: due dates and sprint dates; meetings only with a calendar source | 2 / 3 | `Issue`, `Sprint` |
+| 9 | **Quick actions**: Create issue, Create project, Start sprint, Log time, Invite people, View reports, each shown only to people allowed to use it | 2 | existing endpoints + RBAC |
+
+**Continue working** (BR-3) stays a Home panel until the app sidebar gains
+"Recently viewed"; then it moves there.
+
+### Mockup elements we cannot back yet (left out per BR-12)
+
+| Element | Why | Unblocked by |
+|---|---|---|
+| Trend arrows ("↑2 vs last week") | No weekly history of these counts | Snapshot or audit replay (phase 3 ADR) |
+| Meetings (design review, 1:1) in Upcoming / Your focus | No calendar source | Calendar integration (phase 3 ADR) |
+| "Today's goal" and its progress ring | Goals are not a concept in EAGLES | Goals model (phase 3 ADR) |
+| System alerts ("Payment service failing") | No monitoring feed | Out of scope |
+| "PR needs review" attention items | Review requests are not stored | Code integration change (phase 3) |
+| Assignments activity tab | Assignee changes are not audited | `ISSUE_ASSIGNEE_CHANGED` audit action (phase 2) |
+| Focus mode | No such feature | Out of scope |
 
 ## Business Rules
 
@@ -81,6 +103,28 @@ that keeps Home calm at V5 (ADR-0012).
   sorted `DUE_DATE_ASC`, which is the closest `IssueFilter` can express (there
   is no due-date facet). A link labelled "View all issues" that lands on the
   project list is a dead end wearing a shortcut's clothes.
+- **BR-10 (Summary counts):** all counts cover non-deleted issues **assigned to
+  me** in my member projects (BR-7), computed server-side in one request:
+  - *Open*: status category ≠ `DONE`.
+  - *Due this week*: open, with `dueDate` within the next 7 days **or already
+    overdue**. Same window as Your focus, so the two never disagree.
+  - *In progress*: category `IN_PROGRESS`. *In review* (category `IN_REVIEW`)
+    shows as a secondary line on the same card.
+  - *Blocked*: open, with at least one open `BLOCKS` link pointing at it
+    (ADR-0046 §3). "Blocked" is a question asked of the link table, never a
+    status.
+  - *Completed (30 days)*: currently in a `DONE`-category status, and an
+    `ISSUE_STATUS_CHANGED` audit row moved it into category `DONE` within the
+    last 30 days. Candidates are limited to issues updated in that window, so
+    the audit read stays bounded. Counted for the current assignee, so an issue
+    reassigned after completion counts for its new assignee.
+  - No trend arrows until weekly history exists (BR-12).
+- **BR-11 (Your focus):** my open issues due within 7 days or overdue, soonest
+  first; then my highest-priority open issues without a near due date, to fill
+  the panel. Bounded (~5). No goal ring or meetings (BR-12).
+- **BR-12 (Real data or nothing):** no element on Home ships with sample,
+  estimated or decorative values. An element whose data does not exist is left
+  out (see "Mockup elements we cannot back yet"), never imitated.
 
 ## Continue-working algorithm (BR-3)
 
@@ -118,20 +162,25 @@ No changes to existing entities.
 
 ## API
 
-- **`GET /api/home`** → `HomeDto` — composes all sections server-side in
-  parallel, each bounded. Sections that depend on not-yet-built modules return
-  empty arrays (the contract is stable from day one).
+- **`GET /api/home`** → `HomeDto`: composes all panels server-side in
+  parallel, each bounded. Capped lists come back as `HomeList`
+  (`{ items, truncated }`, BR-8).
   ```
   HomeDto {
-    myWork: IssueListItemDto[]
-    attention: AttentionItemDto[]
+    summary: HomeSummaryDto            // BR-10
+    myWork: HomeList<IssueListItemDto>
+    attention: HomeList<AttentionItemDto>
     continueWorking: IssueListItemDto[]
-    dueSoon: IssueListItemDto[]
-    starredProjects: ProjectSummaryDto[]
-    recentProjects: ProjectSummaryDto[]
+    focus: HomeList<IssueListItemDto>     // Your focus (BR-11); replaces dueSoon
+    starredProjects: HomeProjectDto[]
+    recentProjects: HomeProjectDto[]
+  }
+  HomeSummaryDto {
+    open: number; dueThisWeek: number; inProgress: number;
+    inReview: number; blocked: number; completedLast30Days: number
   }
   ```
-- **`POST /api/projects/{projectId}/star`** / **`DELETE …/star`** — toggle a
+- **`POST /api/projects/{projectId}/star`** / **`DELETE …/star`**: toggle a
   `Favorite` for the current user (RBAC: any member who can see the project).
 - **Interaction capture:** opening an issue upserts a `RecentItem`
   (fire-and-forget; may move off the hot path at scale, like audit). No separate
@@ -141,12 +190,15 @@ See `docs/04_API/openapi.yaml`.
 
 ## UI
 
-Screen #2 in `docs/05_UI/02_Screens_and_Information_Architecture.md`. Calm,
-action-first, single column of sections in priority order (My Work → Attention →
-Continue → Due soon → Projects). **Each section is its own streamed
-`<Suspense>` boundary** (shell + fast sections paint immediately; slow ones
-stream in) — the pattern locked by the Performance doc. Every list is bounded
-with a "view all" link to the relevant module. Nav item **Dashboard → Home**;
+Layout follows the management-approved mockup (design canvas "0 · Home"). A
+greeting header with today's date, then the Summary row; below it a main
+column (My Work beside Needs your attention, then Projects, then Recent
+activity beside Workload) and a right rail (Your focus, Upcoming, Quick
+actions). Below about 1100px the rail drops under the main column, and side-by-side
+pairs stack. **Each panel is its own streamed `<Suspense>` boundary** (the
+Performance doc pattern). Every list is bounded, with a "View all" link to the
+page that answers the same question (BR-9). Phase 1 renders panels 1–5 plus
+Continue working. Later panels appear only when their data exists (BR-12).
 `/dashboard` redirects to `/home`.
 
 ## Acceptance Criteria
@@ -164,6 +216,17 @@ with a "view all" link to the relevant module. Nav item **Dashboard → Home**;
 - Given a future module (e.g. Approvals) adds an AttentionSource, when it ships,
   then its items appear in "Needs your attention" with **no change to Home's
   structure**.
+- Given 3 open issues assigned to me (one IN_PROGRESS, one IN_REVIEW, one TODO
+  due tomorrow) and one DONE issue I completed yesterday, when I open Home, then
+  Summary shows open 3, due this week 1, in progress 1 (+1 in review),
+  completed 1.
+- Given an open issue of mine with an open blocker, when the blocker moves to
+  DONE, then Blocked drops by one on the next load.
+- Given an issue assigned to me in a project I am no longer a member of, when I
+  open Home, then no Summary count includes it.
+- Given no data source exists for an element in the mockup (trend, meeting,
+  goal), when Home renders, then that element is absent, never shown with a
+  placeholder value.
 
 ## Validation
 
@@ -172,6 +235,13 @@ can see. All reads are org/membership-scoped server-side (BR-7). Bounds
 (`take`) are capped constants, never client-controlled beyond the cap.
 
 ## Future Scope
+
+- **Phase 2 (ADR-0057):** Created by me / Mentioned tabs; Recent activity from
+  `AuditLog`; `ISSUE_ASSIGNEE_CHANGED` auditing; project progress and sprint
+  counts; personal Workload panel; Upcoming from due dates and sprints; Quick
+  actions with permission checks (needs the project-create check).
+- **Phase 3 (each its own ADR):** trend arrows, calendar meetings, goals, PR
+  review requests, focus mode.
 
 - Attention sources: @mentions, review requests, approvals-waiting, goal check-ins
   — each an `AttentionSource` implementation, no Home redesign (ADR-0012).
