@@ -7,13 +7,15 @@ import { AppFrame, Workspace, WorkspaceHeader } from "@/shared/components/layout
 import { MyWorkSection } from "@/features/home/components/sections/my-work-section";
 import { AttentionSection } from "@/features/home/components/sections/attention-section";
 import { ContinueWorkingSection } from "@/features/home/components/sections/continue-working-section";
-import { DueSoonSection } from "@/features/home/components/sections/due-soon-section";
+import { FocusSection } from "@/features/home/components/sections/focus-section";
+import { SummarySection } from "@/features/home/components/sections/summary-section";
 import { ProjectStripSection } from "@/features/home/components/sections/project-strip-section";
 
-// Home — the personal action launchpad (ADR-0012, 02_home.md). Each section is
-// an independent async server component in its own <Suspense> boundary, so the
-// shell + fast sections paint immediately and slower ones stream in. The set of
-// sections is FIXED; future modules feed them, never adding new ones.
+// Home — the personal work dashboard (ADR-0057, 02_home.md). Each panel is an
+// independent async server component in its own <Suspense> boundary, so the
+// shell + fast panels paint immediately and slower ones stream in. The panel set
+// is CLOSED; future modules feed it, never adding new panels. Phase 1 renders
+// the panels today's data can back; the rest appear when their data exists.
 export default async function HomePage() {
   const [actor, session] = await Promise.all([getActor(), getSession()]);
   if (!actor) redirect("/sign-in");
@@ -28,39 +30,50 @@ export default async function HomePage() {
           15px sentence under it — 92px of chrome to say hello, on the screen
           people see most often. The sentence said nothing the panels below do
           not say better, so it is gone rather than demoted. */}
-      <WorkspaceHeader title={`${greeting()}, ${firstName}`} />
+      <WorkspaceHeader
+        title={`${greeting()}, ${firstName}`}
+        actions={<span className="text-meta text-muted-foreground">{today()}</span>}
+      />
 
       <Workspace className="p-4">
-        {/*
-          One column, two from `lg`, THREE from `2xl`.
+        <div className="flex flex-col gap-4">
+          <Suspense fallback={<SummarySkeleton />}>
+            <SummarySection actor={actor} projectIds={projectIds} />
+          </Suspense>
 
-          The three-up row is what the width is for: at 1920 a two-column grid
-          made each panel ~830px wide to hold a list of five one-line rows, and
-          pushed Projects below the fold. At 2xl the three lists that answer
-          "what should I be doing right now" — my work, what needs me, what is
-          due — sit on one row, and the two navigational panels follow.
+          {/*
+            Main column + right rail, the approved mockup's arrangement. The rail
+            holds the "what next" lists; the main column holds the work itself.
+            Below xl the rail drops under the main column rather than squeezing
+            both — a 20rem rail beside a 600px column is two cramped lists.
 
-          `items-start` matters: without it the grid stretches every panel in a
-          row to the tallest, so a five-item panel beside a ten-item one grows a
-          large empty area under its last row.
-        */}
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-          <Suspense fallback={<SectionSkeleton rows={5} />}>
-            <MyWorkSection actor={actor} projectIds={projectIds} />
-          </Suspense>
-          <Suspense fallback={<SectionSkeleton rows={5} />}>
-            <AttentionSection actor={actor} projectIds={projectIds} />
-          </Suspense>
-          <Suspense fallback={<SectionSkeleton rows={5} />}>
-            <DueSoonSection actor={actor} projectIds={projectIds} />
-          </Suspense>
-          <Suspense fallback={<SectionSkeleton rows={4} />}>
-            <ContinueWorkingSection actor={actor} projectIds={projectIds} />
-          </Suspense>
-          <div className="lg:col-span-2">
-            <Suspense fallback={<SectionSkeleton rows={3} grid />}>
-              <ProjectStripSection actor={actor} />
-            </Suspense>
+            `items-start` matters: without it the grid stretches every panel in a
+            row to the tallest, so a five-item panel beside a ten-item one grows a
+            large empty area under its last row.
+          */}
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="flex min-w-0 flex-col gap-4">
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <Suspense fallback={<SectionSkeleton rows={5} />}>
+                  <MyWorkSection actor={actor} projectIds={projectIds} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton rows={5} />}>
+                  <AttentionSection actor={actor} projectIds={projectIds} />
+                </Suspense>
+              </div>
+              <Suspense fallback={<SectionSkeleton rows={3} grid />}>
+                <ProjectStripSection actor={actor} />
+              </Suspense>
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-4">
+              <Suspense fallback={<SectionSkeleton rows={5} />}>
+                <FocusSection actor={actor} projectIds={projectIds} />
+              </Suspense>
+              <Suspense fallback={<SectionSkeleton rows={4} />}>
+                <ContinueWorkingSection actor={actor} projectIds={projectIds} />
+              </Suspense>
+            </div>
           </div>
         </div>
       </Workspace>
@@ -83,6 +96,27 @@ function greeting(): string {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+/** Today's date for the header, from the same server clock as greeting(). */
+function today(): string {
+  return new Date().toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// Same grid and tile height as SummarySection, so streaming in shifts nothing.
+function SummarySkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton key={i} className="h-28 rounded-2xl" />
+      ))}
+    </div>
+  );
 }
 
 // Matches the real panel: an h-11 header rule, then rows at the row height the

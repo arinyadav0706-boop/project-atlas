@@ -24,13 +24,14 @@ test("every section renders, including the ones that are empty", async ({ page }
   await signInAs(page, DEMO_USERS.lead);
   await openHome(page);
 
-  // All five, always. An absent panel leaves a hole in the grid and shifts
-  // every panel below it out of its column — and "you are caught up" is
-  // information, not the absence of it.
+  // Every phase-1 panel, always (ADR-0057). An absent panel leaves a hole in
+  // the grid and shifts every panel below it out of its column — and "you are
+  // caught up" is information, not the absence of it.
   for (const name of [
+    "Summary",
     "My work",
     "Needs your attention",
-    "Due soon",
+    "Your focus",
     "Continue working",
     "Projects",
   ]) {
@@ -54,14 +55,14 @@ test("'View all' on My work lands on this person's open issues", async ({ page }
   });
 });
 
-test("'View all' on Due soon sorts by due date", async ({ page }) => {
+test("'View all' on Your focus sorts by due date", async ({ page }) => {
   await signInAs(page, DEMO_USERS.lead);
   await openHome(page);
 
-  const dueSoon = panel(page, "Due soon");
-  const viewAll = dueSoon.getByRole("link", { name: /view all/i });
+  const focus = panel(page, "Your focus");
+  const viewAll = focus.getByRole("link", { name: /view all/i });
   if ((await viewAll.count()) === 0) {
-    test.skip(true, "nothing is due in the window for this user");
+    test.skip(true, "this user has no open work");
     return;
   }
   await viewAll.click();

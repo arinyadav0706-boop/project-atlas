@@ -1,7 +1,8 @@
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
-// DTOs for the Home landing page (ADR-0012, docs/02_Modules/02_home.md). Home
-// has a FIXED set of sections; future modules feed these, never adding new ones.
+// DTOs for the Home landing page (ADR-0057, docs/02_Modules/02_home.md). Home
+// has a CLOSED set of nine panels; future modules feed these, never adding new
+// ones. Panels whose data does not exist yet are absent, not faked (BR-12).
 
 // Service-layer mirrors of the Prisma enums, so services/callers never import
 // @prisma/client (Feature Architecture §2 — Prisma stays in *.repository.ts).
@@ -64,13 +65,32 @@ export interface HomeProjectDto {
   starred: boolean;
 }
 
+/**
+ * The Summary row (BR-10): counts over the caller's assigned issues in their
+ * member projects. No trend fields — there is no weekly history to compare
+ * against, and a delta with an invented baseline is worse than none (BR-12).
+ */
+export interface HomeSummaryDto {
+  open: number;
+  /** Due within the Your-focus window, or already overdue. */
+  dueThisWeek: number;
+  inProgress: number;
+  inReview: number;
+  /** Open, with an open BLOCKS link pointing at it (ADR-0046 §3). */
+  blocked: number;
+  /** Entered a DONE-category status in the last 30 days, per the audit log. */
+  completedLast30Days: number;
+}
+
 // One composed payload for the whole page. Sections depending on not-yet-built
 // modules return [] — the contract is stable from day one.
 export interface HomeDto {
+  summary: HomeSummaryDto;
   myWork: HomeList<IssueListItemDto>;
   attention: HomeList<AttentionItemDto>;
   continueWorking: IssueListItemDto[];
-  dueSoon: HomeList<IssueListItemDto>;
+  /** Due soon first, then the highest-priority open work (BR-11). */
+  focus: HomeList<IssueListItemDto>;
   starredProjects: HomeProjectDto[];
   recentProjects: HomeProjectDto[];
 }

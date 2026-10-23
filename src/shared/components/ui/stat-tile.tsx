@@ -23,6 +23,7 @@ export function StatTile({
   icon,
   tone = "neutral",
   delta,
+  hint,
   className,
 }: {
   label: string;
@@ -36,6 +37,8 @@ export function StatTile({
    * an invented baseline is not.
    */
   delta?: { value: string; direction: "up" | "down" | "flat"; label: string };
+  /** One line of context under the number ("+2 in review"). Not a trend. */
+  hint?: string;
   className?: string;
 }) {
   return (
@@ -66,6 +69,8 @@ export function StatTile({
       <p className="mt-2.5 text-[27px] font-semibold leading-none tracking-[-0.025em] text-foreground">
         {value}
       </p>
+
+      {hint && <p className="mt-2 text-meta text-muted-foreground">{hint}</p>}
 
       {delta && (
         <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">

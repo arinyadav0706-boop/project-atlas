@@ -8,21 +8,33 @@ import type {
   HomeDto,
   HomeList,
   HomeProjectDto,
+  HomeSummaryDto,
   InteractionTypeDto,
 } from "@/features/home/types/home.types";
 import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 
-// Home orchestration (ADR-0012, 02_home.md). Each section is an independent,
+// Home orchestration (ADR-0057, 02_home.md). Each section is an independent,
 // bounded, org+membership-scoped method (BR-7) so the page can stream them in
 // separate <Suspense> boundaries; getHome() composes them for the API/tests.
 // Project membership is resolved once per request via React cache().
 
 const MY_WORK_LIMIT = 10;
-const DUE_SOON_LIMIT = 8;
+const FOCUS_LIMIT = 5;
 const CONTINUE_LIMIT = 5;
 const RECENT_PROJECTS_LIMIT = 6;
 const ATTENTION_LIMIT = 10;
 const DUE_SOON_WINDOW_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const COMPLETED_WINDOW_DAYS = 30;
+
+const NO_SUMMARY: HomeSummaryDto = {
+  open: 0,
+  dueThisWeek: 0,
+  inProgress: 0,
+  inReview: 0,
+  blocked: 0,
+  completedLast30Days: 0,
+};
 
 // Engagement weights for "Continue working" (BR-3): active work outranks a
 // passive view; recency decays with a 24h half-life.
@@ -82,11 +94,33 @@ export const HomeService = {
     return capped(rows.map(toCard), MY_WORK_LIMIT);
   },
 
-  async dueSoon(actor: Actor, projectIds: string[]): Promise<HomeList<IssueListItemDto>> {
+  // BR-11: what is due (soonest first), then — only if that leaves room — my
+  // most urgent open work. The fill read is skipped when due items already fill
+  // the panel, so the common busy case is one query.
+  async focus(actor: Actor, projectIds: string[]): Promise<HomeList<IssueListItemDto>> {
     if (projectIds.length === 0) return empty();
-    const before = new Date(Date.now() + DUE_SOON_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await HomeRepository.dueSoon(projectIds, actor.userId, before, DUE_SOON_LIMIT + 1);
-    return capped(rows.map(toCard), DUE_SOON_LIMIT);
+    const now = Date.now();
+    const before = new Date(now + DUE_SOON_WINDOW_DAYS * DAY_MS);
+    const due = await HomeRepository.dueSoon(projectIds, actor.userId, before, FOCUS_LIMIT + 1);
+    if (due.length > FOCUS_LIMIT) return capped(due.map((r) => toCard(r, now)), FOCUS_LIMIT);
+    const fill = await HomeRepository.focusFill(
+      projectIds,
+      actor.userId,
+      before,
+      FOCUS_LIMIT - due.length + 1,
+    );
+    return capped([...due, ...fill].map((r) => toCard(r, now)), FOCUS_LIMIT);
+  },
+
+  // BR-10: the Summary row, one request for all six numbers.
+  async summary(actor: Actor, projectIds: string[]): Promise<HomeSummaryDto> {
+    if (projectIds.length === 0) return NO_SUMMARY;
+    const now = Date.now();
+    const [counts, completedLast30Days] = await Promise.all([
+      HomeRepository.summaryCounts(projectIds, actor.userId, new Date(now + DUE_SOON_WINDOW_DAYS * DAY_MS)),
+      HomeRepository.completedSince(projectIds, actor.userId, new Date(now - COMPLETED_WINDOW_DAYS * DAY_MS)),
+    ]);
+    return { ...counts, completedLast30Days };
   },
 
   async attention(actor: Actor, projectIds: string[]): Promise<HomeList<AttentionItemDto>> {
@@ -170,18 +204,20 @@ export const HomeService = {
   // membership once, then runs the sections in parallel.
   async getHome(actor: Actor): Promise<HomeDto> {
     const projectIds = await this.memberProjectIds(actor);
-    const [myWork, dueSoon, attention, continueWorking, strip] = await Promise.all([
+    const [summary, myWork, focus, attention, continueWorking, strip] = await Promise.all([
+      this.summary(actor, projectIds),
       this.myWork(actor, projectIds),
-      this.dueSoon(actor, projectIds),
+      this.focus(actor, projectIds),
       this.attention(actor, projectIds),
       this.continueWorking(actor, projectIds),
       this.projectStrip(actor),
     ]);
     return {
+      summary,
       myWork,
       attention,
       continueWorking,
-      dueSoon,
+      focus,
       starredProjects: strip.starredProjects,
       recentProjects: strip.recentProjects,
     };

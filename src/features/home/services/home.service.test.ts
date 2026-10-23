@@ -6,6 +6,9 @@ vi.mock("@/features/home/repositories/home.repository", () => ({
     memberProjectIds: vi.fn(),
     myWork: vi.fn(),
     dueSoon: vi.fn(),
+    focusFill: vi.fn(),
+    summaryCounts: vi.fn(),
+    completedSince: vi.fn(),
     issuesByIds: vi.fn(),
     attentionCandidates: vi.fn(),
     projectsByIds: vi.fn(),
@@ -101,6 +104,72 @@ describe("myWork", () => {
     const { items, truncated } = await HomeService.myWork(actor, IDS);
     expect(items).toHaveLength(10);
     expect(truncated).toBe(false);
+  });
+});
+
+describe("focus (BR-11)", () => {
+  it("fills with priority work only when due items leave room", async () => {
+    home.dueSoon.mockResolvedValue([issueRow("d1", { dueDate: new Date("2026-07-21T00:00:00Z") })] as never);
+    home.focusFill.mockResolvedValue([issueRow("f1"), issueRow("f2")] as never);
+    const { items, truncated } = await HomeService.focus(actor, IDS);
+    expect(items.map((i) => i.id)).toEqual(["d1", "f1", "f2"]);
+    expect(truncated).toBe(false);
+    // Asks for exactly the room left, plus one to learn whether there is more.
+    expect(home.focusFill.mock.calls[0]![3]).toBe(5);
+  });
+
+  it("skips the fill read when due items already fill the panel", async () => {
+    const due = ["a", "b", "c", "d", "e", "f"].map((id) =>
+      issueRow(id, { dueDate: new Date("2026-07-21T00:00:00Z") }),
+    );
+    home.dueSoon.mockResolvedValue(due as never);
+    const { items, truncated } = await HomeService.focus(actor, IDS);
+    expect(items).toHaveLength(5);
+    expect(truncated).toBe(true);
+    expect(home.focusFill).not.toHaveBeenCalled();
+  });
+
+  it("reports more when the fill itself overflows", async () => {
+    home.dueSoon.mockResolvedValue([] as never);
+    home.focusFill.mockResolvedValue(["a", "b", "c", "d", "e", "f"].map((id) => issueRow(id)) as never);
+    const { items, truncated } = await HomeService.focus(actor, IDS);
+    expect(items).toHaveLength(5);
+    expect(truncated).toBe(true);
+  });
+});
+
+describe("summary (BR-10)", () => {
+  it("combines the counts with completions from the audit log", async () => {
+    home.summaryCounts.mockResolvedValue({ open: 3, dueThisWeek: 1, inProgress: 1, inReview: 1, blocked: 0 });
+    home.completedSince.mockResolvedValue(1);
+    expect(await HomeService.summary(actor, IDS)).toEqual({
+      open: 3,
+      dueThisWeek: 1,
+      inProgress: 1,
+      inReview: 1,
+      blocked: 0,
+      completedLast30Days: 1,
+    });
+    expect(home.summaryCounts).toHaveBeenCalledWith(IDS, "u1", expect.any(Date));
+  });
+
+  it("uses a 7-day due window and a 30-day completion window", async () => {
+    home.summaryCounts.mockResolvedValue({ open: 0, dueThisWeek: 0, inProgress: 0, inReview: 0, blocked: 0 });
+    home.completedSince.mockResolvedValue(0);
+    const before = Date.now();
+    await HomeService.summary(actor, IDS);
+    const dueBefore = (home.summaryCounts.mock.calls[0]![2] as Date).getTime();
+    const since = (home.completedSince.mock.calls[0]![2] as Date).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    expect(Math.round((dueBefore - before) / day)).toBe(7);
+    expect(Math.round((before - since) / day)).toBe(30);
+  });
+
+  it("is all zeros, without a query, for someone in no projects (BR-7)", async () => {
+    const s = await HomeService.summary(actor, []);
+    expect(Object.values(s).every((n) => n === 0)).toBe(true);
+    expect(home.summaryCounts).not.toHaveBeenCalled();
+    expect(home.completedSince).not.toHaveBeenCalled();
   });
 });
 

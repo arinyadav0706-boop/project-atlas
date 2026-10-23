@@ -3,12 +3,13 @@ import { cn } from "@/shared/lib/utils";
 import { PriorityIcon } from "@/features/issues/components/issue-meta";
 import type { IssueListItemDto, IssuePriorityDto } from "@/features/issues/types/issue.types";
 
-// "Due soon" gets its own row shape, because this list answers a different
+// "Your focus" gets its own row shape, because this list answers a different
 // question from the others: not *what* is it, but *when*.
 //
 // The date leads as a calendar-style chip so the column scans as a schedule.
 // Using the generic row here — with the date tucked away on the right — is what
-// made this section look like every other list on the page.
+// made this section look like every other list on the page. Rows without a due
+// date (the priority fill, BR-11) keep the chip's width so titles stay aligned.
 
 const PRIORITY_LABEL: Record<IssuePriorityDto, string> = {
   HIGHEST: "Highest",
@@ -52,7 +53,7 @@ function DateChip({ iso, overdue }: { iso: string; overdue: boolean }) {
 // Overdue arrives on the DTO, decided by the service against one request-time
 // clock. Reading the clock here would be impure, and two rows rendered a tick
 // apart could disagree about the same instant.
-export function DueSoonList({ items }: { items: IssueListItemDto[] }) {
+export function FocusList({ items }: { items: IssueListItemDto[] }) {
   return (
     <div className="flex flex-col gap-0.5">
       {items.map((item) => (
@@ -61,7 +62,11 @@ export function DueSoonList({ items }: { items: IssueListItemDto[] }) {
           href={`/projects/${item.projectId}/issues/${item.id}`}
           className="flex items-center gap-2.5 rounded-control px-2 py-1 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
-          {item.dueDate && <DateChip iso={item.dueDate} overdue={item.dueOverdue ?? false} />}
+          {item.dueDate ? (
+            <DateChip iso={item.dueDate} overdue={item.dueOverdue ?? false} />
+          ) : (
+            <span aria-hidden className="size-9 shrink-0" />
+          )}
 
           <span className="min-w-0 flex-1">
             <span className="block truncate text-body text-foreground">{item.title}</span>
