@@ -39,3 +39,8 @@ test-results/
 # Local StorageAdapter file store (ADR-0017) — runtime data, not source.
 # Created by attachment/avatar uploads when STORAGE_PROVIDER=local.
 .data/
+
+# Visual review loop artefacts (scripts/visual-review): screenshots and
+# reviewer replies per run. Regenerated every round; the commit log is the record.
+/scripts/visual-review/rounds/
+/scripts/visual-review/.state/
