@@ -224,9 +224,11 @@ rounds, approved at 89/100). It supersedes some values above:
   work 5, attention 4, activity 3). Lists with no page of their own (Upcoming,
   Continue working, Recent activity) expand in place with a "View all N" button
   (`features/home/components/expandable-section.tsx`) instead of linking out.
-- **Home's KPI tiles use per-figure palette hues** (blue, rose, violet,
-  emerald — `StatTile` tones), extending the pill palette exception; due and
-  blocked stay neutral at zero.
+- **Home's KPI tiles copy the reference's icons and hues**: clipboard on
+  blue-100, calendar on rose-100, circular arrow on violet-100, warning
+  triangle on rose-100, and a solid green tick disc on green-100 (`StatTile`
+  tones, extending the pill palette exception). Due and blocked stay neutral
+  grey at zero and switch to the reference look from 1 upwards.
 - **Amber text is `amber-800`** and overdue dates `rose-700`, so small labels
   pass 4.5:1.
 

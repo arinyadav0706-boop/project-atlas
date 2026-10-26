@@ -15,11 +15,12 @@ const TONES = {
   danger: "bg-destructive/10 text-destructive",
   // Home's KPI row gives each figure its own hue, as in the approved reference
   // (05_UI §Home reference alignment, the same palette exception as the
-  // pills). Shades chosen so the glyph passes 3:1 on its tint.
-  blue: "bg-blue-50 text-blue-600",
-  rose: "bg-rose-50 text-rose-700",
-  violet: "bg-violet-50 text-violet-600",
-  emerald: "bg-emerald-50 text-emerald-700",
+  // pills). The -100 tints keep the reference's saturation; every glyph still
+  // passes 3:1 on its tint.
+  blue: "bg-blue-100 text-blue-600",
+  rose: "bg-rose-100 text-rose-600",
+  violet: "bg-violet-100 text-violet-600",
+  green: "bg-green-100 text-green-600",
 } as const;
 
 export type StatTone = keyof typeof TONES;
