@@ -109,14 +109,25 @@ test("a capped section says so rather than reporting the cap as the total", asyn
 
 test("a project tile opens that project", async ({ page }) => {
   await signInAs(page, DEMO_USERS.lead);
+  // The strip only shows projects opened in the last 30 days (BR-5), so open
+  // one first rather than depending on what earlier runs left behind.
+  await page.goto("/projects");
+  const first = page.locator('main a[href^="/projects/"]').first();
+  await expect(first).toBeVisible({ timeout: 20000 });
+  const href = await first.getAttribute("href");
+  const projectId = /^\/projects\/([^/?#]+)/.exec(href ?? "")![1]!;
+  await page.goto(`/projects/${projectId}/issues`);
   await openHome(page);
 
-  const projects = panel(page, "Projects");
-  const tile = projects.locator('a[href*="/projects/"]').first();
-  if ((await tile.count()) === 0) {
-    test.skip(true, "this user has no starred or recent projects yet");
-    return;
-  }
+  const tile = panel(page, "Projects").locator(`a[href="/projects/${projectId}/issues"]`);
+  await expect(tile).toBeVisible({ timeout: 20000 });
   await tile.click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+\/issues/, { timeout: 20000 });
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/issues`), { timeout: 20000 });
+});
+
+test("the project strip shows at most four cards", async ({ page }) => {
+  await signInAs(page, DEMO_USERS.lead);
+  await openHome(page);
+  const cards = panel(page, "Projects").locator('a[href^="/projects/"][href$="/issues"]');
+  expect(await cards.count()).toBeLessThanOrEqual(4);
 });

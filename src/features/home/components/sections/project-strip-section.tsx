@@ -7,9 +7,10 @@ import { StarButton } from "@/features/home/components/star-button";
 import type { Actor } from "@/shared/types/actor";
 import type { HomeProjectDto, HomeProjectStatsDto } from "@/features/home/types/home.types";
 
-// Personal navigation strip — starred (explicit) then recent (implicit). NOT
-// the catalog (that's the Projects module). Always shows a path to Projects.
-// Each card carries the BR-15 figures: issues, active sprints, members, % done.
+// Personal navigation strip (BR-5): up to four projects opened in the last 30
+// days, starred first. NOT the catalog — "View all projects" is the path to
+// everything else. Each card carries the BR-15 figures: issues, active sprints,
+// members, % done.
 export async function ProjectStripSection({ actor }: { actor: Actor }) {
   const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
   const projects = [...starredProjects, ...recentProjects];
@@ -20,7 +21,7 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
       viewAll={{ href: "/projects", label: "View all projects" }}
     >
       {projects.length > 0 ? (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(13.5rem,1fr))] gap-2.5">
+        <div className={cn("grid grid-cols-1 gap-2.5 sm:grid-cols-2", COLUMNS[projects.length])}>
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -37,6 +38,16 @@ export async function ProjectStripSection({ actor }: { actor: Actor }) {
     </HomeSection>
   );
 }
+
+// One column per card on wide screens, so one to four cards always fill the
+// row instead of leaving empty slots beside them. Literal class names, so
+// Tailwind can see them.
+const COLUMNS: Record<number, string> = {
+  1: "sm:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+};
 
 // Colour is derived from the project key, not stored: a stable hash means the
 // same project keeps the same tile across sessions and machines without adding
@@ -72,7 +83,9 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         href={`/projects/${project.id}/issues`}
         className="min-w-0 flex-1 rounded-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <span className="block truncate text-[12px] font-semibold leading-5 text-foreground">
+        {/* Right padding clears the star, which sits in the corner rather than
+            in a column of its own, so the lines below get the full width. */}
+        <span className="block truncate pr-6 text-[12px] font-semibold leading-5 text-foreground">
           {project.name}
         </span>
         {/* Always two lines tall, so a one-line description does not leave its
@@ -88,7 +101,7 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         <span className="absolute inset-0" aria-hidden />
       </Link>
 
-      <span className="relative shrink-0">
+      <span className="absolute right-3 top-3">
         {/* Outside the link, and above the covering span: starring must not
             navigate. */}
         <StarButton projectId={project.id} initialStarred={project.starred} />

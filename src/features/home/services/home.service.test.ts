@@ -62,6 +62,7 @@ function issueRow(id: string, over: Record<string, unknown> = {}) {
     updatedAt: new Date("2026-07-20T00:00:00Z"),
     version: 0,
     assignee: null,
+    project: { name: "Platform" },
     ...over,
   };
 }
@@ -96,6 +97,7 @@ describe("myWork", () => {
     const { items, truncated } = await HomeService.myWork(actor, IDS);
     expect(items.map((i) => i.id)).toEqual(["a", "b"]);
     expect(items[0]!.projectId).toBe("p1");
+    expect(items[0]!.projectName).toBe("Platform");
     expect(truncated).toBe(false);
   });
 
@@ -239,25 +241,44 @@ describe("continueWorking (BR-3 ranking)", () => {
 });
 
 describe("projectStrip (BR-5)", () => {
-  it("lists starred first and excludes starred from recent (dedupe)", async () => {
-    favorite.listEntityIds.mockResolvedValue([{ entityId: "p1" }] as never);
-    recent.listByType.mockResolvedValue([
-      { entityId: "p1" }, // also starred → must not appear in recent
-      { entityId: "p2" },
-    ] as never);
-    home.projectsByIds.mockImplementation((async (ids: string[]) =>
-      ids.map((id) => ({ id, key: id.toUpperCase(), name: `Project ${id}` }))) as never);
-    home.projectStats.mockResolvedValue({
-      byStatus: [],
-      activeSprints: [],
-      members: [],
-    } as never);
+  const rows = (async (ids: string[]) =>
+    ids.map((id) => ({ id, key: id.toUpperCase(), name: `Project ${id}`, description: null }))) as never;
+  const noStats = { byStatus: [], activeSprints: [], members: [] } as never;
+
+  it("puts starred projects first, then the rest by recency", async () => {
+    favorite.listEntityIds.mockResolvedValue([{ entityId: "p2" }] as never);
+    recent.listByType.mockResolvedValue([{ entityId: "p1" }, { entityId: "p2" }] as never);
+    home.projectsByIds.mockImplementation(rows);
+    home.projectStats.mockResolvedValue(noStats);
 
     const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
-    expect(starredProjects.map((p) => p.id)).toEqual(["p1"]);
+    expect(starredProjects.map((p) => p.id)).toEqual(["p2"]);
     expect(starredProjects[0]!.starred).toBe(true);
-    expect(recentProjects.map((p) => p.id)).toEqual(["p2"]);
+    expect(recentProjects.map((p) => p.id)).toEqual(["p1"]);
     expect(recentProjects[0]!.starred).toBe(false);
+  });
+
+  it("shows at most four projects", async () => {
+    favorite.listEntityIds.mockResolvedValue([{ entityId: "p6" }] as never);
+    recent.listByType.mockResolvedValue(
+      ["p1", "p2", "p3", "p4", "p5", "p6"].map((entityId) => ({ entityId })) as never,
+    );
+    home.projectsByIds.mockImplementation(rows);
+    home.projectStats.mockResolvedValue(noStats);
+
+    const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
+    expect([...starredProjects, ...recentProjects].map((p) => p.id)).toEqual(["p6", "p1", "p2", "p3"]);
+  });
+
+  it("only reads projects opened in the last 30 days, so stale starred ones drop out", async () => {
+    favorite.listEntityIds.mockResolvedValue([{ entityId: "stale" }] as never);
+    recent.listByType.mockResolvedValue([] as never);
+
+    const strip = await HomeService.projectStrip(actor);
+    expect(strip).toEqual({ starredProjects: [], recentProjects: [] });
+    const since = recent.listByType.mock.calls.at(-1)![3] as Date;
+    const days = (Date.now() - since.getTime()) / 86_400_000;
+    expect(Math.round(days)).toBe(30);
   });
 });
 
@@ -277,7 +298,7 @@ describe("project card stats (BR-15)", () => {
       { entityId: "p1" },
       { entityId: "p2" },
     ] as never);
-    recent.listByType.mockResolvedValue([] as never);
+    recent.listByType.mockResolvedValue([{ entityId: "p1" }, { entityId: "p2" }] as never);
     home.projectsByIds.mockImplementation((async (ids: string[]) =>
       ids.map((id) => ({
         id,

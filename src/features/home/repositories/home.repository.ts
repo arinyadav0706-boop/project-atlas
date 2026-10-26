@@ -18,6 +18,7 @@ const issueCardSelect = {
   updatedAt: true,
   version: true,
   assignee: { select: { id: true, name: true, avatarUrl: true } },
+  project: { select: { name: true } },
 } as const;
 
 // A safety bound, not a page size: one person finishing more than this many

@@ -93,12 +93,12 @@ export async function MyWorkSection({
 }
 
 // Column tracks shared by the header and every row, so the columns line up.
-const COLUMNS = "grid-cols-[minmax(0,1fr)_84px_80px_52px]";
-const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_84px_80px_52px_22px]";
+const COLUMNS = "grid-cols-[minmax(0,1fr)_96px_84px_80px_52px]";
+const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_96px_84px_80px_52px_22px]";
 
 /**
- * My work as a table, as in the approved reference: Issue · Status · Priority ·
- * Due. Not `DataTable` — five rows in a half-width panel, no sorting, no paging.
+ * My work as a table, as in the approved reference: Issue · Project · Status ·
+ * Priority · Due. Not `DataTable` — five rows in a half-width panel, no sorting, no paging.
  * No row checkboxes: Home has no bulk action, and a checkbox that selects
  * nothing is decoration.
  */
@@ -114,6 +114,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
         )}
       >
         <span role="columnheader">Issue</span>
+        <span role="columnheader">Project</span>
         <span role="columnheader">Status</span>
         <span role="columnheader">Priority</span>
         <span role="columnheader" className="text-right">
@@ -136,6 +137,9 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
             <IssueTypeIcon type={item.type} className="size-3.5 shrink-0" />
             <span className="shrink-0 text-[11px] font-medium text-accent">{item.key}</span>
             <span className="min-w-0 truncate text-[12px] text-foreground">{item.title}</span>
+          </span>
+          <span role="cell" className="truncate text-[11px] text-muted-foreground" title={item.projectName}>
+            {item.projectName ?? "—"}
           </span>
           <span role="cell" className="flex items-center">
             <StatusPill status={item.status} />

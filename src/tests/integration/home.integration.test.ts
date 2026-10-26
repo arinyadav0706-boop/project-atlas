@@ -72,6 +72,8 @@ describe("Home cross-project scope (BR-7)", () => {
     expect(titles).toContain("in p1");
     expect(titles).toContain("in p2");
     expect(titles).not.toContain("in p3 (not a member)");
+    // The My work Project column.
+    expect(items.find((i) => i.title === "in p1")!.projectName).toBe(p1.name);
   });
 });
 
@@ -99,6 +101,21 @@ describe("Project strip", () => {
 
     const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
     expect(starredProjects.map((p) => p.id)).toEqual([p1.id]);
+    expect(recentProjects.map((p) => p.id)).toEqual([p2.id]);
+  });
+
+  it("leaves out a project not opened for 30 days, even a starred one (BR-5)", async () => {
+    const { actor, user, p1, p2 } = await seed();
+    await FavoriteService.starProject(actor, p1.id);
+    await RecentItemService.record(actor, "PROJECT", p1.id, "VIEWED");
+    await RecentItemService.record(actor, "PROJECT", p2.id, "VIEWED");
+    await prisma.recentItem.updateMany({
+      where: { userId: user.id, entityId: p1.id },
+      data: { lastInteractedAt: new Date(Date.now() - 31 * 86_400_000) },
+    });
+
+    const { starredProjects, recentProjects } = await HomeService.projectStrip(actor);
+    expect(starredProjects).toEqual([]);
     expect(recentProjects.map((p) => p.id)).toEqual([p2.id]);
   });
 
@@ -276,6 +293,7 @@ describe("Project card stats (BR-15)", () => {
     await prisma.sprint.create({ data: { projectId: p1.id, name: "S1", status: "ACTIVE" } });
     await prisma.sprint.create({ data: { projectId: p1.id, name: "S2", status: "PLANNED" } });
     await FavoriteService.starProject(actor, p1.id);
+    await RecentItemService.record(actor, "PROJECT", p1.id, "VIEWED");
 
     const { starredProjects } = await HomeService.projectStrip(actor);
     expect(starredProjects[0]!.stats).toEqual({

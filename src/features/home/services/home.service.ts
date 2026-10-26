@@ -34,7 +34,11 @@ import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 const MY_WORK_LIMIT = 6;
 const FOCUS_LIMIT = 5;
 const CONTINUE_LIMIT = 5;
-const RECENT_PROJECTS_LIMIT = 6;
+// BR-5: the strip shows at most four projects, all opened within 30 days.
+const PROJECT_STRIP_LIMIT = 4;
+const PROJECT_STALE_MS = 30 * 24 * 60 * 60 * 1000;
+// Over-fetch: archived or out-of-org projects are dropped after the read.
+const PROJECT_RECENT_FETCH = 20;
 const ATTENTION_LIMIT = 4;
 const DUE_SOON_WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -109,6 +113,7 @@ function toCard(row: IssueCardRow, now = Date.now()): IssueListItemDto {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     assignee: row.assignee,
+    projectName: row.project.name,
   };
 }
 
@@ -449,57 +454,47 @@ export const HomeService = {
       .map((x) => toCard(x.row));
   },
 
-  // BR-5: starred (explicit) + recent (implicit) projects, deduped, scoped.
+  // BR-5: up to four projects opened in the last 30 days, starred first, then
+  // by most recent visit. A project not opened for 30 days is stale and left
+  // out even when starred: the strip is "where I am working now", and the
+  // Projects page is one click away for everything else.
   async projectStrip(
     actor: Actor,
   ): Promise<{ starredProjects: HomeProjectDto[]; recentProjects: HomeProjectDto[] }> {
+    const since = new Date(Date.now() - PROJECT_STALE_MS);
     const [starredIdRows, recentItems] = await Promise.all([
       FavoriteRepository.listEntityIds(actor.userId, "PROJECT"),
-      RecentItemRepository.listByType(actor.userId, "PROJECT", RECENT_PROJECTS_LIMIT * 2),
+      RecentItemRepository.listByType(actor.userId, "PROJECT", PROJECT_RECENT_FETCH, since),
     ]);
-    const starredIds = starredIdRows.map((r) => r.entityId);
-    const starredSet = new Set(starredIds);
-    const recentIds = recentItems
-      .map((r) => r.entityId)
-      .filter((id) => !starredSet.has(id));
+    const starredSet = new Set(starredIdRows.map((r) => r.entityId));
+    const recentIds = [...new Set(recentItems.map((r) => r.entityId))];
+    if (recentIds.length === 0) return { starredProjects: [], recentProjects: [] };
 
-    const [starredRows, recentRows] = await Promise.all([
-      starredIds.length
-        ? HomeRepository.projectsByIds(starredIds, actor.organizationId)
-        : Promise.resolve([]),
-      recentIds.length
-        ? HomeRepository.projectsByIds(recentIds, actor.organizationId)
-        : Promise.resolve([]),
-    ]);
+    // projectsByIds drops archived and out-of-org projects, and may reorder.
+    const rows = await HomeRepository.projectsByIds(recentIds, actor.organizationId);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const live = recentIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+    const shown = [
+      ...live.filter((r) => starredSet.has(r.id)),
+      ...live.filter((r) => !starredSet.has(r.id)),
+    ].slice(0, PROJECT_STRIP_LIMIT);
 
-    const stats = await projectStatsFor([...starredRows, ...recentRows].map((r) => r.id));
-
-    type ProjectRow = {
-      id: string;
-      key: string;
-      name: string;
-      description: string | null;
-    };
-    const toProject = (row: ProjectRow, starred: boolean): HomeProjectDto => ({
+    const stats = await projectStatsFor(shown.map((r) => r.id));
+    const toProject = (row: (typeof shown)[number]): HomeProjectDto => ({
       id: row.id,
       key: row.key,
       name: row.name,
       description: row.description,
-      starred,
+      starred: starredSet.has(row.id),
       stats: stats.get(row.id) ?? NO_STATS,
     });
 
-    // Preserve recency order (projectsByIds may reorder).
-    const recentById = new Map(recentRows.map((r) => [r.id, r]));
-    const recentProjects = recentIds
-      .map((id) => recentById.get(id))
-      .filter((r): r is ProjectRow => r != null)
-      .slice(0, RECENT_PROJECTS_LIMIT)
-      .map((r) => toProject(r, false));
-
     return {
-      starredProjects: starredRows.map((r) => toProject(r, true)),
-      recentProjects,
+      starredProjects: shown.filter((r) => starredSet.has(r.id)).map(toProject),
+      recentProjects: shown.filter((r) => !starredSet.has(r.id)).map(toProject),
     };
   },
 

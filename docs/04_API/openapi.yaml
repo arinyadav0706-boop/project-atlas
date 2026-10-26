@@ -2803,6 +2803,9 @@ components:
       properties:
         id: { type: string }
         projectId: { type: string }
+        projectName:
+          type: string
+          description: The owning project's name. Present on Home's issue lists (the My work Project column); other endpoints omit it.
         key: { type: string }
         type: { $ref: "#/components/schemas/IssueType" }
         title: { type: string }
@@ -3593,9 +3596,11 @@ components:
         workload: { $ref: "#/components/schemas/PersonalWorkload" }
         starredProjects:
           type: array
+          description: Starred projects opened in the last 30 days; together with recentProjects at most 4 (BR-5).
           items: { $ref: "#/components/schemas/HomeProject" }
         recentProjects:
           type: array
+          description: Other projects opened in the last 30 days, most recent first.
           items: { $ref: "#/components/schemas/HomeProject" }
 
     HomeProject:

@@ -68,6 +68,12 @@ export interface IssueListItemDto {
    * about the same instant.
    */
   dueOverdue?: boolean;
+  /**
+   * The owning project's name — Home's My work Project column. Optional like
+   * the date: only the cross-project surfaces need it, and inside a project
+   * every row would repeat the page title.
+   */
+  projectName?: string;
   // Optimistic-concurrency token (ADR-0011). The client sends this back on a
   // reorder; a stale value is rejected instead of silently overwriting.
   version: number;

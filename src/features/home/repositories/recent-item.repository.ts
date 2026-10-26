@@ -21,9 +21,10 @@ export const RecentItemRepository = {
 
   // Most-recently-engaged entities of a type (over-fetch, then rank/scope in
   // the service). Uses the (userId, lastInteractedAt desc) index.
-  listByType(userId: string, entityType: RecentEntityType, take: number) {
+  // `since` drops anything not touched after it (stale, Home BR-5).
+  listByType(userId: string, entityType: RecentEntityType, take: number, since?: Date) {
     return prisma.recentItem.findMany({
-      where: { userId, entityType },
+      where: { userId, entityType, ...(since ? { lastInteractedAt: { gte: since } } : {}) },
       orderBy: { lastInteractedAt: "desc" },
       take,
     });

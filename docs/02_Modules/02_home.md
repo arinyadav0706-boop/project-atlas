@@ -39,7 +39,7 @@ never by adding a box.
 | 2 | **My Work**: Assigned to me (phase 1); Reported by me, Mentioned (phase 2) | 1 / 2 | `Issue`, `CommentMention` |
 | 3 | **Needs your attention**: the unified `AttentionSource` stream (BR-2) | 1 | existing sources |
 | 4 | **Your focus**: due soon first, then my highest-priority open work (BR-11). Absorbs "Due soon" | 1 | `Issue` |
-| 5 | **Projects**: starred + recent (BR-5); progress and active-sprint counts in phase 2 | 1 / 2 | `Favorite`, `RecentItem`, `Project`, `Sprint` |
+| 5 | **Projects**: up to 4 opened in the last 30 days, starred first (BR-5); progress and active-sprint counts in phase 2 | 1 / 2 | `Favorite`, `RecentItem`, `Project`, `Sprint` |
 | 6 | **Recent activity**: comments and status changes around my work; assignments once audited | 2 | `AuditLog` |
 | 7 | **Workload**: my queue compared with my team's, using the Workload module's definitions | 2 | Workload service |
 | 8 | **Upcoming**: due dates and sprint dates; meetings only with a calendar source | 2 / 3 | `Issue`, `Sprint` |
@@ -82,10 +82,14 @@ never by adding a box.
   raw "last viewed". Bounded (~5).
 - **BR-4 (Due soon):** my assigned, non-`DONE` issues with a `dueDate` within a
   rolling window (default 7 days, plus overdue), soonest first. Bounded.
-- **BR-5 (Projects strip):** **Starred** projects (explicit, via `Favorite`) +
-  **recent** projects (from `RecentItem`, entityType PROJECT), `ACTIVE` only,
-  deduped, bounded (~6). This is navigation, **not** the catalog — the full,
-  searchable list is the Projects module.
+- **BR-5 (Projects strip):** the projects I am working in now — at most **4**,
+  drawn only from projects I **opened in the last 30 days** (`RecentItem`,
+  entityType PROJECT; opening any page under a project counts). Among those,
+  **starred** ones (`Favorite`) come first, then the rest by most recent visit.
+  `ACTIVE` only, deduped. A project I have not opened for 30 days is **stale**
+  and does not show — starred or not (decided 2026-10-26). The cards share the
+  row equally, so 1–4 cards always fill it; "View all projects" opens the
+  Projects page for everything else. This is navigation, **not** the catalog.
 - **BR-6 (Empty state):** a user with no assigned work / no history sees a
   purposeful onboarding state (create/join a project, pick up an issue), never a
   wall of empty widgets or zeros.
@@ -217,8 +221,10 @@ No changes to existing entities.
     upcoming: UpcomingItemDto[]           // BR-16
     workload: PersonalWorkloadDto         // BR-17
     starredProjects: HomeProjectDto[]     // each with stats (BR-15)
-    recentProjects: HomeProjectDto[]
+    recentProjects: HomeProjectDto[]      // starred + recent ≤ 4 in total (BR-5)
   }
+  // Home's issue rows also carry `projectName` (the My work Project column;
+  // optional on IssueListItemDto, populated by Home only).
   ActivityItemDto = { id, kind: COMMENT | STATUS | ASSIGNMENT, occurredAt,
     occurredAgo, actor | null, issue { id, key, title, projectId }, href }
     + excerpt (COMMENT) | status (STATUS) | assignee, toMe (ASSIGNMENT)
@@ -256,6 +262,11 @@ resets another.
 
 ## Acceptance Criteria
 
+- Given I opened six projects in the last 30 days and one 40 days ago, when I
+  open Home, then Projects shows four cards (starred first, then most recent),
+  never the 40-day-old one, and the cards fill the row; with three projects,
+  three cards fill it.
+- Given an issue in My work, then its row shows the project's name.
 - Given issues assigned to me across two projects, when I open Home, then My Work
   shows them (bounded, ordered by due/priority), each a one-click open.
 - Given I edited issue A yesterday and viewed issue B a minute ago, when I open
