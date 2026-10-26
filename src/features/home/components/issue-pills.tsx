@@ -29,7 +29,7 @@ const PRIORITY_TONE: Record<IssuePriorityDto, string> = {
 };
 
 const PILL =
-  "inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-[12px] font-medium whitespace-nowrap";
+  "inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap";
 
 export function StatusPill({ status }: { status: IssueStatusDto }) {
   return <span className={cn(PILL, STATUS_TONE[status])}>{statusLabel(status)}</span>;
@@ -37,9 +37,9 @@ export function StatusPill({ status }: { status: IssueStatusDto }) {
 
 export function PriorityPill({ priority }: { priority: IssuePriorityDto }) {
   return (
-    <span className={cn(PILL, "pl-1.5", PRIORITY_TONE[priority])}>
+    <span className={cn(PILL, "pl-1", PRIORITY_TONE[priority])}>
       {/* The pill's own colour, not the icon's palette colour: one hue per pill. */}
-      <PriorityIcon priority={priority} className="size-3.5 text-current" />
+      <PriorityIcon priority={priority} className="size-3 text-current" />
       {priorityLabel(priority)}
     </span>
   );

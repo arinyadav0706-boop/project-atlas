@@ -38,11 +38,11 @@ export function TopBar({
     .toUpperCase();
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-background px-5">
+    <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-background px-6">
       {/* Bounded rather than `flex-1`: a search field stretched across a
           1600px window reads as a page-wide input, not a control. 600px is the
           approved reference's width. */}
-      <div className="flex-1 md:max-w-[600px]">{searchEnabled && <SearchPalette />}</div>
+      <div className="flex-1 md:max-w-[602px]">{searchEnabled && <SearchPalette />}</div>
       {/* `ml-auto` pins the cluster to the right edge. Without it the bounded
           search box stops stretching and the bell and avatar sit stranded in
           the middle of a wide window instead of at the corner. */}
@@ -50,13 +50,19 @@ export function TopBar({
         <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            {/* The name beside the avatar, as in the reference: whose account
+                this is should not take a click to find out. */}
+            <button className="flex items-center gap-2 rounded-full pr-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={image ?? undefined} alt={name} />
+                <AvatarImage src={image ?? undefined} alt="" />
                 <AvatarFallback className="text-xs font-medium">
                   {initials}
                 </AvatarFallback>
               </Avatar>
+              {/* Screen-reader text below md, so the button always has a name. */}
+              <span className="sr-only text-[12px] font-medium text-foreground md:not-sr-only md:inline-block md:max-w-[10rem] md:truncate">
+                {name}
+              </span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

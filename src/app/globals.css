@@ -8,19 +8,19 @@
    Semantic colors (destructive) are tokens, never ad-hoc hexes in components. */
 :root {
   --background: 0 0% 100%;
-  --surface: 216 56% 98%;
+  --surface: 210 43% 97%;
   /* The page canvas the cards sit ON, distinct from the cards themselves.
      Without it, a white card on a white page is separated only by a hairline
      border and the whole app reads flat — which is precisely the gap between
      our Workload page and the mockup it was built from. Elevation needs
      something to be elevated above. */
-  --canvas: 220 43% 97%;
-  --foreground: 223 51% 14%;
-  --border: 215 33% 93%;
+  --canvas: 220 43% 98.6%;
+  --foreground: 222 47% 11%;
+  --border: 216 29% 93%;
   --accent: 220 98% 57%;
   --accent-foreground: 0 0% 100%;
   --muted: 218 57% 97%;
-  --muted-foreground: 215 16% 47%;
+  --muted-foreground: 217 15% 41%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   /* Status tones (docs/05_UI/03_Data_Visualisation.md §6). Charts read these

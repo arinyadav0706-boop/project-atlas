@@ -17,6 +17,10 @@ const TABS: { tab: HomeWorkTab; label: string }[] = [
   { tab: "mentioned", label: "Mentioned" },
 ];
 
+// Rows shown. The service returns one more than this panel needs, and five
+// rows end level with the four attention items beside it.
+const SHOWN = 5;
+
 const EMPTY: Record<HomeWorkTab, { title: string; body: string }> = {
   assigned: {
     title: "Nothing assigned to you",
@@ -46,14 +50,15 @@ export async function MyWorkSection({
   /** The Home URL with this panel's tab switched, every other tab kept. */
   hrefFor: (tab: HomeWorkTab) => string;
 }) {
-  const { items, truncated } = await HomeService.workTab(actor, projectIds, tab);
+  const { items: all, truncated } = await HomeService.workTab(actor, projectIds, tab);
+  const items = all.slice(0, SHOWN);
   return (
     <HomeSection
       title="My work"
       // A bare "10+": the tabs and the link share this header, and the noun is
       // in the title already.
       count={items.length}
-      countTruncated={truncated}
+      countTruncated={truncated || all.length > items.length}
       tabs={
         <PanelTabs
           label="My work views"
@@ -88,12 +93,12 @@ export async function MyWorkSection({
 }
 
 // Column tracks shared by the header and every row, so the columns line up.
-const COLUMNS = "grid-cols-[minmax(0,1fr)_92px_88px_60px]";
-const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_92px_88px_60px_24px]";
+const COLUMNS = "grid-cols-[minmax(0,1fr)_84px_80px_52px]";
+const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_84px_80px_52px_22px]";
 
 /**
  * My work as a table, as in the approved reference: Issue · Status · Priority ·
- * Due. Not `DataTable` — ten rows in a half-width panel, no sorting, no paging.
+ * Due. Not `DataTable` — five rows in a half-width panel, no sorting, no paging.
  * No row checkboxes: Home has no bulk action, and a checkbox that selects
  * nothing is decoration.
  */
@@ -104,7 +109,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
       <div
         role="row"
         className={cn(
-          "grid h-8 items-center gap-3 border-y border-border-subtle bg-surface px-4 text-[12px] font-medium text-muted-foreground",
+          "grid h-8 items-center gap-3 border-y border-border-subtle bg-surface px-4 text-[11px] font-medium text-muted-foreground",
           columns,
         )}
       >
@@ -129,8 +134,8 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
         >
           <span role="cell" className="flex min-w-0 items-center gap-2">
             <IssueTypeIcon type={item.type} className="size-3.5 shrink-0" />
-            <span className="shrink-0 text-[12px] font-medium text-accent">{item.key}</span>
-            <span className="min-w-0 truncate text-[13px] text-foreground">{item.title}</span>
+            <span className="shrink-0 text-[11px] font-medium text-accent">{item.key}</span>
+            <span className="min-w-0 truncate text-[12px] text-foreground">{item.title}</span>
           </span>
           <span role="cell" className="flex items-center">
             <StatusPill status={item.status} />
@@ -141,7 +146,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
           <span
             role="cell"
             className={cn(
-              "text-right text-[12px] tabular-nums whitespace-nowrap",
+              "text-right text-[11px] tabular-nums whitespace-nowrap",
               // Overdue is decided by the service against one request clock.
               item.dueOverdue ? "font-medium text-destructive" : "text-foreground/80",
             )}
@@ -151,7 +156,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
           {showAssignee && (
             <span role="cell">
               {item.assignee ? (
-                <Avatar className="size-6" title={item.assignee.name}>
+                <Avatar className="size-[22px]" title={item.assignee.name}>
                   {item.assignee.avatarUrl && <AvatarImage src={item.assignee.avatarUrl} alt="" />}
                   <AvatarFallback className="text-micro">
                     {item.assignee.name.charAt(0).toUpperCase()}

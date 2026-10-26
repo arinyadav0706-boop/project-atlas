@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
+import { ExpandableSection } from "@/features/home/components/expandable-section";
 import { PanelTabs } from "@/features/home/components/panel-tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import type { Actor } from "@/shared/types/actor";
@@ -17,6 +18,7 @@ const TABS: { tab: HomeActivityTab; label: string }[] = [
 // Recent activity (BR-14): what other people did to my work in the last two
 // weeks. Every row is a recorded event — a comment, an audited status change or
 // reassignment — never something inferred from an issue's current state.
+// Three show, level with Workload beside it; the rest open in place.
 export async function ActivitySection({
   actor,
   projectIds,
@@ -29,35 +31,38 @@ export async function ActivitySection({
   hrefFor: (tab: HomeActivityTab) => string;
 }) {
   const { items } = await HomeService.activity(actor, projectIds, tab);
-  return (
-    <HomeSection
-      title="Recent activity"
-      tabs={
-        <PanelTabs
-          label="Activity views"
-          tabs={TABS.map((t) => ({
-            href: hrefFor(t.tab),
-            label: t.label,
-            active: t.tab === tab,
-          }))}
-        />
-      }
-    >
-      {items.length > 0 ? (
-        <ul className="flex flex-col">
-          {items.map((item) => (
-            <li key={item.id}>
-              <ActivityRow item={item} />
-            </li>
-          ))}
-        </ul>
-      ) : (
+  const tabs = (
+    <PanelTabs
+      label="Activity views"
+      tabs={TABS.map((t) => ({
+        href: hrefFor(t.tab),
+        label: t.label,
+        active: t.tab === tab,
+      }))}
+    />
+  );
+  if (items.length === 0) {
+    return (
+      <HomeSection title="Recent activity" tabs={tabs}>
         <HomeEmpty icon={<Activity />} title="Nothing new">
           Comments, status changes and reassignments on your issues from the last two
           weeks will appear here.
         </HomeEmpty>
-      )}
-    </HomeSection>
+      </HomeSection>
+    );
+  }
+  return (
+    <ExpandableSection
+      title="Recent activity"
+      tabs={tabs}
+      initial={3}
+      listClassName="flex flex-col"
+      rows={items.map((item) => (
+        <li key={item.id}>
+          <ActivityRow item={item} />
+        </li>
+      ))}
+    />
   );
 }
 
@@ -66,28 +71,28 @@ function ActivityRow({ item }: { item: ActivityItemDto }) {
   return (
     <Link
       href={item.href}
-      className="flex gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="flex min-h-12 gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
-      <Avatar className="mt-0.5 size-8 shrink-0">
+      <Avatar className="mt-0.5 size-[30px] shrink-0">
         {item.actor?.avatarUrl && <AvatarImage src={item.actor.avatarUrl} alt="" />}
         <AvatarFallback className="text-micro">
           {who.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0 flex-1">
-        <span className="block text-body text-foreground">
+        <span className="block text-[12px] leading-4 text-foreground">
           <span className="font-medium">{who}</span>{" "}
           <span className="text-muted-foreground">
             <Sentence item={item} />
           </span>
         </span>
         {item.kind === "COMMENT" && item.excerpt && (
-          <span className="mt-0.5 line-clamp-2 block text-meta text-muted-foreground">
+          <span className="mt-1 line-clamp-1 block text-[11px] leading-4 text-muted-foreground">
             {item.excerpt}
           </span>
         )}
       </span>
-      <span className="shrink-0 whitespace-nowrap text-meta tabular-nums text-muted-foreground">
+      <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 tabular-nums text-muted-foreground">
         {item.occurredAgo}
       </span>
     </Link>

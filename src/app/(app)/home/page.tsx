@@ -40,24 +40,25 @@ export default async function HomePage({
 
   return (
     <AppFrame>
-      <Workspace className="p-4">
+      <Workspace className="px-4 py-3.5 xl:pl-8 xl:pr-2">
         {/*
           Main column + right rail, from the approved reference: the rail runs
           the full height beside everything, greeting included. It holds the
           "what next" lists; the main column holds the work itself. Below xl
           the rail drops under the main column rather than squeezing both.
 
-          `items-start` matters: without it the grid stretches every panel in a
-          row to the tallest, so a five-item panel beside a ten-item one grows a
-          large empty area under its last row.
+          Paired panels share a height (the reference's rows end level). That
+          only works because each pair shows a trimmed list — My work five rows,
+          attention four, activity three — so stretching the shorter one leaves
+          a little air under its last row, not a large hole.
         */}
-        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem] 2xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_17.25rem]">
+          <div className="flex min-w-0 flex-col gap-3">
             <Greeting name={firstName} />
             <Suspense fallback={<SummarySkeleton />}>
               <SummarySection actor={actor} projectIds={projectIds} />
             </Suspense>
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,614fr)_minmax(0,360fr)]">
               <Suspense fallback={<SectionSkeleton rows={5} />}>
                 <MyWorkSection
                   actor={actor}
@@ -73,7 +74,7 @@ export default async function HomePage({
             <Suspense fallback={<SectionSkeleton rows={3} grid />}>
               <ProjectStripSection actor={actor} />
             </Suspense>
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,578fr)_minmax(0,396fr)]">
               <Suspense fallback={<SectionSkeleton rows={5} />}>
                 <ActivitySection
                   actor={actor}
@@ -88,7 +89,7 @@ export default async function HomePage({
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-3">
             <Suspense fallback={<SectionSkeleton rows={5} />}>
               <FocusSection actor={actor} projectIds={projectIds} />
             </Suspense>
@@ -129,22 +130,22 @@ function greeting(): string {
  */
 function Greeting({ name }: { name: string }) {
   return (
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+    <header className="flex min-h-[62px] flex-wrap items-center gap-x-3.5 gap-y-2 pb-3 pl-2">
       <span
         aria-hidden
-        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
+        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
       >
-        <Sun className="size-6" strokeWidth={1.8} />
+        <Sun className="size-[22px]" strokeWidth={1.8} />
       </span>
       <div className="min-w-0">
-        <h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em] text-foreground">
+        <h1 className="text-[24px] font-bold leading-[30px] tracking-[-0.02em] text-foreground">
           {`${greeting()}, ${name}`}
         </h1>
-        <p className="text-[15px] leading-5 text-muted-foreground">
+        <p className="mt-0.5 text-[14px] leading-5 text-muted-foreground">
           Here&apos;s what&apos;s happening with your work today.
         </p>
       </div>
-      <p className="ml-auto self-start pt-1 text-[13px] text-muted-foreground">{today()}</p>
+      <p className="ml-auto self-start pt-1 text-[12px] text-muted-foreground">{today()}</p>
     </header>
   );
 }
@@ -171,21 +172,21 @@ function today(): string {
 // Same grid and tile height as SummarySection, so streaming in shifts nothing.
 function SummarySkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-[98px] rounded-panel" />
+        <Skeleton key={i} className="h-[103px] rounded-panel" />
       ))}
     </div>
   );
 }
 
-// Matches the real panel: an h-11 header rule, then rows at the row height the
+// Matches the real panel: an h-11 header, then rows at the row height the
 // sections use. A skeleton that is a different shape from what replaces it is
 // a layout shift with extra steps.
 function SectionSkeleton({ rows, grid = false }: { rows: number; grid?: boolean }) {
   return (
-    <div className="rounded-panel border border-border bg-background shadow-card">
-      <div className="flex h-11 items-center border-b border-border-subtle px-3">
+    <div className="rounded-panel border border-border bg-background">
+      <div className="flex h-11 items-center px-4">
         <Skeleton className="h-3.5 w-28" />
       </div>
       <div className="p-2">

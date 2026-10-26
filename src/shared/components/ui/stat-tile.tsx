@@ -13,6 +13,13 @@ const TONES = {
   success: "bg-success/10 text-success",
   warning: "bg-warning/10 text-warning",
   danger: "bg-destructive/10 text-destructive",
+  // Home's KPI row gives each figure its own hue, as in the approved reference
+  // (05_UI §Home reference alignment, the same palette exception as the
+  // pills). Shades chosen so the glyph passes 3:1 on its tint.
+  blue: "bg-blue-50 text-blue-600",
+  rose: "bg-rose-50 text-rose-700",
+  violet: "bg-violet-50 text-violet-600",
+  emerald: "bg-emerald-50 text-emerald-700",
 } as const;
 
 export type StatTone = keyof typeof TONES;
@@ -52,14 +59,14 @@ export function StatTile({
     return (
       <div
         className={cn(
-          "flex items-start gap-3 rounded-panel border border-border bg-background px-3.5 py-4",
+          "flex min-h-[103px] items-start gap-3 rounded-panel border border-border bg-background px-4 py-[18px]",
           className,
         )}
       >
         {icon && (
           <span
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-full [&>svg]:size-[18px]",
+              "flex size-10 shrink-0 items-center justify-center rounded-full [&>svg]:size-5",
               TONES[tone],
             )}
           >
@@ -67,11 +74,11 @@ export function StatTile({
           </span>
         )}
         <div className="min-w-0">
-          <p className="text-[13px] font-medium leading-[18px] text-foreground/85">{label}</p>
-          <p className="mt-1 text-[26px] font-bold leading-[30px] tracking-[-0.02em] tabular-nums text-foreground">
+          <p className="text-[12px] font-medium leading-4 text-foreground/85">{label}</p>
+          <p className="mt-1.5 text-[24px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-foreground">
             {value}
           </p>
-          {hint && <p className="mt-1 text-meta text-muted-foreground">{hint}</p>}
+          {hint && <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{hint}</p>}
         </div>
       </div>
     );

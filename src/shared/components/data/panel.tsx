@@ -48,17 +48,19 @@ export function Panel({
     <section
       aria-label={typeof title === "string" ? title : undefined}
       className={cn(
-        "flex min-w-0 flex-col rounded-panel border border-border bg-background shadow-card",
+        // Flat: the reference separates cards from the canvas by tone and a
+        // hairline, not by lift.
+        "flex min-w-0 flex-col rounded-panel border border-border bg-background",
         className,
       )}
     >
       {/* No rule under the header: the reference separates rows, not the
-          title from its own content. 52px, so a tab strip fits beside it. */}
-      <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2">
+          title from its own content. 44px, the reference's header height. */}
+      <header className="flex min-h-[44px] shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2">
         {icon && (
           <span className="shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span>
         )}
-        <h2 className="min-w-0 truncate text-[17px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
+        <h2 className="min-w-0 truncate text-[16px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
           {title}
         </h2>
 

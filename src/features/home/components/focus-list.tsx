@@ -30,55 +30,60 @@ const PRIORITY_TEXT: Record<IssuePriorityDto, string> = {
   LOWEST: "text-slate-600",
 };
 
+/** The list's own `<ul>` classes, for callers that render the rows themselves. */
+export const FOCUS_LIST_CLASS = "-mx-2 flex flex-col";
+
 export function FocusList({ items }: { items: IssueListItemDto[] }) {
   return (
-    <ul className="-mx-2 flex flex-col">
+    <ul className={FOCUS_LIST_CLASS}>
       {items.map((item) => (
-        <li key={item.id} className="border-t border-border-subtle first:border-t-0">
-          <Link
-            href={`/projects/${item.projectId}/issues/${item.id}`}
-            className="flex items-start gap-2.5 px-4 py-2.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
-          >
-            <span
-              aria-hidden
-              className="mt-0.5 size-4 shrink-0 rounded-full border-[1.5px] border-border-strong"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] leading-[18px] text-foreground">
-                {item.title}
-              </span>
-              <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                <span className="shrink-0">{item.key}</span>
-                <span aria-hidden>·</span>
-                <span
-                  className={cn("flex items-center gap-1", PRIORITY_TEXT[item.priority])}
-                >
-                  <span
-                    className={cn("size-1.5 rounded-full", PRIORITY_DOT[item.priority])}
-                  />
-                  {priorityLabel(item.priority)}
-                </span>
-              </span>
-            </span>
-            {item.dueDate && (
-              <span
-                className={cn(
-                  "shrink-0 pt-px text-[12px] tabular-nums whitespace-nowrap",
-                  item.dueOverdue
-                    ? "font-medium text-destructive"
-                    : "text-muted-foreground",
-                )}
-              >
-                {new Date(item.dueDate).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })}
-              </span>
-            )}
-          </Link>
-        </li>
+        <FocusRow key={item.id} item={item} />
       ))}
     </ul>
+  );
+}
+
+export function FocusRow({ item }: { item: IssueListItemDto }) {
+  return (
+    <li className="border-t border-border-subtle first:border-t-0">
+      <Link
+        href={`/projects/${item.projectId}/issues/${item.id}`}
+        className="flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+      >
+        <span
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0 rounded-full border-[1.5px] border-border-strong"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-medium leading-4 text-foreground">
+            {item.title}
+          </span>
+          <span className="mt-1 flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground">
+            <span className="shrink-0">{item.key}</span>
+            <span aria-hidden>·</span>
+            <span className={cn("flex items-center gap-1", PRIORITY_TEXT[item.priority])}>
+              <span
+                className={cn("size-1.5 rounded-full", PRIORITY_DOT[item.priority])}
+              />
+              {priorityLabel(item.priority)}
+            </span>
+          </span>
+        </span>
+        {item.dueDate && (
+          <span
+            className={cn(
+              "shrink-0 text-[11px] leading-4 tabular-nums whitespace-nowrap",
+              item.dueOverdue ? "font-medium text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {new Date(item.dueDate).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              timeZone: "UTC",
+            })}
+          </span>
+        )}
+      </Link>
+    </li>
   );
 }

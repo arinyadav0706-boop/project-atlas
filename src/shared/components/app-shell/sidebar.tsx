@@ -59,11 +59,11 @@ export function Sidebar({
   return (
     // A pale rail, one step off white (the approved Home reference): quiet
     // enough not to compete with the workspace, distinct enough from the
-    // white cards that the frame reads as a frame. 212px, as in the reference.
-    <nav className="flex h-full w-14 shrink-0 flex-col border-r border-border bg-surface md:w-[212px]">
-      <div className="flex h-[52px] items-center justify-center gap-2 md:justify-start md:px-4">
-        <LogoMark className="h-7 w-7" />
-        <span className="hidden text-[17px] font-bold tracking-tight text-foreground md:inline">
+    // white cards that the frame reads as a frame. 214px, as in the reference.
+    <nav className="flex h-full w-14 shrink-0 flex-col border-r border-border bg-surface md:w-[214px]">
+      <div className="flex h-[52px] items-center justify-center gap-2.5 md:justify-start md:px-[18px]">
+        <LogoMark className="h-6 w-8" />
+        <span className="hidden text-[18px] font-bold tracking-tight text-foreground md:inline">
           EAGLES
         </span>
       </div>

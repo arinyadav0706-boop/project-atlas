@@ -68,20 +68,22 @@ function AttentionRow({ item }: { item: AttentionItemDto }) {
   return (
     <Link
       href={item.href}
-      className="flex items-start gap-3 px-4 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+      className="flex min-h-[69px] items-start gap-3 px-4 py-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
     >
       <span
         aria-hidden
-        className={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full", kind.tone)}
+        className={cn("flex size-[34px] shrink-0 items-center justify-center rounded-full", kind.tone)}
       >
-        <kind.icon className="size-3.5" strokeWidth={2.2} />
+        <kind.icon className="size-4" strokeWidth={2.2} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline gap-2">
-          {key && <span className="shrink-0 text-[12px] font-medium text-accent">{key}</span>}
-          <span className="min-w-0 truncate text-[13px] font-semibold text-foreground">{title}</span>
+        {/* Two lines for the title rather than a few words and an ellipsis:
+            this panel is narrow, and a cut-off title says nothing. */}
+        <span className="line-clamp-2 text-[12px] leading-4 font-semibold text-foreground">
+          {key && <span className="mr-1.5 text-[11px] font-medium text-accent">{key}</span>}
+          {title}
         </span>
-        <span className="block text-[12px] text-muted-foreground">{kind.why}</span>
+        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{kind.why}</span>
       </span>
     </Link>
   );

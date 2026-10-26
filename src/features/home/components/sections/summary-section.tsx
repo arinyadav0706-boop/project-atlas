@@ -3,19 +3,20 @@ import { HomeService } from "@/features/home/services/home.service";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import type { Actor } from "@/shared/types/actor";
 
-// The Summary row (BR-10). Tone carries meaning only when the number does:
-// something due or blocked is worth colouring, zero of either is not.
+// The Summary row (BR-10). Each figure has its reference hue, except that due
+// and blocked only turn rose when there is something due or blocked: a red
+// zero reads as an alarm about nothing.
 export async function SummarySection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
   const s = await HomeService.summary(actor, projectIds);
   return (
-    <section aria-label="Summary" className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
-      <StatTile layout="leading" label="My open issues" value={s.open} icon={<CircleDot />} tone="accent" />
+    <section aria-label="Summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
+      <StatTile layout="leading" label="My open issues" value={s.open} icon={<CircleDot />} tone="blue" />
       <StatTile
         layout="leading"
         label="Due this week"
         value={s.dueThisWeek}
         icon={<CalendarClock />}
-        tone={s.dueThisWeek > 0 ? "warning" : "neutral"}
+        tone={s.dueThisWeek > 0 ? "rose" : "neutral"}
         hint="incl. overdue"
       />
       <StatTile
@@ -23,7 +24,7 @@ export async function SummarySection({ actor, projectIds }: { actor: Actor; proj
         label="In progress"
         value={s.inProgress}
         icon={<Loader />}
-        tone="accent"
+        tone="violet"
         hint={s.inReview > 0 ? `+${s.inReview} in review` : undefined}
       />
       <StatTile
@@ -31,7 +32,7 @@ export async function SummarySection({ actor, projectIds }: { actor: Actor; proj
         label="Blocked"
         value={s.blocked}
         icon={<Ban />}
-        tone={s.blocked > 0 ? "danger" : "neutral"}
+        tone={s.blocked > 0 ? "rose" : "neutral"}
         hint="by an open issue"
       />
       <StatTile
@@ -39,7 +40,7 @@ export async function SummarySection({ actor, projectIds }: { actor: Actor; proj
         label="Completed"
         value={s.completedLast30Days}
         icon={<CircleCheck />}
-        tone="success"
+        tone="emerald"
         hint="last 30 days"
       />
     </section>
