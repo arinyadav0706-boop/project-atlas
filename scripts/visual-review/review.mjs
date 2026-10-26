@@ -159,20 +159,55 @@ async function callModel(model, shots, previous) {
   };
   const headers = { "Content-Type": "application/json" };
   if (process.env.OPENAI_API_KEY) headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`;
+  // Streamed: a high-effort review of three images can think for minutes, and a
+  // silent connection that long gets cut by the proxy ("upstream request
+  // failed"). Server-sent events keep bytes moving the whole time.
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(600_000),
+    body: JSON.stringify({ ...body, stream: true }),
+    signal: AbortSignal.timeout(900_000),
   });
-  const json = await res.json();
-  if (!res.ok) return { ok: false, status: res.status, error: json.error?.message ?? JSON.stringify(json) };
-  const text = (json.output ?? [])
+  if (!res.ok) {
+    const raw = await res.text();
+    let error = raw.slice(0, 500);
+    try {
+      error = JSON.parse(raw).error?.message ?? error;
+    } catch {
+      // Not JSON — a proxy or gateway message; report it as text.
+    }
+    return { ok: false, status: res.status, error };
+  }
+  let final = null;
+  let failure = null;
+  let buffer = "";
+  const decoder = new TextDecoder();
+  for await (const chunk of res.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const data = block
+        .split("\n")
+        .filter((l) => l.startsWith("data:"))
+        .map((l) => l.slice(5).trim())
+        .join("");
+      if (!data || data === "[DONE]") continue;
+      const event = JSON.parse(data);
+      if (event.type === "response.completed") final = event.response;
+      if (event.type === "response.failed" || event.type === "response.incomplete" || event.type === "error") {
+        failure = event.response?.error?.message ?? event.response?.incomplete_details?.reason ?? event.message ?? event.type;
+      }
+    }
+  }
+  if (!final) return { ok: false, status: 502, error: failure ?? "stream ended without a completed response" };
+  const text = (final.output ?? [])
     .flatMap((o) => o.content ?? [])
     .filter((c) => c.type === "output_text")
     .map((c) => c.text)
     .join("");
-  return { ok: true, review: JSON.parse(text), usage: json.usage };
+  return { ok: true, review: JSON.parse(text), usage: final.usage };
 }
 
 const shots = await capture();
