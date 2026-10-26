@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Activity } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
-import { ExpandableSection } from "@/features/home/components/expandable-section";
 import { PanelTabs } from "@/features/home/components/panel-tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import type { Actor } from "@/shared/types/actor";
@@ -18,7 +17,7 @@ const TABS: { tab: HomeActivityTab; label: string }[] = [
 // Recent activity (BR-14): what other people did to my work in the last two
 // weeks. Every row is a recorded event — a comment, an audited status change or
 // reassignment — never something inferred from an issue's current state.
-// Three show, level with Workload beside it; the rest open in place.
+// The fixed-height panel scrolls past what fits, level with Workload beside it.
 export async function ActivitySection({
   actor,
   projectIds,
@@ -52,17 +51,15 @@ export async function ActivitySection({
     );
   }
   return (
-    <ExpandableSection
-      title="Recent activity"
-      tabs={tabs}
-      initial={3}
-      listClassName="flex flex-col"
-      rows={items.map((item) => (
-        <li key={item.id}>
-          <ActivityRow item={item} />
-        </li>
-      ))}
-    />
+    <HomeSection title="Recent activity" tabs={tabs}>
+      <ul className="flex flex-col">
+        {items.map((item) => (
+          <li key={item.id}>
+            <ActivityRow item={item} />
+          </li>
+        ))}
+      </ul>
+    </HomeSection>
   );
 }
 
@@ -71,7 +68,7 @@ function ActivityRow({ item }: { item: ActivityItemDto }) {
   return (
     <Link
       href={item.href}
-      className="flex min-h-12 gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="flex min-h-12 gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
     >
       <Avatar className="mt-0.5 size-[30px] shrink-0">
         {item.actor?.avatarUrl && <AvatarImage src={item.actor.avatarUrl} alt="" />}

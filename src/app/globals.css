@@ -132,3 +132,18 @@ body {
     radial-gradient(60% 55% at 12% 8%, hsl(var(--accent) / 0.1), transparent 60%),
     radial-gradient(52% 55% at 92% 100%, hsl(var(--accent) / 0.07), transparent 60%);
 }
+
+/* A scroll area that shows when there is more (05_UI §Fixed-size panels).
+   Shadows at the edges that have more content, and none at an edge that does
+   not: the `local` covers scroll with the content and hide the `scroll`
+   shadows once that edge is reached. Pure CSS — no scroll listeners. */
+@layer utilities {
+  .scroll-fade {
+    background:
+      linear-gradient(hsl(var(--background)) 40%, hsl(var(--background) / 0)) top / 100% 28px no-repeat local,
+      linear-gradient(hsl(var(--background) / 0), hsl(var(--background)) 60%) bottom / 100% 28px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, hsl(var(--foreground) / 0.12), transparent) top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, hsl(var(--foreground) / 0.12), transparent) bottom / 100% 10px no-repeat scroll;
+    background-color: hsl(var(--background));
+  }
+}

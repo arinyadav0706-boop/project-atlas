@@ -50,7 +50,7 @@ export function Panel({
       className={cn(
         // Flat: the reference separates cards from the canvas by tone and a
         // hairline, not by lift.
-        "flex min-w-0 flex-col rounded-panel border border-border bg-background",
+        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border bg-background",
         className,
       )}
     >
@@ -93,7 +93,17 @@ export function Panel({
         )}
       </header>
 
-      <div className={cn("min-w-0 flex-1 px-2 pb-2", bodyClassName)}>{children}</div>
+      {/* Fixed-size panels (05_UI): when the page gives the panel a height,
+          the body scrolls inside it rather than the panel growing. Unsized,
+          it is just the natural height and never scrolls. */}
+      <div
+        className={cn(
+          "scroll-fade min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2",
+          bodyClassName,
+        )}
+      >
+        {children}
+      </div>
     </section>
   );
 }

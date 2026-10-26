@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cn } from "@/shared/lib/utils";
 import { redirect } from "next/navigation";
 import { getActor, getSession } from "@/features/authentication/services/actor.service";
 import { HomeService, parseActivityTab, parseWorkTab } from "@/features/home/services/home.service";
@@ -47,10 +48,11 @@ export default async function HomePage({
           "what next" lists; the main column holds the work itself. Below xl
           the rail drops under the main column rather than squeezing both.
 
-          Paired panels share a height (the reference's rows end level). That
-          only works because each pair shows a trimmed list — My work five rows,
-          attention four, activity three — so stretching the shorter one leaves
-          a little air under its last row, not a large hole.
+          Fixed-size panels (05_UI): from lg up, each row of panels has a set
+          height that grows with the screen's height (the clamp), sized to the
+          reference at 1024px tall. Panels never grow with their content; a
+          list longer than the panel scrolls inside it. Below lg everything
+          stacks at its natural height.
         */}
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_17.25rem]">
           <div className="flex min-w-0 flex-col gap-3">
@@ -58,7 +60,7 @@ export default async function HomePage({
             <Suspense fallback={<SummarySkeleton />}>
               <SummarySection actor={actor} projectIds={projectIds} />
             </Suspense>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,614fr)_minmax(0,360fr)]">
+            <div className={cn("grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,614fr)_minmax(0,360fr)]", ROW.work)}>
               <Suspense fallback={<SectionSkeleton rows={5} />}>
                 <MyWorkSection
                   actor={actor}
@@ -74,7 +76,7 @@ export default async function HomePage({
             <Suspense fallback={<SectionSkeleton rows={3} grid />}>
               <ProjectStripSection actor={actor} />
             </Suspense>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,578fr)_minmax(0,396fr)]">
+            <div className={cn("grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,578fr)_minmax(0,396fr)]", ROW.activity)}>
               <Suspense fallback={<SectionSkeleton rows={5} />}>
                 <ActivitySection
                   actor={actor}
@@ -90,21 +92,37 @@ export default async function HomePage({
           </div>
 
           <div className="flex min-w-0 flex-col gap-3">
-            <Suspense fallback={<SectionSkeleton rows={5} />}>
-              <FocusSection actor={actor} projectIds={projectIds} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton rows={4} />}>
-              <UpcomingSection actor={actor} projectIds={projectIds} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton rows={4} />}>
-              <ContinueWorkingSection actor={actor} projectIds={projectIds} />
-            </Suspense>
+            <div className={ROW.focus}>
+              <Suspense fallback={<SectionSkeleton rows={5} />}>
+                <FocusSection actor={actor} projectIds={projectIds} />
+              </Suspense>
+            </div>
+            <div className={ROW.upcoming}>
+              <Suspense fallback={<SectionSkeleton rows={4} />}>
+                <UpcomingSection actor={actor} projectIds={projectIds} />
+              </Suspense>
+            </div>
+            <div className={ROW.continue}>
+              <Suspense fallback={<SectionSkeleton rows={4} />}>
+                <ContinueWorkingSection actor={actor} projectIds={projectIds} />
+              </Suspense>
+            </div>
           </div>
         </div>
       </Workspace>
     </AppFrame>
   );
 }
+
+// Panel heights: the reference's size at a 1024px-tall screen, growing with
+// the screen's height up to a cap. Each pair in the main column shares one.
+const ROW = {
+  work: "lg:h-[clamp(337px,33vh,480px)]",
+  activity: "lg:h-[clamp(198px,19.5vh,300px)]",
+  focus: "xl:h-[clamp(348px,34vh,480px)]",
+  upcoming: "xl:h-[clamp(228px,22.3vh,320px)]",
+  continue: "xl:h-[clamp(289px,28.2vh,400px)]",
+} as const;
 
 /**
  * Time-of-day greeting, from the server clock.
@@ -185,7 +203,7 @@ function SummarySkeleton() {
 // a layout shift with extra steps.
 function SectionSkeleton({ rows, grid = false }: { rows: number; grid?: boolean }) {
   return (
-    <div className="rounded-panel border border-border bg-background">
+    <div className="h-full overflow-hidden rounded-panel border border-border bg-background">
       <div className="flex h-11 items-center px-4">
         <Skeleton className="h-3.5 w-28" />
       </div>

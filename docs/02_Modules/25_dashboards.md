@@ -86,8 +86,10 @@ Route `/dashboards`, sidebar entry for everyone.
 
 - **Rail** — the caller's dashboards and shared ones, same shape as the
   saved-view rail. `?d=<id>` is resolved server-side, so a dashboard is a link.
-- **Grid** — 3 columns, widgets reflowing to one below `lg`. Cards sharing a row
-  stretch to equal height, so the page reads as rows rather than a collage.
+- **Grid** — 3 columns, widgets reflowing to one below `lg`. Every row has the
+  same fixed height, growing with the screen's height (05_UI §Fixed-size
+  panels); a list or breakdown longer than its card scrolls inside it, so one
+  long widget never stretches its row.
 - **Edit mode** — one toggle, ClickUp's model. Off, the page is just the numbers;
   on, each card grows a drag grip and an edit pencil, and the delete/rename
   controls appear. Reordering saves immediately and refetches nothing — widget

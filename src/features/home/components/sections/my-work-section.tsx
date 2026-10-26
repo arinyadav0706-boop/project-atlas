@@ -17,10 +17,6 @@ const TABS: { tab: HomeWorkTab; label: string }[] = [
   { tab: "mentioned", label: "Mentioned" },
 ];
 
-// Rows shown. The service returns one more than this panel needs, and five
-// rows end level with the four attention items beside it.
-const SHOWN = 5;
-
 const EMPTY: Record<HomeWorkTab, { title: string; body: string }> = {
   assigned: {
     title: "Nothing assigned to you",
@@ -50,15 +46,15 @@ export async function MyWorkSection({
   /** The Home URL with this panel's tab switched, every other tab kept. */
   hrefFor: (tab: HomeWorkTab) => string;
 }) {
-  const { items: all, truncated } = await HomeService.workTab(actor, projectIds, tab);
-  const items = all.slice(0, SHOWN);
+  // All of them: the panel has a fixed height and scrolls inside (05_UI).
+  const { items, truncated } = await HomeService.workTab(actor, projectIds, tab);
   return (
     <HomeSection
       title="My work"
       // A bare "10+": the tabs and the link share this header, and the noun is
       // in the title already.
       count={items.length}
-      countTruncated={truncated || all.length > items.length}
+      countTruncated={truncated}
       tabs={
         <PanelTabs
           label="My work views"
@@ -98,7 +94,7 @@ const COLUMNS_WITH_ASSIGNEE = "grid-cols-[minmax(0,1fr)_96px_84px_80px_52px_22px
 
 /**
  * My work as a table, as in the approved reference: Issue · Project · Status ·
- * Priority · Due. Not `DataTable` — five rows in a half-width panel, no sorting, no paging.
+ * Priority · Due. Not `DataTable` — seven rows in a half-width panel, no sorting, no paging.
  * No row checkboxes: Home has no bulk action, and a checkbox that selects
  * nothing is decoration.
  */
@@ -109,7 +105,8 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
       <div
         role="row"
         className={cn(
-          "grid h-8 items-center gap-3 border-b border-border bg-background px-4 text-[11px] font-medium text-muted-foreground",
+          // Sticky: the rows scroll under it inside the fixed-height panel.
+          "sticky top-0 z-10 grid h-8 items-center gap-3 border-b border-border bg-background px-4 text-[11px] font-medium text-muted-foreground",
           columns,
         )}
       >

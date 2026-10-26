@@ -208,6 +208,31 @@ shared tokens moved with it, so every page shares the same palette:
   next to it, so text rendered at the inherited 16px across the app. Fixed in
   `shared/lib/utils.ts`, with a regression test.
 
+### Fixed-size panels (2026-10-26)
+
+A rule for every dashboard-shaped page (Home, Dashboards, and any page built
+from panels or widget cards later):
+
+- **A panel's size is set by the page, never by its content.** From `lg` up a
+  row of panels has a fixed height that grows with the screen's height —
+  `clamp(min, Nvh, max)`, with the minimum matching the reference at a
+  1024px-tall screen. Panels in the same row end level.
+- **Longer content scrolls inside the panel**, with the `.scroll-fade` shadow at
+  any edge that has more (`globals.css`, pure CSS). `Panel` does this by
+  default; an unsized panel is simply its natural height.
+- **Lists load up to a cap** (the service constant), and the header count says
+  when there are more ("7+") with "View all" to the full page. A bigger screen
+  shows more of the same list; it never changes what the list is.
+- **Text uses the width it gets**: titles are `truncate` inside a flexible
+  column, so a wider screen shows more of each title.
+- **Grids of cards share the row**: a strip with a hard cap (Home's projects, at
+  most 4) uses one column per card so 1–4 cards always fill it.
+- Below `lg`, panels stack at their natural height — on a phone, scrolling the
+  page is the right gesture, not scrolling a box inside it.
+- Full-page lists and tables (`/issues`, the board, the backlog) already own
+  their height through `AppFrame`/`Workspace` and scroll inside it; the rule
+  adds nothing there.
+
 ### Home review loop (2026-10-26)
 
 A second pass, driven by the reviewer loop in `scripts/visual-review/` (three
@@ -220,10 +245,10 @@ rounds, approved at 89/100). It supersedes some values above:
   beside the avatar.
 - **`rounded-panel` is 10px and `Panel` has no shadow.** Cards separate from the
   canvas by tone and a hairline; the header is 44px with a 16px title.
-- **Paired Home panels share a height** because each shows a trimmed list (My
-  work 5, attention 4, activity 3). Lists with no page of their own (Upcoming,
-  Continue working, Recent activity) expand in place with a "View all N" button
-  (`features/home/components/expandable-section.tsx`) instead of linking out.
+- **Paired Home panels share a height.** Superseded the same day by
+  §Fixed-size panels: the earlier trims (My work 5, attention 4, activity 3)
+  and the in-place "View all N" expanders were replaced by fixed-height panels
+  that scroll inside.
 - **Home's KPI tiles copy the reference's icons and hues**: clipboard on
   blue-100, calendar on rose-100, circular arrow on violet-100, warning
   triangle on rose-100, and a solid green tick disc on green-100 (`StatTile`

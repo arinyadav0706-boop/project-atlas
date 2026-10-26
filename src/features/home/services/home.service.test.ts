@@ -106,20 +106,20 @@ describe("myWork", () => {
   // ten. The repository is asked for limit + 1 and the extra row never ships.
   it("asks for one more than the cap, trims it, and reports the truncation", async () => {
     home.myWork.mockResolvedValue(
-      Array.from({ length: 7 }, (_, i) => issueRow(`i${i}`)) as never,
+      Array.from({ length: 8 }, (_, i) => issueRow(`i${i}`)) as never,
     );
     const { items, truncated } = await HomeService.myWork(actor, IDS);
-    expect(home.myWork.mock.calls[0]![2]).toBe(7);
-    expect(items).toHaveLength(6);
+    expect(home.myWork.mock.calls[0]![2]).toBe(8);
+    expect(items).toHaveLength(7);
     expect(truncated).toBe(true);
   });
 
   it("does not claim truncation when the list lands exactly on the cap", async () => {
     home.myWork.mockResolvedValue(
-      Array.from({ length: 6 }, (_, i) => issueRow(`i${i}`)) as never,
+      Array.from({ length: 7 }, (_, i) => issueRow(`i${i}`)) as never,
     );
     const { items, truncated } = await HomeService.myWork(actor, IDS);
-    expect(items).toHaveLength(6);
+    expect(items).toHaveLength(7);
     expect(truncated).toBe(false);
   });
 });

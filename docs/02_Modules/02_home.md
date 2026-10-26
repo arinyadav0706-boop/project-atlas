@@ -65,16 +65,16 @@ never by adding a box.
 - **BR-1 (My Work):** non-deleted `Issue` rows where `assigneeId = me`, across
   every project I am a `ProjectMember` of, in non-`DONE` statuses by default,
   ordered by (dueDate nulls-last, then priority desc, then updatedAt). Bounded
-  (6 on Home since 2026-10-23, so it balances Needs your attention beside it;
-  "view all" → filtered Issues list). Tenant-scoped to my org.
+  (7 on Home since 2026-10-26; the panel is fixed-size and scrolls inside, see
+  UI; "view all" → filtered Issues list). Tenant-scoped to my org.
 - **BR-2 (Needs your attention):** a **unified, ranked stream** of items that
   need me, produced by composing one-or-more **AttentionSource** contributors
   (ADR-0012). V1 sources: *assigned-to-me-recently* and (as they ship)
   *@mentions*, *review requests*, *approvals waiting*. Each item is
   `{ id, kind, title, href, actorId?, occurredAt }`; the section renders them
   uniformly regardless of source. Adding a future source = implementing the
-  contract, **not** adding a widget. Bounded to 4 on Home (two-line items
-  beside My work's six rows), newest/most-urgent first, with "View all" →
+  contract, **not** adding a widget. Bounded to 6 on Home (the fixed-size
+  panel scrolls past what fits), newest/most-urgent first, with "View all" →
   `/issues?assigneeId=<me>&openOnly=true&sort=UPDATED_DESC`.
 - **BR-3 (Continue working):** my most recently *engaged* issues, from the
   `RecentItem` signal (§Database), excluding items I've completed. Ranking is a
@@ -258,6 +258,15 @@ page that answers the same question (BR-9). Panels 1–8 and Continue working
 render today. Quick actions waits on HOME-9. Panel tabs are links that change
 one URL parameter each (`work`, `activity`), so switching one panel never
 resets another.
+
+**Fixed-size panels (2026-10-26).** From `lg` up, every panel has a set height
+that grows with the screen's height (sized to the reference at 1024px tall,
+capped), and side-by-side panels share it. A panel never grows with its
+content: a longer list scrolls inside it, with a shadow at the edge that has
+more. Panels hold up to their service cap (My work 7, attention 6, activity 5,
+focus 5, Continue working 5, Upcoming 6), so a taller screen simply shows more
+of each. Titles take whatever width the screen gives them. Projects is the
+exception: at most 4 cards that share the row (BR-5).
 `/dashboard` redirects to `/home`.
 
 ## Acceptance Criteria

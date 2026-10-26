@@ -31,7 +31,9 @@ import type { IssueListItemDto } from "@/features/issues/types/issue.types";
 // Sized so My work and Needs your attention end at about the same height side
 // by side: six one-line rows beside four two-line items. Everything beyond the
 // cap is one "View all" away (BR-8, BR-9).
-const MY_WORK_LIMIT = 6;
+// Home panels have a fixed height and scroll inside (02_home.md UI), so these
+// are how much a panel holds, not how much fits on screen.
+const MY_WORK_LIMIT = 7;
 const FOCUS_LIMIT = 5;
 const CONTINUE_LIMIT = 5;
 // BR-5: the strip shows at most four projects, all opened within 30 days.
@@ -39,7 +41,7 @@ const PROJECT_STRIP_LIMIT = 4;
 const PROJECT_STALE_MS = 30 * 24 * 60 * 60 * 1000;
 // Over-fetch: archived or out-of-org projects are dropped after the read.
 const PROJECT_RECENT_FETCH = 20;
-const ATTENTION_LIMIT = 4;
+const ATTENTION_LIMIT = 6;
 const DUE_SOON_WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const COMPLETED_WINDOW_DAYS = 30;

@@ -384,10 +384,11 @@ export function DashboardsWorkspace({
                 items={dashboard.widgets.map((w) => w.id)}
                 strategy={rectSortingStrategy}
               >
-                {/* Stretched, not `items-start`: cards sharing a row match
-                    heights, so the grid reads as rows rather than as a ragged
-                    collage. The Card is `h-full` for the same reason. */}
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {/* Fixed-size cards (05_UI): every row has the same height,
+                    growing with the screen's height, so a long list widget
+                    scrolls inside its card instead of stretching its whole
+                    row. The Card is `h-full` to fill it. */}
+                <div className="grid grid-cols-1 gap-4 lg:auto-rows-[clamp(15rem,30vh,22rem)] lg:grid-cols-3">
                   {dashboard.widgets.map((widget) => (
                     <SortableWidget
                       key={widget.id}

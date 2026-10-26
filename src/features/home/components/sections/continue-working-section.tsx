@@ -1,13 +1,12 @@
 import { Clock } from "lucide-react";
 import { HomeService } from "@/features/home/services/home.service";
 import { HomeSection, HomeEmpty } from "@/features/home/components/home-section";
-import { ExpandableSection } from "@/features/home/components/expandable-section";
-import { FOCUS_LIST_CLASS, FocusRow } from "@/features/home/components/focus-list";
+import { FocusList } from "@/features/home/components/focus-list";
 import type { Actor } from "@/shared/types/actor";
 
 // "Continue working" — engagement-ranked recent issues (BR-3). Lives in the right
-// rail, so it uses the rail's two-line row rather than the wide table row. Four
-// show; the rest open in place, since recency has no list page to link to.
+// rail, so it uses the rail's two-line row rather than the wide table row. The
+// panel has a fixed height; anything past what fits scrolls inside it.
 export async function ContinueWorkingSection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
   const items = await HomeService.continueWorking(actor, projectIds);
   if (items.length === 0) {
@@ -20,13 +19,8 @@ export async function ContinueWorkingSection({ actor, projectIds }: { actor: Act
     );
   }
   return (
-    <ExpandableSection
-      title="Continue working"
-      initial={4}
-      listClassName={FOCUS_LIST_CLASS}
-      rows={items.map((item) => (
-        <FocusRow key={item.id} item={item} />
-      ))}
-    />
+    <HomeSection title="Continue working">
+      <FocusList items={items} />
+    </HomeSection>
   );
 }

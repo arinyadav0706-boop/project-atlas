@@ -30,12 +30,9 @@ const PRIORITY_TEXT: Record<IssuePriorityDto, string> = {
   LOWEST: "text-slate-600",
 };
 
-/** The list's own `<ul>` classes, for callers that render the rows themselves. */
-export const FOCUS_LIST_CLASS = "-mx-2 flex flex-col";
-
 export function FocusList({ items }: { items: IssueListItemDto[] }) {
   return (
-    <ul className={FOCUS_LIST_CLASS}>
+    <ul className="-mx-2 flex flex-col">
       {items.map((item) => (
         <FocusRow key={item.id} item={item} />
       ))}
@@ -43,7 +40,7 @@ export function FocusList({ items }: { items: IssueListItemDto[] }) {
   );
 }
 
-export function FocusRow({ item }: { item: IssueListItemDto }) {
+function FocusRow({ item }: { item: IssueListItemDto }) {
   return (
     <li className="border-t border-border-subtle first:border-t-0">
       <Link

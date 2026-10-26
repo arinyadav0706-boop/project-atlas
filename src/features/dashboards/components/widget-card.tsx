@@ -89,7 +89,8 @@ export function WidgetCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col px-4 pb-3">
+      {/* Scrolls inside the fixed-height card rather than growing it. */}
+      <div className="scroll-fade flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 pb-3">
         <Body data={data} href={href} />
       </div>
 
