@@ -46,12 +46,12 @@ export async function UpcomingSection({
     <ExpandableSection
       title="Upcoming"
       initial={3}
-      listClassName="flex flex-col gap-0.5"
+      listClassName="flex flex-col"
       rows={items.map((item) => (
         <li key={item.id}>
           <Link
             href={item.href}
-            className="grid grid-cols-[3rem_3px_minmax(0,1fr)] gap-2.5 rounded-control px-2 py-2 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="grid grid-cols-[3rem_3px_minmax(0,1fr)] gap-2.5 rounded-control px-2 py-3 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="text-[11px] leading-4">
               {/* A due date is a day, not an instant: label it in UTC, the

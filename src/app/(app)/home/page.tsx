@@ -130,12 +130,12 @@ function greeting(): string {
  */
 function Greeting({ name }: { name: string }) {
   return (
-    <header className="flex min-h-[62px] flex-wrap items-center gap-x-3.5 gap-y-2 pb-3 pl-2">
+    <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pb-1 pl-2 pt-2.5">
       <span
         aria-hidden
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"
       >
-        <Sun className="size-[22px]" strokeWidth={1.8} />
+        <Sun className="size-5" strokeWidth={1.8} />
       </span>
       <div className="min-w-0">
         <h1 className="text-[24px] font-bold leading-[30px] tracking-[-0.02em] text-foreground">

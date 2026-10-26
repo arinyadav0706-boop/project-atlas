@@ -72,12 +72,14 @@ function ProjectCard({ project }: { project: HomeProjectDto }) {
         href={`/projects/${project.id}/issues`}
         className="min-w-0 flex-1 rounded-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <span className="block truncate text-[13px] font-semibold leading-5 text-foreground">
+        <span className="block truncate text-[12px] font-semibold leading-5 text-foreground">
           {project.name}
         </span>
         {/* Always two lines tall, so a one-line description does not leave its
             card shorter than its neighbours'. */}
-        <span className="mt-0.5 line-clamp-2 block min-h-8 text-[11px] leading-4 text-muted-foreground">
+        {/* No `block` here: it would override line-clamp's display and let a
+            long description run to a third line. */}
+        <span className="mt-0.5 line-clamp-2 h-[30px] text-[11px] leading-[15px] text-muted-foreground">
           {project.description || "No description"}
         </span>
         <ProjectStats stats={project.stats} />

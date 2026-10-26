@@ -16,14 +16,14 @@ import type {
 const STATUS_TONE: Record<IssueStatusDto, string> = {
   TODO: "bg-slate-100 text-slate-600",
   IN_PROGRESS: "bg-blue-50 text-blue-700",
-  IN_REVIEW: "bg-amber-50 text-amber-700",
+  IN_REVIEW: "bg-amber-50 text-amber-800",
   DONE: "bg-emerald-50 text-emerald-700",
 };
 
 const PRIORITY_TONE: Record<IssuePriorityDto, string> = {
   HIGHEST: "bg-rose-50 text-rose-700",
   HIGH: "bg-rose-50 text-rose-700",
-  MEDIUM: "bg-amber-50 text-amber-700",
+  MEDIUM: "bg-amber-50 text-amber-800",
   LOW: "bg-sky-50 text-sky-700",
   LOWEST: "bg-slate-100 text-slate-600",
 };

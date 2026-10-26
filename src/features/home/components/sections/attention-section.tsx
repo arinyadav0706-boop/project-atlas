@@ -68,7 +68,7 @@ function AttentionRow({ item }: { item: AttentionItemDto }) {
   return (
     <Link
       href={item.href}
-      className="flex min-h-[69px] items-start gap-3 px-4 py-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+      className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
     >
       <span
         aria-hidden
@@ -83,7 +83,7 @@ function AttentionRow({ item }: { item: AttentionItemDto }) {
           {key && <span className="mr-1.5 text-[11px] font-medium text-accent">{key}</span>}
           {title}
         </span>
-        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{kind.why}</span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{kind.why}</span>
       </span>
     </Link>
   );

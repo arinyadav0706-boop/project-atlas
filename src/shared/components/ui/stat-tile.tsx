@@ -59,7 +59,7 @@ export function StatTile({
     return (
       <div
         className={cn(
-          "flex min-h-[103px] items-start gap-3 rounded-panel border border-border bg-background px-4 py-[18px]",
+          "flex min-h-[103px] items-start gap-3 rounded-panel border border-border bg-background p-4",
           className,
         )}
       >
@@ -75,7 +75,7 @@ export function StatTile({
         )}
         <div className="min-w-0">
           <p className="text-[12px] font-medium leading-4 text-foreground/85">{label}</p>
-          <p className="mt-1.5 text-[24px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-foreground">
+          <p className="mt-1 text-[24px] font-bold leading-7 tracking-[-0.02em] tabular-nums text-foreground">
             {value}
           </p>
           {hint && <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{hint}</p>}

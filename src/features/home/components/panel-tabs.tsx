@@ -22,7 +22,7 @@ export function PanelTabs({
           aria-current={tab.active ? "page" : undefined}
           className={cn(
             // Underlined, as in the reference: a tab strip, not a row of chips.
-            "relative py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors",
+            "relative py-1.5 text-[12px] leading-4 font-medium whitespace-nowrap transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
             tab.active
               ? "text-accent after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-accent"

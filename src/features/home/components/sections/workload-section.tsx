@@ -17,7 +17,7 @@ const STATUS: Record<WorkloadStatus, { label: string; bar: string; text: string 
   },
   LIGHT: { label: "Light", bar: "bg-accent", text: "text-accent" },
   BALANCED: { label: "Balanced", bar: "bg-success", text: "text-success" },
-  OVERLOADED: { label: "Overloaded", bar: "bg-destructive", text: "text-destructive" },
+  OVERLOADED: { label: "Overloaded", bar: "bg-destructive", text: "text-red-700" },
 };
 
 // Workload (BR-17): my own queue, by the Workload module's definitions. No team
@@ -33,7 +33,7 @@ export async function WorkloadSection({ actor }: { actor: Actor }) {
       title="Workload"
       viewAll={w.canViewTeam ? { href: "/workload", label: "Open Workload" } : undefined}
     >
-      <div className="flex flex-col gap-2.5 px-2 pb-1">
+      <div className="flex flex-col gap-2 px-2">
         <div className="flex items-baseline gap-2">
           <span className="text-[24px] font-bold leading-7 tabular-nums text-foreground">
             {w.weeksOfWork.toFixed(1)}

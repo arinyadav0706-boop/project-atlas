@@ -9,7 +9,7 @@ import type { Actor } from "@/shared/types/actor";
 export async function SummarySection({ actor, projectIds }: { actor: Actor; projectIds: string[] }) {
   const s = await HomeService.summary(actor, projectIds);
   return (
-    <section aria-label="Summary" className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
+    <section aria-label="Summary" className="mb-1 grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
       <StatTile layout="leading" label="My open issues" value={s.open} icon={<CircleDot />} tone="blue" />
       <StatTile
         layout="leading"

@@ -109,7 +109,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
       <div
         role="row"
         className={cn(
-          "grid h-8 items-center gap-3 border-y border-border-subtle bg-surface px-4 text-[11px] font-medium text-muted-foreground",
+          "grid h-8 items-center gap-3 border-b border-border bg-background px-4 text-[11px] font-medium text-muted-foreground",
           columns,
         )}
       >
@@ -148,7 +148,7 @@ function MyWorkTable({ items, showAssignee }: { items: IssueListItemDto[]; showA
             className={cn(
               "text-right text-[11px] tabular-nums whitespace-nowrap",
               // Overdue is decided by the service against one request clock.
-              item.dueOverdue ? "font-medium text-destructive" : "text-foreground/80",
+              item.dueOverdue ? "font-medium text-rose-700" : "text-foreground/80",
             )}
           >
             {item.dueDate ? formatDue(item.dueDate) : "—"}

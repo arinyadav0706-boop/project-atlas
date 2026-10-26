@@ -25,7 +25,7 @@ const PRIORITY_DOT: Record<IssuePriorityDto, string> = {
 const PRIORITY_TEXT: Record<IssuePriorityDto, string> = {
   HIGHEST: "text-rose-700",
   HIGH: "text-rose-700",
-  MEDIUM: "text-amber-700",
+  MEDIUM: "text-amber-800",
   LOW: "text-sky-700",
   LOWEST: "text-slate-600",
 };
@@ -48,7 +48,7 @@ export function FocusRow({ item }: { item: IssueListItemDto }) {
     <li className="border-t border-border-subtle first:border-t-0">
       <Link
         href={`/projects/${item.projectId}/issues/${item.id}`}
-        className="flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+        className="flex items-start gap-2.5 px-4 py-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
       >
         <span
           aria-hidden
@@ -73,7 +73,7 @@ export function FocusRow({ item }: { item: IssueListItemDto }) {
           <span
             className={cn(
               "shrink-0 text-[11px] leading-4 tabular-nums whitespace-nowrap",
-              item.dueOverdue ? "font-medium text-destructive" : "text-muted-foreground",
+              item.dueOverdue ? "font-medium text-rose-700" : "text-muted-foreground",
             )}
           >
             {new Date(item.dueDate).toLocaleDateString(undefined, {
