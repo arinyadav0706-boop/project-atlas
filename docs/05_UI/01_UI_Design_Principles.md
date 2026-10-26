@@ -208,6 +208,28 @@ shared tokens moved with it, so every page shares the same palette:
   next to it, so text rendered at the inherited 16px across the app. Fixed in
   `shared/lib/utils.ts`, with a regression test.
 
+### Home review loop (2026-10-26)
+
+A second pass, driven by the reviewer loop in `scripts/visual-review/` (three
+rounds, approved at 89/100). It supersedes some values above:
+
+- **Tokens (light theme):** canvas `#FAFBFD`, sidebar `--surface` `#F5F8FB`,
+  ink `#0F172A`, muted text `#596579` (5.9:1 on white), border `#E9EDF3`.
+- **Sidebar 214px** with a navy spread-wing eagle mark (`brand/logo.tsx`,
+  `currentColor`) and an 18px wordmark. The top bar shows the signed-in name
+  beside the avatar.
+- **`rounded-panel` is 10px and `Panel` has no shadow.** Cards separate from the
+  canvas by tone and a hairline; the header is 44px with a 16px title.
+- **Paired Home panels share a height** because each shows a trimmed list (My
+  work 5, attention 4, activity 3). Lists with no page of their own (Upcoming,
+  Continue working, Recent activity) expand in place with a "View all N" button
+  (`features/home/components/expandable-section.tsx`) instead of linking out.
+- **Home's KPI tiles use per-figure palette hues** (blue, rose, violet,
+  emerald — `StatTile` tones), extending the pill palette exception; due and
+  blocked stay neutral at zero.
+- **Amber text is `amber-800`** and overdue dates `rose-700`, so small labels
+  pass 4.5:1.
+
 ### Canvas vs. surface (2026-08-10)
 
 `--canvas` is the page body; `--background` is the card. They are different
