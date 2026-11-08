@@ -1,0 +1,70 @@
+---
+description: EAGLES Antigravity UI/UX Rules — Google × Apple Design System, presentation layer boundaries, tokens, and density rules
+globs:
+  - "src/**/*.{ts,tsx,css}"
+  - "tailwind.config.ts"
+alwaysApply: true
+---
+
+# EAGLES — Antigravity UI/UX Design System Rules
+
+These rules govern all presentation layer, styling, and client UI/UX engineering in EAGLES.
+Full charter: [`ANTIGRAVITY.md`](../../ANTIGRAVITY.md).
+Audit & Measurements: [`docs/05_UI/04_Modernization_Audit.md`](../../docs/05_UI/04_Modernization_Audit.md).
+
+---
+
+## 1. The Presentation-Only Firewall (Strict Rule)
+
+You are acting on the **presentation layer only**.
+* **NEVER** edit or create files in `prisma/`, `src/features/*/services/`, or `src/features/*/repositories/`.
+* **NEVER** modify route handler contracts (`src/app/api/`), DTO models, or server-side authorization checks (`src/features/authorization/`).
+* **NEVER** alter ranking math (`fractional-indexing`), OCC versioning (`version: Int`), or data calculations.
+* All data fetching in client components must go through existing typed hooks or `apiRequest` (`src/shared/lib/api-client.ts`).
+
+---
+
+## 2. Layout & Viewport Rules
+
+* **Full-Bleed by Default:** The workspace region must fill `100%` of available width (`calc(100vw - sidebarWidth)`).
+* **Ban on Unbounded Margins:** Never use `max-w-*` with `mx-auto` on page bodies. All page wrappers must use `<AppFrame>`. Dead gutters on 1080p+ displays are considered a defect.
+* **Sticky Chrome, Scrolling Workspace:** The top bar (48px) and toolbar (40px) stay fixed. The workspace area (`flex-1 min-h-0 overflow-auto`) scrolls internally.
+* **Collapse Vertical Height:** Total chrome above a board or table must not exceed ~130px.
+
+---
+
+## 3. Surface & Elevation Rules (Eradicating Card Nesting)
+
+* **No Card-in-Card Nesting:** Never place a bordered, rounded card inside another card or panel. Lists, rows, and items inside a panel must be borderless rows separated by subtle 1px divider lines (`border-b border-border/50`).
+* **Material 3 Tonal Surfaces:** Panels sit on `--canvas`. Modals, popovers, and drawers use `--surface-raised`. Toolbars and table headers use `--surface-sunken`.
+* **Subtle Hairline Elevation:** Depth comes from 1px crisp borders (`#E0E2EC` / `border-border`) paired with subtle ambient contact shadows, not heavy dark drop-shadows.
+
+---
+
+## 4. Design Token Scales (No Arbitrary Utilities)
+
+* **Radius Scale (3 steps only):**
+  * `--radius-sm` (`4px`): Badges, status chips, checkboxes, tags.
+  * `--radius-md` (`6px`): Buttons, inputs, dropdown items, tabs.
+  * `--radius-lg` (`8px`): Panels, cards, dialogs, drawers.
+  * *Banned:* `rounded-xl`, `rounded-2xl`, `rounded-3xl` on containers. `rounded-full` is reserved for avatars and circular icon buttons.
+* **Spacing Scale (4px base):**
+  * `4px` (`--space-1`), `8px` (`--space-2`), `12px` (`--space-3`), `16px` (`--space-4`), `20px` (`--space-5`), `24px` (`--space-6`), `32px` (`--space-8`).
+* **Typography Roles (Accessible Floor = 11px):**
+  * `page-title` (20px / 600)
+  * `section-title` (15px / 600)
+  * `body` (13px / 400) & `body-strong` (13px / 500)
+  * `label` (12px / 500)
+  * `meta` (11px / 400)
+  * *Banned:* Text sizes below 11px (9px and 10px are forbidden).
+
+---
+
+## 5. Density & Component Standards
+
+* **Density Default:** Data surfaces (tables, boards, backlogs, logs) default to **Compact**:
+  * Table rows: 32px height (40px in Comfortable mode).
+  * Inputs and buttons: 28px height in compact toolbars, 32px standard.
+  * Panel internal padding: 12px compact / 16px comfortable.
+* **Tables:** Always use the shared `<DataTable>` component built on `@tanstack/react-table`. Never write hand-rolled `<table>` or ad-hoc flexbox rows for data collections.
+* **Inspect Drawers:** When a user clicks an item for details, slide out `<Drawer>` from the right edge rather than navigating away or launching an intrusive dialog.

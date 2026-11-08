@@ -1,41 +1,50 @@
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
 
-// The top of a page: an optional icon chip, a title, one line of context, and
-// controls on the right.
-//
-// The subtitle is not decoration — it is where a page says what its numbers
-// actually mean ("Unfinished work queued against each person"), which is the
-// difference between a dashboard someone trusts and one they guess at.
 export function PageHeader({
   icon,
   title,
   subtitle,
   actions,
+  compact = false,
   className,
 }: {
   icon?: React.ReactNode;
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  compact?: boolean;
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-start gap-4", className)}>
-      {icon && (
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent [&>svg]:h-5 [&>svg]:w-5">
-          {icon}
-        </span>
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3",
+        !compact ? "pb-4" : "pb-2",
+        className
       )}
-      <div className="min-w-0 flex-1">
-        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        {icon && (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&>svg]:h-4 [&>svg]:w-4">
+            {icon}
+          </span>
         )}
+        <div className="min-w-0">
+          <h1
+            className={cn(
+              "font-semibold tracking-tight text-foreground leading-none",
+              compact ? "text-base" : "text-lg md:text-xl"
+            )}
+          >
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="mt-1 text-xs text-muted-foreground truncate">{subtitle}</p>
+          )}
+        </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }

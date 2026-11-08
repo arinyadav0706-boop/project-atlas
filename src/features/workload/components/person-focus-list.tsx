@@ -65,27 +65,27 @@ export function PersonFocusList({
               <li key={row.userId}>
                 <Link
                   href={personHref(row.userId)}
-                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  <Avatar className="h-7 w-7 shrink-0">
+                  <Avatar className="h-6 w-6 shrink-0 ring-1 ring-border/50">
                     {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
                     <AvatarFallback className="text-[10px]">
                       {row.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                     {row.name}
                   </span>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                      "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
                       meta.chip,
                     )}
                   >
                     {weeksLabel(row)}
                   </span>
                   <ChevronRight
-                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60"
                     aria-hidden
                   />
                 </Link>
@@ -97,10 +97,10 @@ export function PersonFocusList({
         {rows.length > shown.length && (
           <Link
             href={viewAllHref}
-            className="mt-auto inline-flex items-center gap-1.5 px-3 pt-3 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="mt-auto inline-flex items-center gap-1.5 px-2.5 pt-2.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             View all {rows.length}
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3 w-3" />
           </Link>
         )}
       </CardContent>

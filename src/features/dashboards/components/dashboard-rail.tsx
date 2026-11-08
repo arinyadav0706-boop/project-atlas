@@ -80,10 +80,10 @@ function Group({
                 type="button"
                 onClick={() => onSelect(d)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   active
-                    ? "bg-accent/10 font-medium text-accent"
-                    : "text-foreground hover:bg-muted/60",
+                    ? "bg-primary/10 font-semibold text-primary"
+                    : "text-foreground hover:bg-muted/50",
                 )}
               >
                 {d.visibility === "SHARED" ? (

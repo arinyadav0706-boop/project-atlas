@@ -177,7 +177,7 @@ export function CodeConnectionsAdmin({ initial }: { initial: CodeConnectionDto[]
             <li
               key={connection.id}
               className={cn(
-                "rounded-2xl border border-border bg-background p-5 shadow-card",
+                "rounded-lg border border-border bg-card p-4 shadow-2xs transition-colors",
                 !connection.active && "opacity-60",
               )}
             >

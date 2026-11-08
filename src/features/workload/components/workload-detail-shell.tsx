@@ -28,10 +28,10 @@ export function WorkloadDetailShell({
     <div className="mx-auto max-w-7xl">
       <Link
         href={backHref}
-        className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Workload
+        Back to Workload
       </Link>
 
       <PageHeader
@@ -39,7 +39,7 @@ export function WorkloadDetailShell({
         subtitle={subtitle}
         actions={
           teamName && (
-            <span className="rounded-xl border border-border bg-background px-3 py-1.5 text-[13px] font-medium text-foreground shadow-card">
+            <span className="rounded-md border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs">
               {teamName}
             </span>
           )

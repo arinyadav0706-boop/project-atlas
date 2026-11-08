@@ -57,9 +57,9 @@ export function EstimateCoverageBanner({ totals }: { totals: WorkloadTotalsDto }
   if (totals.unestimated === 0) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-accent/20 bg-accent/[0.06] px-4 py-3">
-      <Info className="mt-px h-4 w-4 shrink-0 text-accent" aria-hidden />
-      <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground">
+    <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 shadow-2xs">
+      <Info className="mt-px h-4 w-4 shrink-0 text-primary" aria-hidden />
+      <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">
         <span className="font-medium">
           {totals.unestimated} of these {totals.openIssues} open issues have no estimate
         </span>
@@ -67,7 +67,7 @@ export function EstimateCoverageBanner({ totals }: { totals: WorkloadTotalsDto }
       </p>
       <Link
         href="/issues?hasEstimate=false&openOnly=true"
-        className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         View unestimated
         <ArrowRight className="h-3.5 w-3.5" />
