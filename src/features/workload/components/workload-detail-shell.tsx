@@ -39,7 +39,7 @@ export function WorkloadDetailShell({
         subtitle={subtitle}
         actions={
           teamName && (
-            <span className="rounded-md border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs">
+            <span className="rounded-md border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-foreground">
               {teamName}
             </span>
           )

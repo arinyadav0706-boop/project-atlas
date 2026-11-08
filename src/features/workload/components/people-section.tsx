@@ -112,7 +112,7 @@ export function PeopleSection({
             onClick={() => setStatusFilter("ALL")}
             className={`rounded-md px-2 py-1 font-medium transition-all ${
               statusFilter === "ALL"
-                ? "bg-surface font-semibold text-foreground shadow-2xs"
+                ? "bg-surface font-semibold text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -128,7 +128,7 @@ export function PeopleSection({
                 onClick={() => setStatusFilter(status)}
                 className={`flex items-center gap-1 rounded-md px-2 py-1 font-medium transition-all ${
                   statusFilter === status
-                    ? "bg-surface font-semibold text-foreground shadow-2xs"
+                    ? "bg-surface font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -199,7 +199,7 @@ function PersonRow({
     <div
       id={personRowId(row.userId)}
       className={cn(
-        "scroll-mt-24 rounded-lg border bg-card shadow-2xs transition-colors",
+        "scroll-mt-24 rounded-lg border bg-background transition-colors",
         open ? "border-primary/40" : "border-border",
       )}
     >

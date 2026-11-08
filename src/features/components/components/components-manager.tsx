@@ -107,7 +107,7 @@ export function ComponentsManager({
   return (
     <div className="space-y-4">
       {canManage && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-surface/50 p-3 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-surface/50 p-3">
           <Input
             aria-label="New component name"
             placeholder="New component name"
@@ -210,7 +210,7 @@ function ComponentRow({
 
   if (editing) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-card px-3 py-2 shadow-2xs">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-background px-3 py-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} className="h-7 max-w-xs text-xs" />
         <Select value={ownerId} onValueChange={setOwnerId}>
           <SelectTrigger className="h-7 w-auto min-w-40 text-xs" aria-label="Owner">
@@ -236,7 +236,7 @@ function ComponentRow({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:border-border hover:bg-muted/30">
+    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs transition-colors hover:border-border hover:bg-muted/30">
       <span className="flex-1 font-medium text-foreground">{component.name}</span>
       {component.owner && (
         <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">

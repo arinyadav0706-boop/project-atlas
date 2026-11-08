@@ -79,7 +79,7 @@ function RunLogDialog({
           Every evaluation, newest first — including the ones that decided not to act.
           “Why didn’t my rule fire” is the more common question.
         </DialogDescription>
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 py-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 py-2 scroll-fade">
           {items.length === 0 ? (
             <p className="py-8 text-center text-[13px] text-muted-foreground">
               Nothing has run yet.
@@ -88,7 +88,7 @@ function RunLogDialog({
             paginatedItems.map((run) => (
               <div
                 key={run.id}
-                className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-card p-3 text-xs"
+                className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-background p-3 text-xs"
               >
                 <OutcomeChip outcome={run.outcome} />
                 <div className="min-w-0 flex-1">
@@ -277,7 +277,7 @@ export function AutomationsManager({
               <div
                 key={rule.id}
                 className={cn(
-                  "rounded-xl border border-border/80 bg-card p-4 shadow-2xs transition-all hover:border-border",
+                  "rounded-xl border border-border/80 bg-background p-4 transition-all hover:border-border",
                   !rule.enabled && "opacity-60",
                 )}
               >

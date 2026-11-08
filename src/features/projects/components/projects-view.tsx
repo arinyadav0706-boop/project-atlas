@@ -68,7 +68,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
       />
 
       {/* Control Bar: Search + Filter Tabs + View Mode */}
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -89,7 +89,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
                 onClick={() => setStatusFilter(tab)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
                   statusFilter === tab
-                    ? "bg-surface font-semibold text-foreground shadow-2xs"
+                    ? "bg-surface font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -106,7 +106,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
               aria-label="Grid view"
               className={`rounded-md p-1 transition-all ${
                 viewMode === "grid"
-                  ? "bg-surface text-foreground shadow-2xs"
+                  ? "bg-surface text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -118,7 +118,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
               aria-label="Table view"
               className={`rounded-md p-1 transition-all ${
                 viewMode === "table"
-                  ? "bg-surface text-foreground shadow-2xs"
+                  ? "bg-surface text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -159,7 +159,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
               >
                 <Link
                   href={`/projects/${project.id}/issues`}
-                  className="group flex flex-col justify-between rounded-xl border border-border bg-surface p-4 shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="group flex flex-col justify-between rounded-xl border border-border bg-surface p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div>
                     <div className="mb-2.5 flex items-center justify-between">
@@ -203,7 +203,7 @@ export function ProjectsView({ projects }: { projects: ProjectDto[] }) {
         </div>
       ) : (
         /* High-Density Table View */
-        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
           <div className="relative w-full overflow-auto">
             <table className="w-full caption-bottom text-left text-xs">
               <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">

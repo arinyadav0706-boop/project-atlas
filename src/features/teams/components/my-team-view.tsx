@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Users, Mail, Shield } from "lucide-react";
+import { Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -42,7 +42,7 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
   return (
     <div className="space-y-4">
       {/* Control Bar: Search + Team Filter */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -60,7 +60,7 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
               onClick={() => setTeamFilter("ALL")}
               className={`rounded-md px-2.5 py-1 font-medium transition-all ${
                 teamFilter === "ALL"
-                  ? "bg-surface font-semibold text-foreground shadow-2xs"
+                  ? "bg-surface font-semibold text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -75,7 +75,7 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
                   onClick={() => setTeamFilter(teamName)}
                   className={`rounded-md px-2.5 py-1 font-medium transition-all ${
                     teamFilter === teamName
-                      ? "bg-surface font-semibold text-foreground shadow-2xs"
+                      ? "bg-surface font-semibold text-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -88,7 +88,7 @@ export function MyTeamView({ reports }: { reports: MyTeamReportDto[] }) {
       </div>
 
       {/* Paginated Team List */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {filteredReports.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground">
             No team members match &ldquo;{query}&rdquo;.

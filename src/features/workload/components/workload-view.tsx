@@ -100,7 +100,7 @@ export function WorkloadView({ initial }: { initial: WorkloadDto }) {
           </Select>
         </div>
         <div
-          className="flex rounded-md border border-border/80 bg-surface-sunken p-0.5 shadow-2xs"
+          className="flex rounded-md border border-border/80 bg-surface-sunken p-0.5"
           role="group"
           aria-label="View"
         >
@@ -203,7 +203,7 @@ function ModeButton({
       className={cn(
         "rounded px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
         active
-          ? "bg-card text-foreground shadow-2xs font-semibold"
+          ? "bg-background text-foreground font-semibold"
           : "text-muted-foreground hover:text-foreground",
       )}
     >

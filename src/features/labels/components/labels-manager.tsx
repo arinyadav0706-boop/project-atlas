@@ -85,7 +85,7 @@ export function LabelsManager() {
   return (
     <div className="space-y-4">
       {canCreate && (
-        <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-surface/50 p-3 shadow-2xs">
+        <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-surface/50 p-3">
           <input
             type="color"
             aria-label="Label color"
@@ -180,7 +180,7 @@ function LabelRow({
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-card px-3 py-2 shadow-2xs">
+      <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-background px-3 py-2">
         <input
           type="color"
           aria-label="Label color"
@@ -200,7 +200,7 @@ function LabelRow({
   }
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:border-border hover:bg-muted/30">
+    <div className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs transition-colors hover:border-border hover:bg-muted/30">
       <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-border/50" style={{ backgroundColor: label.color }} />
       <span className="flex-1 font-medium text-foreground">{label.name}</span>
       {canManage && (

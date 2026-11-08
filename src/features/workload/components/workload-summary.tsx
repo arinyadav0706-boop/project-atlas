@@ -57,7 +57,7 @@ export function EstimateCoverageBanner({ totals }: { totals: WorkloadTotalsDto }
   if (totals.unestimated === 0) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 shadow-2xs">
+    <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
       <Info className="mt-px h-4 w-4 shrink-0 text-primary" aria-hidden />
       <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">
         <span className="font-medium">

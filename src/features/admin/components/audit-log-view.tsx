@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, Calendar, ShieldCheck } from "lucide-react";
+import { Filter } from "lucide-react";
 import { Input } from "@/shared/components/ui/input";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -43,7 +43,7 @@ export function AuditLogView({
       {/* Filter Bar */}
       <form
         onSubmit={onFilter}
-        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs"
+        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3"
       >
         <div className="flex flex-col gap-1">
           <label htmlFor="f-action" className="text-[11px] font-medium text-muted-foreground">
@@ -80,7 +80,7 @@ export function AuditLogView({
       </form>
 
       {/* High-Density Audit Log Table with Sticky Header */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         <div className="relative w-full overflow-auto max-h-[calc(100vh-320px)]">
           <table className="w-full caption-bottom text-left text-xs">
             <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">

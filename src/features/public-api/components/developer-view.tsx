@@ -187,7 +187,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs backdrop-blur-sm transition-all hover:border-border">
+    <section className="rounded-2xl border border-border/80 bg-background p-5 backdrop-blur-sm transition-all hover:border-border">
       <div className="mb-4 flex items-start gap-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary [&>svg]:size-4">
           {icon}
@@ -456,7 +456,7 @@ function DeliveriesDialog({
           {deliveries?.webhook.url}
         </DialogDescription>
 
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 py-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 py-2 scroll-fade">
           {deliveries?.rows === null && (
             <p className="py-6 text-center text-[13px] text-muted-foreground">Loading…</p>
           )}
@@ -468,7 +468,7 @@ function DeliveriesDialog({
           {paginatedItems.map((row) => (
             <div
               key={row.id}
-              className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-card p-3 text-xs"
+              className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-background p-3 text-xs"
             >
               <span
                 className={cn(
@@ -579,7 +579,7 @@ export function DeveloperView({ baseUrl }: { baseUrl: string }) {
         subtitle="Tokens for the REST API, and webhooks so your systems hear about changes instead of polling for them."
       />
 
-      <section className="rounded-2xl border border-border/80 bg-muted/30 p-5 shadow-2xs">
+      <section className="rounded-2xl border border-border/80 bg-muted/30 p-5">
         <h2 className="text-sm font-semibold text-foreground">Getting started</h2>
         <p className="mt-0.5 mb-3 text-[13px] text-muted-foreground">
           Create a token below, then:

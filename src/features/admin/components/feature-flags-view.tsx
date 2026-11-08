@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RotateCcw, Search, Flag } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/components/ui/badge";
@@ -61,7 +61,7 @@ export function FeatureFlagsView({ initialFlags }: { initialFlags: FeatureFlagDt
   return (
     <div className="space-y-4">
       {/* Control Bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-surface p-3 shadow-2xs">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-surface p-3">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -78,7 +78,7 @@ export function FeatureFlagsView({ initialFlags }: { initialFlags: FeatureFlagDt
       </div>
 
       {/* Paginated Flags List */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {filteredFlags.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground">
             No feature flags match &ldquo;{query}&rdquo;.

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, UserPlus, Shield, CheckCircle2, XCircle } from "lucide-react";
+import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
@@ -62,7 +62,7 @@ export function UsersView({
   return (
     <div className="space-y-4">
       {/* Search & Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
@@ -110,7 +110,7 @@ export function UsersView({
       </div>
 
       {/* High-Density Users Table with Sticky Header */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         <div className="relative w-full overflow-auto">
           <table className="w-full caption-bottom text-left text-xs">
             <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">

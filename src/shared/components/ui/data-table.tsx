@@ -61,7 +61,7 @@ export function DataTable<TData, TValue>({
   const headerHeightClass = density === "compact" ? "h-8 px-3 text-[11px]" : "h-10 px-4 text-xs";
 
   return (
-    <div className={cn("flex flex-col w-full overflow-hidden rounded-xl border border-border bg-surface shadow-2xs", className)}>
+    <div className={cn("flex flex-col w-full overflow-hidden rounded-xl border border-border bg-surface", className)}>
       <div className={cn("relative w-full overflow-auto", maxHeight && maxHeight)}>
         <table className={cn("w-full caption-bottom text-left text-foreground", tableClassName)}>
           <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 backdrop-blur-xs">

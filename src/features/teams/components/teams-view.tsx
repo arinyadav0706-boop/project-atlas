@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronDown, ChevronRight, Search, Users, Shield, UserPlus } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Search, Shield, UserPlus } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -107,7 +107,7 @@ export function TeamsView({
       </div>
 
       {creating && (
-        <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 shadow-2xs sm:grid-cols-4">
+        <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <Label htmlFor="team-name" className="text-xs">Team Name</Label>
             <Input
@@ -142,7 +142,7 @@ export function TeamsView({
       )}
 
       {/* Paginated Teams List */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {teams.length === 0 ? (
           <div className="px-4 py-12 text-center text-xs text-muted-foreground">
             No teams established yet. Create one to organize your organizational reporting structure.

@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ListTodo, Search, Filter as FilterIcon, Layers, Calendar } from "lucide-react";
+import { ListTodo, Search } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
-import { Badge } from "@/shared/components/ui/badge";
 import { EmptyState as EmptyStatePrimitive } from "@/shared/components/ui/empty-state";
 import { DataPagination } from "@/shared/components/ui/data-pagination";
 import { CreateIssueDialog } from "./create-issue-dialog";
@@ -21,7 +18,6 @@ import {
   StatusDot,
   statusLabel,
 } from "./issue-meta";
-import { IssueChips } from "./issue-chips";
 import type {
   IssueDetailDto,
   IssueListItemDto,
@@ -175,7 +171,7 @@ export function IssuesView({
   return (
     <div className="space-y-4">
       {/* Control Bar: Status Tabs + Search + Action */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Segmented Status Filter Tabs */}
         <div
           className="flex flex-wrap items-center rounded-lg border border-border bg-muted/30 p-0.5 text-xs select-none"
@@ -190,7 +186,7 @@ export function IssuesView({
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                 filter === f.value
-                  ? "bg-surface font-semibold text-foreground shadow-2xs"
+                  ? "bg-surface font-semibold text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -234,7 +230,7 @@ export function IssuesView({
           onCreated={onCreated}
         />
       ) : (
-        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+        <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
           {/* Sticky Table Header */}
           <div className="sticky top-0 z-10 flex h-9 items-center gap-2.5 border-b border-border bg-muted/40 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs select-none">
             <span className="w-8 text-center">Type</span>

@@ -782,7 +782,7 @@ function SprintSection({
     sprint.status === "ACTIVE" && sprint.endDate ? new Date(sprint.endDate) < new Date() : false;
 
   return (
-    <section className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs backdrop-blur-sm transition-all hover:border-border">
+    <section className="rounded-xl border border-border/80 bg-background p-4 backdrop-blur-sm transition-all hover:border-border">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">{sprint.name}</h3>
@@ -893,7 +893,7 @@ function CompletedSprintCard({
 }) {
   const { doneIssues, totalIssues } = sprint.progress;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-card px-3 py-2 text-xs transition-colors hover:bg-muted/30">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background px-3 py-2 text-xs transition-colors hover:bg-muted/30">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-xs font-semibold text-foreground">{sprint.name}</span>
@@ -981,7 +981,7 @@ function BacklogGroup({
   renderTrailing?: (item: IssueListItemDto) => React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs transition-all hover:border-border">
+    <div className="rounded-xl border border-border/80 bg-background p-3 transition-all hover:border-border">
       <button
         type="button"
         onClick={onToggle}

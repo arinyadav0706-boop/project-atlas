@@ -5,7 +5,6 @@ import { Plus, SlidersHorizontal, Trash2, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
-import { Card } from "@/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -148,7 +147,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinitionD
   return (
     <div className="space-y-4">
       {/* Control Bar: Search + Create Button */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-surface p-3 shadow-2xs">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border bg-surface p-3">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -166,7 +165,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinitionD
       </div>
 
       {/* Paginated Custom Fields Table */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {fields.length === 0 ? (
           <div className="p-8">
             <EmptyState

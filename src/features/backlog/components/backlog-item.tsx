@@ -55,7 +55,7 @@ export function BacklogItem({
       style={style}
       {...dragProps}
       className={cn(
-        "group flex items-center gap-2.5 rounded-md border border-border/70 bg-card px-2.5 py-1.5 text-xs transition-all duration-150 hover:border-primary/40 hover:bg-muted/30 hover:shadow-2xs",
+        "group flex items-center gap-2.5 rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-xs transition-all duration-150 hover:border-primary/40 hover:bg-muted/30",
         canWrite && "cursor-grab touch-none active:cursor-grabbing",
         sortable.isDragging && "opacity-40",
         overlay && "cursor-grabbing shadow-pop ring-2 ring-primary/60 bg-background/95 backdrop-blur-md",

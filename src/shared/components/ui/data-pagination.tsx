@@ -243,7 +243,7 @@ export function DataPagination(props: DataPaginationProps) {
                   className={cn(
                     "flex h-7 min-w-[28px] items-center justify-center rounded-md px-2 text-xs font-medium tabular-nums transition-all",
                     p === page
-                      ? "bg-primary font-semibold text-primary-foreground shadow-2xs"
+                      ? "bg-primary font-semibold text-primary-foreground"
                       : "border border-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
                   )}
                 >

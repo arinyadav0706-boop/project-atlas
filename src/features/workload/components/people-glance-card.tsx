@@ -41,7 +41,7 @@ export function PeopleAtAGlanceCard({
             return (
               <div
                 key={status}
-                className="rounded-lg border border-border/70 bg-surface-sunken/40 px-2.5 py-2 shadow-2xs"
+                className="rounded-lg border border-border/70 bg-surface-sunken/40 px-2.5 py-2"
               >
                 <span
                   className={cn(

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Inbox, ExternalLink } from "lucide-react";
+import { CheckCheck, Inbox, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -44,7 +44,7 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
   }, []);
 
   const handleNextPage = useCallback(() => {
-    if (!nextCursor) return;
+    if (!nextCursor || loading) return;
     const nextIdx = pageIndex + 1;
     setCursorStack((prev) => {
       const copy = prev.slice(0, nextIdx);
@@ -56,7 +56,7 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
   }, [nextCursor, pageIndex, pageSize, fetchPage]);
 
   const handlePrevPage = useCallback(() => {
-    if (pageIndex <= 0) return;
+    if (pageIndex <= 0 || loading) return;
     const prevIdx = pageIndex - 1;
     const prevCursor = cursorStack[prevIdx];
     setPageIndex(prevIdx);
@@ -86,14 +86,14 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
   return (
     <div className="space-y-4">
       {/* Control Bar: Filter Tabs + Mark all read */}
-      <div className="flex items-center justify-between rounded-xl border border-border bg-surface p-2.5 shadow-2xs">
+      <div className="flex items-center justify-between rounded-xl border border-border bg-surface p-2.5">
         <div className="flex items-center rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setFilter("ALL")}
             className={`rounded-md px-3 py-1 font-medium transition-all ${
               filter === "ALL"
-                ? "bg-surface font-semibold text-foreground shadow-2xs"
+                ? "bg-surface font-semibold text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -104,7 +104,7 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
             onClick={() => setFilter("UNREAD")}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-all ${
               filter === "UNREAD"
-                ? "bg-surface font-semibold text-foreground shadow-2xs"
+                ? "bg-surface font-semibold text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -131,7 +131,7 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
       </div>
 
       {/* Notifications List Container */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
         {displayedItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground mb-3">
@@ -157,7 +157,7 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
               >
                 <span
                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full transition-all ${
-                    !n.isRead ? "bg-primary shadow-xs ring-4 ring-primary/10" : "bg-transparent"
+                    !n.isRead ? "bg-primary ring-4 ring-primary/10" : "bg-transparent"
                   }`}
                 />
 
@@ -194,8 +194,8 @@ export function NotificationsList({ initial }: { initial: NotificationListDto })
         {/* Keyset DataPagination */}
         <DataPagination
           mode="cursor"
-          hasPrev={pageIndex > 0}
-          hasNext={Boolean(nextCursor)}
+          hasPrev={pageIndex > 0 && !loading}
+          hasNext={Boolean(nextCursor) && !loading}
           onPrev={handlePrevPage}
           onNext={handleNextPage}
           rangeLabel={rangeLabel}

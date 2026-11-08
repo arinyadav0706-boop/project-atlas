@@ -64,7 +64,12 @@ issue list:
 - `IssueService.list` returns `{ items, nextCursor, counts }`
   (`IssueListPageDto`).
 - The UI (`issues-view.tsx`) is server-driven: changing a status filter
-  refetches page 1 for that filter; "Load more" appends the next cursor.
+  refetches page 1 for that filter; Next fetches the following cursor and
+  Previous replays the one before it from a client-side cursor stack
+  (ADR-0058, UI-22). Each page is still one keyset read.
+- Small lists that are already fully loaded (labels, teams, users…) may page
+  in the browser with `usePagination`; that is not a substitute for a bounded
+  query once the list can grow (UI-21).
 
 `DEFAULT_PAGE_SIZE = 50`, `MAX_PAGE_SIZE = 100` (`issue.repository.ts`).
 
