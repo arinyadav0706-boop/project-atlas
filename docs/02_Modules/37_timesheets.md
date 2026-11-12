@@ -71,12 +71,12 @@ API-complete here; the approver's screen comes later).
 | | |
 |---|---|
 | BR-23 | **DRAFT** — editable by the owner. |
-| BR-24 | **Submit is blocked**, with one problem per item, each linking to its cell or row, when: a required note is missing; an activity row lacks a required project or client; a day totals more than 24h; the week is empty. |
+| BR-24 | **Submit is blocked**, with one problem per item, each linking to its cell or row, when: a required note is missing; an activity row lacks a required project or client; a day totals more than 24h; the week is empty. **Until the Clients admin screen exists (TS-5), a required client is not enforced** (ADR-0059 Q14). |
 | BR-25 | **SUBMITTED** — read-only; approvers listed with their status. |
 | BR-26 | **RETURNED** — only the returned rows are editable, each showing its reason; resubmitting opens a new approval round. |
 | BR-27 | **APPROVED** — read-only; approvers shown with date and time; "View approval history" lists every round. |
 | BR-28 | **Locked** (orthogonal to status) — every write is refused with 409, from every path: grid, issue page, API, bulk. "Edit timesheet" is disabled. |
-| BR-29 | **Approvers** are resolved at submit from the policy's relations: REPORTING (the person's team manager, ADR-0032), FUNCTIONAL (ADR-0059 Q2), PROJECT (the project's LEAD, for that project's rows only — Q3). Never the owner (Q5). |
+| BR-29 | **Approvers** are resolved at submit from the policy's relations: REPORTING (the person's team manager, ADR-0032), FUNCTIONAL (ADR-0059 Q2), PROJECT (the project's LEAD, for that project's rows only — Q3). Never the owner. **Default: REPORTING only; multiple approvers are supported from day one and switched on in the policy** (ADR-0059 Q4). **No team manager → an org admin approves** (Q5). |
 | BR-30 | **Approved** when every required approval of the current round is APPROVED. Any RETURNED decision returns the timesheet. |
 
 ### Authorization and audit
@@ -213,6 +213,11 @@ admin settings screens, HROne sync, reports, mobile layout.
   project/client, a day over 24h, an empty week — each problem links to the
   right cell or row.
 - Submit → all approvers approve → APPROVED → locked (auto-lock on).
+- With REPORTING + PROJECT enabled: the project LEAD sees and decides only
+  their project's rows; the week is APPROVED only when both have approved.
+- A person with no team manager is routed to an org admin.
+- Migration: past weeks are frozen with hours unchanged; the migration week
+  stays an open DRAFT.
 - Submit → return two rows → only those rows are editable → resubmit → a new
   approval round; the first round stays in history.
 - Every write to a locked week is 409 — grid, issue page, API.

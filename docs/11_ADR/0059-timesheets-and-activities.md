@@ -1,6 +1,6 @@
 # ADR-0059: Weekly timesheets, org-defined activities, and approval
 
-**Status:** Proposed — awaiting founder approval of §9 (open questions)
+**Status:** Proposed — Q1, Q4, Q14 decided and Q5 partly decided (2026-11-12); the rest of §9 awaits founder approval
 **Date:** 2026-11-12
 **Deciders:** Founders
 **Module:** `docs/02_Modules/37_timesheets.md`
@@ -132,7 +132,7 @@ Defaults (shipped, editable later in Admin): week starts **Monday**; due
 2h before due; auto-lock on approval; overtime above the org working day;
 notes required for **none** (activities can still demand them); employees
 **may** override billable; approvers **reporting manager** only, parallel
-(see Q4).
+(Q4, decided — multiple approvers are fully supported and switchable).
 
 ### 3.6 Availability — `Holiday`, `EmployeeLeave`, `Organization.hrConnectedAt`
 
@@ -192,8 +192,10 @@ One migration, set-based SQL, safe to re-run. Order:
    logs, and one `TimesheetRow` per distinct `(timesheet, issueId)`, positioned
    by first logged date; point every log at both; then make `timesheetId` and
    `timesheetRowId` `NOT NULL`.
-6. Status of those back-filled weeks: **see Q1.** Nothing is marked approved —
-   no approval that did not happen is fabricated.
+6. Back-filled weeks before the migration week are **frozen**: DRAFT with
+   `lockedAt` = migration time and `lockedById` null. **The week containing the
+   migration date stays an open DRAFT.** Nothing is marked approved — no
+   approval that did not happen is fabricated (Q1, decided).
 
 **Deploy note.** Since DB-9, every push to `main` runs `prisma migrate deploy`
 against production Supabase and fails the deploy if a migration fails. This
@@ -255,11 +257,11 @@ approvals screens — see Q6 for how it reaches a non-admin.
 
 | # | Question | Recommendation |
 |---|---|---|
-| Q1 | Existing logs become back-filled weeks. Should those weeks be **DRAFT** (owners could still submit them, and they count as overdue) or **frozen** (DRAFT + `lockedAt` at migration, so history cannot change and nobody is chased for it)? | **Frozen.** Nothing is fabricated, nothing is overdue, and the record cannot be edited after the fact. |
+| Q1 | Status of back-filled weeks. | **DECIDED 2026-11-12:** past weeks are **frozen** (DRAFT + `lockedAt` at migration, no approvals created, never overdue); **the week containing the migration date stays an open DRAFT**. |
 | Q2 | Where is a **functional manager** stored? There is no field today. | `User.functionalManagerId?` — one column, the same shape HROne exports, and the HR sync can fill it later. |
 | Q3 | Does a **project manager** approve only their project's rows, and who is the project manager — any project `LEAD`? | Yes, only that project's rows; any one LEAD of the project may act. Rows with no project are approved by the reporting manager. |
-| Q4 | **Default approver set** for a new org: reporting manager only, or reporting + project manager (mockup shows two approvers)? Parallel or in order? | Reporting manager only, parallel, until an admin adds more. The mockup's two approvers then come from an org that enabled PROJECT. |
-| Q5 | **No approver found** (person not in a team, or they manage their own team): who approves? Can anyone ever approve their own timesheet? | Walk up to the parent team's manager; if none, the org admins. Never self-approval. |
+| Q4 | Default approver set. | **DECIDED 2026-11-12:** default **reporting manager only**, but the model and the service support **multiple approvers from day one** — REPORTING, FUNCTIONAL and PROJECT (project LEADs approving their project's rows), parallel or sequential — switchable in the policy. Screen 1's tests cover the multi-approver path, not just the default. |
+| Q5 | No approver found. | **PARTLY DECIDED 2026-11-12:** someone with **no team manager** is approved by an **org admin**. Still open: self-approval (a manager who is their own team's manager) — recommendation: treat as "no manager" → org admin; never self-approve. |
 | Q6 | `VIEW_TIME_REPORTS` must reach HR people who are not org admins, but today **only ADMINs hold any capability** (`resolveCapabilities`). Add a capability-grant table now, or later with the reports screen? | Later, with the reports/approvals screen (TS-9). Screen 1 does not use it. |
 | Q7 | **Timezone** for the due time (e.g. Monday 11:00). Organizations have no timezone today. | A required `timezone` on `TimesheetPolicy` (IANA, e.g. `Asia/Kolkata`), set when the org is created. |
 | Q8 | Module 19 BR-4 lets a project LEAD delete anyone's log. Keep that only for DRAFT weeks? | Yes, DRAFT only. |
@@ -268,6 +270,6 @@ approvals screens — see Q6 for how it reaches a non-admin.
 | Q11 | **Future days.** Module 19 forbids logging on a future date. Keep that in the grid (no pre-filling Friday on Wednesday)? | Keep it. |
 | Q12 | **Late submission**: allowed after the deadline (and shown as late), or blocked until a manager reopens it? | Allowed, marked late. |
 | Q13 | **Unlocking**: if a locked week is wrong, can anyone unlock it? | An org admin can unlock with a mandatory reason, audited — built with the admin screens (TS-6). Until then, locked is final. |
-| Q14 | **Where do activities and clients come from** before their admin screens exist? Without clients, "Client is required" can never be satisfied. | Seed a default activity catalogue per org (Meetings, Client meeting, Internal, HR, Pre-sales, Training…); build a minimal Clients list in Step 2 — or pull the clients admin screen forward. Founder to choose. |
+| Q14 | Activities and clients before their admin screens. | **DECIDED 2026-11-12:** every org gets a **seeded, editable default activity list**. **Sample clients only in dev/demo seeds** (`prisma/seed.ts`, VERUS), never in a real org. Until the Clients screen exists (TS-5), **"client required" is not enforced** (`CLIENT_REQUIRED` is not raised). |
 | Q15 | **Notifications**: send in-app notifications on submit, return and approve as part of Screen 1? Needs 3 new `NotificationType` values. | Yes, in-app only. Email and reminders wait for the email module and the production scheduler. |
 | Q16 | **Week-start change**: when a policy moves the week from Monday to Sunday, the transition period is 6 or 8 days. Allow that one odd-length period? | Yes; `periodStart`/`periodEnd` are explicit, so nothing assumes 7 days. |
