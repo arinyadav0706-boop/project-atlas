@@ -3,7 +3,7 @@
 **Status:** v1.0 spec — **Accepted** with ADR-0059 (2026-11-13); not yet built
 **ADR:** 0059 · **Brief:** `docs/briefs/timesheets-screen1.md`
 **Mockups:** `docs/05_UI/mockups/timesheets/my-timesheet-states-a.png`
-(*not yet in the repo — see §5.6*), `my-timesheet-states-b.png`
+`my-timesheet-states-b.png` (the only sheet — §5.6)
 **Depends on:** Time Tracking (19), Teams (20, ADR-0031/0032), Projects (03),
 Issues (04), Admin capabilities (ADR-0022), Notifications (10).
 **Enables:** Approvals screen, Time reports (36), the running timer (Screen 2),
@@ -203,11 +203,13 @@ Matched to the mockups after the function works. Borders, not shadows
 popovers, drawers); colours only through tokens, added — never re-valued;
 existing primitives first. Light theme only. Desktop only.
 
-**Mockup gap:** only *states B* (`my-timesheet-states-b.png`: notes,
-overtime, pinned row and row menu; submit blocked; approved/locked; HR not
-connected) is in the repo. *States A* (draft week, add-activity picker,
-returned, submitted, empty week) has not been received; those five states are
-specified from the brief's text until it is.
+**Mockups:** `my-timesheet-states-b.png` is the single reference (founder,
+2026-11-13 — there is no separate "states A"): notes, overtime, pinned row and
+row menu; submit blocked; approved/locked; HR not connected. The other states
+(add-activity picker, returned, submitted, empty week) follow its visual
+language. The mockup is the floor, not the ceiling: generous 8–12px radii on
+cards and panels, 6–8px on inputs and chips, comfortable spacing, precise grid
+alignment, a clear type hierarchy and polished interactions.
 
 **Step 3 notes (2026-11-13):** "Integrate HR" is shown as *coming soon* until
 the HR screen exists (TS-7). A cell holding several logs explains itself but
