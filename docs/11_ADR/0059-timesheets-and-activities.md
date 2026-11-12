@@ -185,7 +185,10 @@ project or client; a day totals more than 24h; or the week is empty.
 One migration, set-based SQL, safe to re-run. Order:
 
 1. Create the new tables and enums; seed one default `TimesheetPolicy` per org
-   (`effectiveFrom` = the Monday on or before the migration date).
+   with `effectiveFrom` = **2000-01-03** (a Monday), so every back-filled week
+   is governed by it, and `timezone` = **UTC** until an admin sets it (TS-15).
+   Organizations created later get the same policy, and the default activity
+   list, from the service on first use rather than from every creation path.
 2. Add `organizationId`, backfill from `issue → project`, then make it
    `NOT NULL`.
 3. Make `issueId` nullable; add `activityId`; add the CHECK constraint.
@@ -201,10 +204,23 @@ One migration, set-based SQL, safe to re-run. Order:
    migration date stays an open DRAFT.** Nothing is marked approved — no
    approval that did not happen is fabricated (Q1, decided).
 
+**Rehearsal (TS-4, 2026-11-13):** on the VERUS demo dataset — 5,612 logs,
+547,080 minutes, 156 people — the migration ran in 0.6 s through
+`prisma migrate deploy`. Log count and minute totals were identical before and
+after; every log was linked to its owner's week and a matching row; 958 past
+weeks were frozen, 107 current weeks left open; no approvals were created; and
+`prisma migrate diff` against the schema came back empty.
+
 ### 5a. Report before the duration-input change (Q10)
 
-Today the issue page reads a bare "1.5" as 2 minutes and "8" as 8 minutes, so
-some existing logs may be hours recorded as minutes. Before the input changes,
+*Correction (2026-11-13):* the premise was wrong. The issue page has always
+taken time in separate **Hours** and **Minutes** fields; the free-text parser
+that read a bare number as minutes was never wired to any input, so no log
+could have been recorded that way. The report confirmed it — one log under 15
+minutes, genuine (TS-14). The parser now reads a bare number as hours, for the
+timesheet grid; the issue page needs no change.
+
+As originally written: Before the input changes,
 `scripts/worklog-short-durations.sql` (read-only) lists every log of **under
 15 minutes**, bucketed (`<5`, `5–14`) and grouped by person, for the founder to
 review. Any correction is a separate, explicit, audited step that the founder

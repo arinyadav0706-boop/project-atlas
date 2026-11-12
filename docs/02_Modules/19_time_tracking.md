@@ -69,10 +69,10 @@ A **Time Tracking** panel on the issue detail page:
 - Estimate vs Logged vs Remaining, with a progress bar (over-logged shown
   distinctly).
 - Editable estimate (writers only), input accepts `1h 30m` / `90m` / `1.5h`.
-  **[ADR-0059 Q10, decided]** a bare number becomes **hours** ("1.5" = 1h 30m),
-  matching the timesheet grid; minutes need `m`. Ships only after the founder
-  has reviewed the short-duration report (ADR-0059 §5a); existing logs are
-  never rewritten silently.
+  *Correction (2026-11-13):* the panel actually takes separate **Hours** and
+  **Minutes** fields, so the bare-number question (ADR-0059 Q10) never applied
+  here; the free-text parser now reads a bare number as hours for the
+  timesheet grid only.
 - "Log time" form: duration, date (default today, not future), optional note.
 - Log list: person (avatar+name), date, duration, note; edit (author) / delete
   (author or LEAD) affordances. VIEWER sees read-only.

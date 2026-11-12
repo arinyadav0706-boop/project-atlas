@@ -2383,7 +2383,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  error: { type: string, example: SUBMIT_BLOCKED }
+                  error: { type: string, example: ValidationError }
+                  code: { type: string, example: SUBMIT_BLOCKED }
+                  message: { type: string }
                   problems:
                     type: array
                     items: { $ref: "#/components/schemas/TimesheetProblem" }
@@ -2785,7 +2787,8 @@ components:
     Conflict:
       description: >
         State conflict — stale `expectedVersion`, a week that is submitted,
-        approved or locked, or a cell holding several logs (`MULTIPLE_LOGS`).
+        approved or locked, or a cell holding several logs (body `code:
+        MULTIPLE_LOGS`).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -4255,7 +4258,7 @@ components:
       type: object
       required: [id, position, kind, billable, cells, totalMinutes, editable]
       properties:
-        id: { type: string, nullable: true, description: "null for an unsaved pinned row in a week that does not exist yet" }
+        id: { type: string, nullable: true, description: "`pinned:<pinnedRowId>` for a pinned row in a week that does not exist yet; a cell write to it creates the week" }
         position: { type: integer }
         kind: { type: string, enum: [ISSUE, ACTIVITY] }
         issue:

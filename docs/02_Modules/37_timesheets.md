@@ -85,8 +85,8 @@ API-complete here; the approver's screen comes later).
 |---|---|
 | BR-31 | Only the owner writes their timesheet. Approvers read the timesheet they are asked to approve; PROJECT approvers see and act on their project's lines only. |
 | BR-32 | Out-of-scope or cross-org timesheet → `NotFoundError` (404), never 403 (F-1). |
-| BR-33 | Everything is audited: `TIMESHEET_CREATED`, `TIMESHEET_ROW_ADDED/UPDATED/MOVED/REMOVED`, `WORKLOG_*` (existing), `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_ROW_RETURNED`, `TIMESHEET_RETURNED`, `TIMESHEET_LOCKED`, `TIMESHEET_AUTO_APPROVED`, `TIMESHEET_UNLOCKED`, `TIMESHEET_POLICY_CREATED`, `PINNED_ROW_*`. |
-| BR-34 | **Unlock week** — an org admin may unlock someone else's locked week. A reason (1–500 chars) is required; the action is audited (`TIMESHEET_UNLOCKED`, with the reason and the previous lock time) and the owner is notified. Status is kept; any edit to an unlocked APPROVED week returns it to DRAFT for re-approval. Nobody unlocks their own week. |
+| BR-33 | Everything is audited: `TIMESHEET_REOPENED` (an unlocked approved week edited back to DRAFT), `TIMESHEET_ROWS_COPIED`, `TIMESHEET_APPROVAL_DECIDED`, `TIMESHEET_CREATED`, `TIMESHEET_ROW_ADDED/UPDATED/MOVED/REMOVED`, `WORKLOG_*` (existing), `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_ROW_RETURNED`, `TIMESHEET_RETURNED`, `TIMESHEET_LOCKED`, `TIMESHEET_AUTO_APPROVED`, `TIMESHEET_UNLOCKED`, `TIMESHEET_POLICY_CREATED`, `PINNED_ROW_*`. |
+| BR-34 | **Unlock week** — an org admin may unlock someone else's locked week. A reason (1–500 chars) is required; the action is audited (`TIMESHEET_UNLOCKED`, with the reason and the previous lock time) and the owner is notified. Status is kept; any edit to an unlocked APPROVED week returns it to DRAFT for re-approval. Nobody unlocks their own week. A week locked by the policy's age rule (`lockAfterDays`) is not a person's lock and cannot be unlocked this way (TS-17). |
 | BR-35 | **In-app notifications:** approvers on submit; the owner on return, approval, auto-approval and unlock; a log's author when a project LEAD removes it from a DRAFT week (module 19 BR-4). Email and reminders later (TS-8). |
 
 ## 3. Database
@@ -113,7 +113,10 @@ Per ADR-0059 §3; field lists in `docs/03_Database/01_Database_Design.md`
 Contract in `docs/04_API/openapi.yaml`, tag `timesheets`. Weeks are addressed
 by `periodStart` (`YYYY-MM-DD`) for the caller's own timesheet, so the client
 never needs an id before the first write; the server creates the timesheet in
-the same transaction as the first write. **Reads never create anything.**
+the same transaction as the first write. **Reads never create anything.** In a
+week that does not exist yet, the owner's pinned rows come back with the id
+`pinned:<pinnedRowId>`; a cell write to such a row creates the week (with all
+its pinned rows) and lands on the right one.
 
 | Method | Path | Purpose |
 |---|---|---|
