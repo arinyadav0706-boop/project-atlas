@@ -10,6 +10,9 @@ import {
   type ProjectContext,
 } from "@/features/projects/services/project.service";
 import { AuditLogService } from "@/features/admin/services/audit-log.service";
+import { TimesheetService } from "@/features/timesheets/services/timesheet.service";
+import { NotificationService } from "@/features/notifications/services/notification.service";
+import { ProfileService } from "@/features/profile/services/profile.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
 import type { ProjectRoleDto } from "@/features/projects/types/project.types";
@@ -71,7 +74,9 @@ function toDto(
   const isAuthor = row.userId === actor.userId;
   return {
     id: row.id,
-    issueId: row.issueId,
+    // Logs listed here are always issue logs; activity time lives only on the
+    // timesheet (ADR-0059 BR-2a).
+    issueId: row.issueId ?? "",
     minutes: row.minutes,
     workDate: toWorkDateString(row.workDate),
     note: row.note,
@@ -139,12 +144,17 @@ export const WorkLogService = {
     if (!canWrite(role)) throw new ForbiddenError("You need to be a project member to log time.");
     if (context.status === "ARCHIVED") throw new ConflictError("Archived projects are read-only.");
 
+    // BR-2b: the log goes into that week's timesheet, which refuses a week
+    // that is submitted, approved or locked.
+    const placement = await TimesheetService.placeIssueLog(actor, issueId, input.workDate);
     const row = await WorkLogRepository.create({
+      organizationId: context.organizationId,
       issueId,
       userId: actor.userId,
       minutes: input.minutes,
       workDate: fromWorkDateString(input.workDate),
       note: input.note?.length ? input.note : null,
+      ...placement,
     });
     await recordEvent(context.organizationId, actor.userId, "WORKLOG_CREATED", row.id, {
       issueId,
@@ -156,12 +166,21 @@ export const WorkLogService = {
   // BR-3: only the author may edit; OCC rejects a stale edit.
   async update(actor: Actor, workLogId: string, input: UpdateWorkLogInput): Promise<WorkLogDto> {
     const existing = await WorkLogRepository.findById(workLogId);
-    if (!existing) throw new NotFoundError("Work log not found.");
+    if (!existing?.issue || !existing.issueId) throw new NotFoundError("Work log not found.");
     const { context, role } = await resolve(existing.issue.projectId, actor);
     if (context.status === "ARCHIVED") throw new ConflictError("Archived projects are read-only.");
     if (existing.userId !== actor.userId) {
       throw new ForbiddenError("You can only edit your own time logs.");
     }
+    // BR-2b: the week it sits in must accept the change…
+    await TimesheetService.assertLogWritable(actor, existing.timesheetId, existing.timesheetRowId, true);
+    // …and a new date in another week moves it there, if that week accepts it.
+    const newDate = input.workDate;
+    const moved =
+      newDate !== toWorkDateString(existing.workDate)
+        ? await TimesheetService.placeIssueLog(actor, existing.issueId, newDate)
+        : null;
+    const placement = moved && moved.timesheetId !== existing.timesheetId ? moved : null;
 
     const row = await WorkLogRepository.updateWithVersion(
       workLogId,
@@ -170,6 +189,7 @@ export const WorkLogService = {
         minutes: input.minutes,
         workDate: fromWorkDateString(input.workDate),
         note: input.note?.length ? input.note : null,
+        ...(placement ?? {}),
       },
       actor.userId,
     );
@@ -188,17 +208,32 @@ export const WorkLogService = {
   // BR-4: the author, or a LEAD (moderation), may delete a log.
   async delete(actor: Actor, workLogId: string): Promise<void> {
     const existing = await WorkLogRepository.findById(workLogId);
-    if (!existing) throw new NotFoundError("Work log not found.");
+    if (!existing?.issue || !existing.issueId) throw new NotFoundError("Work log not found.");
     const { context, role } = await resolve(existing.issue.projectId, actor);
     if (context.status === "ARCHIVED") throw new ConflictError("Archived projects are read-only.");
-    const allowed = canWrite(role) && (existing.userId === actor.userId || role === "LEAD");
+    const isAuthor = existing.userId === actor.userId;
+    const allowed = canWrite(role) && (isAuthor || role === "LEAD");
     if (!allowed) {
       throw new ForbiddenError("Only the author or a project lead can delete this log.");
     }
+    // ADR-0059 Q8: the author follows their week's rules; a LEAD removing
+    // someone else's time may do so only while that week is a DRAFT.
+    await TimesheetService.assertLogWritable(actor, existing.timesheetId, existing.timesheetRowId, isAuthor);
     await WorkLogRepository.softDelete(workLogId, actor.userId);
     await recordEvent(context.organizationId, actor.userId, "WORKLOG_DELETED", workLogId, {
       issueId: existing.issueId,
+      ...(isAuthor ? {} : { removedFrom: existing.userId, minutes: existing.minutes }),
     });
+    if (!isAuthor) {
+      await NotificationService.workLogRemoved(actor, {
+        issueId: existing.issueId,
+        issueKey: existing.issue.key,
+        authorId: existing.userId,
+        leadName: (await ProfileService.getMyProfile(actor)).name,
+        minutes: existing.minutes,
+        workDate: toWorkDateString(existing.workDate),
+      });
+    }
   },
 
   // BR-5: set or clear the issue estimate; returns the refreshed summary.

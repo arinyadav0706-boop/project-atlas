@@ -15,6 +15,8 @@ const workLogSelect = {
   note: true,
   version: true,
   createdAt: true,
+  timesheetId: true,
+  timesheetRowId: true,
   user: userSelect,
 } as const;
 
@@ -49,26 +51,26 @@ export const WorkLogRepository = {
   findById(id: string) {
     return prisma.workLog.findFirst({
       where: { id, deletedAt: null },
-      select: { ...workLogSelect, issue: { select: { projectId: true } } },
+      select: { ...workLogSelect, issue: { select: { projectId: true, key: true } } },
     });
   },
 
+  // Every log belongs to a timesheet week and row (ADR-0059 §3.2); the
+  // timesheets service decides which, the caller passes the answer in.
   create(input: {
+    organizationId: string;
     issueId: string;
     userId: string;
     minutes: number;
     workDate: Date;
     note: string | null;
+    timesheetId: string;
+    timesheetRowId: string;
+    billable: boolean;
+    billableOverridden: boolean;
   }) {
     return prisma.workLog.create({
-      data: {
-        issueId: input.issueId,
-        userId: input.userId,
-        minutes: input.minutes,
-        workDate: input.workDate,
-        note: input.note,
-        createdBy: input.userId,
-      },
+      data: { ...input, createdBy: input.userId },
       select: workLogSelect,
     });
   },
@@ -78,7 +80,16 @@ export const WorkLogRepository = {
   async updateWithVersion(
     id: string,
     expectedVersion: number,
-    data: { minutes: number; workDate: Date; note: string | null },
+    data: {
+      minutes: number;
+      workDate: Date;
+      note: string | null;
+      // Set when a new date moves the log into another week (ADR-0059 §6.2).
+      timesheetId?: string;
+      timesheetRowId?: string;
+      billable?: boolean;
+      billableOverridden?: boolean;
+    },
     actorId: string,
   ) {
     const result = await prisma.workLog.updateMany({

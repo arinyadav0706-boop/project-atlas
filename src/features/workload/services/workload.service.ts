@@ -273,7 +273,9 @@ export const WorkloadService = {
     const loggedByIssue = new Map<string, number>();
     if (issues.length > 0) {
       const grouped = await WorkloadRepository.loggedByIssue(issues.map((i) => i.id));
-      for (const g of grouped) loggedByIssue.set(g.issueId, g._sum.minutes ?? 0);
+      // Grouped by issue, filtered to these issues — activity time (no issue)
+      // never reaches remaining-effort maths (ADR-0059 §3.2).
+      for (const g of grouped) if (g.issueId) loggedByIssue.set(g.issueId, g._sum.minutes ?? 0);
     }
 
     const horizon = buildHorizon(now, HORIZON_WEEKS);

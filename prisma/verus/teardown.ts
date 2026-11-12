@@ -46,7 +46,20 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
     where: { comment: { issue: { project: { organizationId: orgId } } } },
   });
   await prisma.comment.deleteMany({ where: inOrgIssue });
-  await prisma.workLog.deleteMany({ where: inOrgIssue });
+  // Timesheets (ADR-0059): logs now carry their own organizationId, which
+  // also catches activity logs that have no issue. Then the weeks they hang
+  // off, children first.
+  await prisma.workLog.deleteMany({ where: { organizationId: orgId } });
+  await prisma.timesheetApproval.deleteMany({ where: { timesheet: { organizationId: orgId } } });
+  await prisma.timesheetRow.deleteMany({ where: { timesheet: { organizationId: orgId } } });
+  await prisma.pinnedTimesheetRow.deleteMany({ where: { organizationId: orgId } });
+  await prisma.timesheet.deleteMany({ where: { organizationId: orgId } });
+  await prisma.timesheetPolicy.deleteMany({ where: { organizationId: orgId } });
+  await prisma.employeeLeave.deleteMany({ where: { organizationId: orgId } });
+  await prisma.holiday.deleteMany({ where: { organizationId: orgId } });
+  await prisma.activityTeam.deleteMany({ where: { activity: { organizationId: orgId } } });
+  await prisma.activity.deleteMany({ where: { organizationId: orgId } });
+  await prisma.activityCategory.deleteMany({ where: { organizationId: orgId } });
   await prisma.attachment.deleteMany({ where: inOrgIssue });
   await prisma.issueComponent.deleteMany({ where: inOrgIssue });
   await prisma.issueLabel.deleteMany({ where: inOrgIssue });
@@ -103,6 +116,8 @@ export async function teardownVerus(prisma: PrismaClient, orgId: string = ORG_ID
     where: { project: { organizationId: orgId } },
   });
   await prisma.project.deleteMany({ where: { organizationId: orgId } });
+  // Sample clients (ADR-0059 Q14) — after the projects that point at them.
+  await prisma.client.deleteMany({ where: { organizationId: orgId } });
   // Dashboards before saved views: a widget may point at a view (ADR-0044 §3),
   // so the reverse order trips that FK. Widgets themselves cascade from the
   // dashboard and need no statement of their own.

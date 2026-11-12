@@ -125,12 +125,20 @@ enum NotificationType {
   /// An automation rule's `NOTIFY` action (ADR-0050). Its own type because the
   /// follow-up question — "who decided that?" — has a different answer.
   AUTOMATION
+  // Timesheets (ADR-0059, 37_timesheets BR-35).
+  TIMESHEET_SUBMITTED
+  TIMESHEET_RETURNED
+  TIMESHEET_APPROVED
+  TIMESHEET_UNLOCKED
+  /// A project LEAD removed your time from a DRAFT week (ADR-0059 Q8).
+  WORKLOG_REMOVED
 }
 
 enum NotificationEntityType {
   ISSUE
   COMMENT
   SPRINT
+  TIMESHEET
 }
 
 // Home personalization (ADR-0012). Generic entity-type enums so RecentItem /
@@ -142,6 +150,8 @@ enum RecentEntityType {
 
 enum FavoriteEntityType {
   PROJECT
+  /// Timesheet activity picker favourites (ADR-0059 §3.1).
+  ACTIVITY
 }
 
 // Engagement weighting for the "Continue working" ranking (02_home.md BR-3):
@@ -170,6 +180,10 @@ model Organization {
   workingMinutesPerDay Int @default(480)
   workingDaysPerWeek   Int @default(5)
 
+  /// Null = no HR system connected: expected timesheet hours then ignore
+  /// holidays and leave, and the screen says so (37_timesheets BR-13/14).
+  hrConnectedAt DateTime?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   createdBy String?
@@ -189,6 +203,16 @@ model Organization {
   apiTokens       ApiToken[]
   webhooks        Webhook[]
   codeConnections CodeConnection[]
+
+  activityCategories ActivityCategory[]
+  activities         Activity[]
+  clients            Client[]
+  timesheets         Timesheet[]
+  timesheetPolicies  TimesheetPolicy[]
+  holidays           Holiday[]
+  employeeLeaves     EmployeeLeave[]
+  workLogs           WorkLog[]
+  pinnedRows         PinnedTimesheetRow[]
 
   @@map("organizations")
 }
@@ -249,6 +273,11 @@ model User {
   isActive             Boolean      @default(true)
   lastLoginAt          DateTime?
   notificationsEnabled Boolean      @default(true)
+  /// Functional manager, for timesheet approval when an org enables it
+  /// (ADR-0059 Q2). Same shape an HR system exports.
+  functionalManagerId  String?
+  functionalManager    User?        @relation("FunctionalManager", fields: [functionalManagerId], references: [id])
+  functionalReports    User[]       @relation("FunctionalManager")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -258,23 +287,27 @@ model User {
 
   authAccounts       AuthAccount[]
   projectMemberships ProjectMember[]
-  assignedIssues     Issue[]          @relation("IssueAssignee")
-  reportedIssues     Issue[]          @relation("IssueReporter")
-  ledComponents      Component[]      @relation("ComponentLead")
+  assignedIssues     Issue[]              @relation("IssueAssignee")
+  reportedIssues     Issue[]              @relation("IssueReporter")
+  ledComponents      Component[]          @relation("ComponentLead")
   comments           Comment[]
   commentMentions    CommentMention[]
   attachments        Attachment[]
   notifications      Notification[]
   recentItems        RecentItem[]
   favorites          Favorite[]
-  workLogs           WorkLog[]        @relation("WorkLogUser")
-  savedViews         SavedView[]      @relation("SavedViewOwner")
-  dashboards         Dashboard[]      @relation("DashboardOwner")
-  managedTeams       Team[]           @relation("TeamManager")
-  teamMemberships    TeamMembership[] @relation("TeamMembershipUser")
-  recurrences        RecurringIssue[] @relation("RecurrenceReporter")
-  apiTokens          ApiToken[]       @relation("ApiTokenOwner")
-  recurrenceTargets  RecurringIssue[] @relation("RecurrenceAssignee")
+  workLogs           WorkLog[]            @relation("WorkLogUser")
+  savedViews         SavedView[]          @relation("SavedViewOwner")
+  dashboards         Dashboard[]          @relation("DashboardOwner")
+  managedTeams       Team[]               @relation("TeamManager")
+  teamMemberships    TeamMembership[]     @relation("TeamMembershipUser")
+  recurrences        RecurringIssue[]     @relation("RecurrenceReporter")
+  apiTokens          ApiToken[]           @relation("ApiTokenOwner")
+  recurrenceTargets  RecurringIssue[]     @relation("RecurrenceAssignee")
+  timesheets         Timesheet[]          @relation("TimesheetOwner")
+  timesheetApprovals TimesheetApproval[]  @relation("TimesheetApprover")
+  pinnedRows         PinnedTimesheetRow[] @relation("PinnedRowOwner")
+  leaves             EmployeeLeave[]      @relation("LeaveUser")
 
   @@index([organizationId])
   @@map("users")
@@ -285,15 +318,38 @@ model User {
 // the day the work was done (distinct from createdAt). Soft-deleted + OCC like
 // comments. Estimate lives on Issue.estimateMinutes.
 model WorkLog {
-  id       String   @id @default(cuid())
-  issueId  String
-  issue    Issue    @relation(fields: [issueId], references: [id])
-  userId   String
-  user     User     @relation("WorkLogUser", fields: [userId], references: [id])
-  minutes  Int
-  workDate DateTime @db.Date
-  note     String?
-  version  Int      @default(0)
+  id                 String       @id @default(cuid())
+  /// Tenant scope of its own: an activity log has no issue to reach the org
+  /// through (ADR-0059 §3.2, F-1).
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  /// Exactly one of issueId / activityId — a CHECK constraint in migration
+  /// 20261113100000_timesheets enforces it (Prisma cannot express it).
+  issueId            String?
+  issue              Issue?       @relation(fields: [issueId], references: [id], onDelete: Restrict)
+  activityId         String?
+  activity           Activity?    @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  /// Tags, activity logs only (CHECK). Issue logs derive the project.
+  projectId          String?
+  project            Project?     @relation(fields: [projectId], references: [id])
+  clientId           String?
+  client             Client?      @relation(fields: [clientId], references: [id])
+  userId             String
+  user               User         @relation("WorkLogUser", fields: [userId], references: [id])
+  minutes            Int
+  workDate           DateTime     @db.Date
+  note               String?
+  /// Resolved at write and stored, so a later default change never rewrites
+  /// a submitted week (37_timesheets BR-10).
+  billable           Boolean      @default(false)
+  billableOverridden Boolean      @default(false)
+  /// Every log belongs to one week and one grid row (ADR-0059 §3.2). The
+  /// service writes the row's work item onto the log in the same transaction.
+  timesheetId        String
+  timesheet          Timesheet    @relation(fields: [timesheetId], references: [id])
+  timesheetRowId     String
+  timesheetRow       TimesheetRow @relation(fields: [timesheetRowId], references: [id])
+  version            Int          @default(0)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -303,6 +359,10 @@ model WorkLog {
 
   @@index([issueId, deletedAt])
   @@index([userId, workDate])
+  @@index([timesheetId, workDate])
+  @@index([timesheetRowId, workDate])
+  @@index([organizationId, workDate])
+  @@index([activityId])
   @@map("work_logs")
 }
 
@@ -332,6 +392,13 @@ model Project {
   /// Asana let you move anything anywhere, and Jira's transition graph is the
   /// reason "why can't I move this ticket" is a support category.
   enforceTransitions Boolean       @default(false)
+  /// Billing context for timesheets (ADR-0059 §3.1). No rates yet.
+  clientId           String?
+  client             Client?       @relation(fields: [clientId], references: [id])
+  /// ISO 4217; null = the client's.
+  currency           String?       @db.Char(3)
+  /// null = the client's default (37_timesheets BR-10).
+  defaultBillable    Boolean?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -349,6 +416,9 @@ model Project {
   automations    AutomationRule[]
   automationRuns AutomationRun[]
   recurrences    RecurringIssue[]
+  workLogs       WorkLog[]
+  timesheetRows  TimesheetRow[]
+  pinnedRows     PinnedTimesheetRow[]
 
   @@unique([organizationId, key])
   @@map("projects")
@@ -602,18 +672,18 @@ model CodeConnection {
 /// radius, and keeping it separate means the connection queries that feed the
 /// admin screen cannot select it by accident.
 model CodeCredential {
-  id           String         @id @default(cuid())
-  connectionId String         @unique
-  connection   CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  connectionId    String         @unique
+  connection      CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   /// CIPHERTEXT, never a token (35/BR-4). Version-prefixed so the encryption
   /// key can be rotated without a migration.
-  accessToken  String
+  accessToken     String
   /// GitLab only, and it ROTATES on every use (35/BR-3) — the new pair is
   /// persisted before the access token is used for anything, because a lost
   /// write here is a permanently dead connection, not a retryable error.
-  refreshToken String?
-  expiresAt    DateTime?
-  scope        String?
+  refreshToken    String?
+  expiresAt       DateTime?
+  scope           String?
   /// GitHub: the installation the app was added to, which is what installation
   /// tokens are minted against. GitLab: null.
   installationId  String?
@@ -635,17 +705,17 @@ model CodeCredential {
 /// reads it while linking — routing is still by issue key. Adding `projectId`
 /// here would break the decision this whole design rests on.
 model CodeRepository {
-  id            String         @id @default(cuid())
-  connectionId  String
-  connection    CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id             String         @id @default(cuid())
+  connectionId   String
+  connection     CodeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   /// Provider-side id, which survives a rename where the path does not.
-  externalId    String
+  externalId     String
   /// `owner/repo` or `group/project` — display, and the base for URLs.
-  path          String
-  defaultBranch String?
+  path           String
+  defaultBranch  String?
   /// Off until somebody ticks it. Installing an app on a 400-repo org must not
   /// start 400 walks.
-  enabled       Boolean        @default(false)
+  enabled        Boolean        @default(false)
   lastBackfillAt DateTime?
 
   createdAt DateTime  @default(now())
@@ -1025,6 +1095,8 @@ model Issue {
   /// is not when the work starts. Nullable, because most issues are a deadline
   /// with no planned start, which the chart renders as a one-day bar.
   startDate       DateTime?
+  /// null = the project's default (37_timesheets BR-10).
+  defaultBillable Boolean?
   // Original effort estimate in MINUTES (ADR-0030, time-tracking feature). Owned
   // by the time-tracking service, not the issue-edit path; not OCC-bound.
   estimateMinutes Int?
@@ -1046,13 +1118,15 @@ model Issue {
   labels            IssueLabel[]
   components        IssueComponent[]
   workLogs          WorkLog[]
+  timesheetRows     TimesheetRow[]
+  pinnedRows        PinnedTimesheetRow[]
   customFieldValues CustomFieldValue[]
   /// Dependencies (ADR-0046). Two back-relations for ONE table: a link is
   /// stored once as source→target and read from both ends. The inverse is
   /// derived, never a second row — that is how a link table drifts into
   /// "A blocks B" while B is blocked by nothing.
-  linksOut          IssueLink[]        @relation("LinkSource")
-  linksIn           IssueLink[]        @relation("LinkTarget")
+  linksOut          IssueLink[]          @relation("LinkSource")
+  linksIn           IssueLink[]          @relation("LinkTarget")
 
   @@unique([projectId, key])
   // Covers the board/list query (filter by projectId[,status] + sort by rank)
@@ -1651,4 +1725,334 @@ model DashboardWidget {
 
   @@index([dashboardId])
   @@map("dashboard_widgets")
+}
+
+// ---------- Timesheets (ADR-0059, docs/02_Modules/37_timesheets.md) ----------
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  APPROVED
+}
+
+enum ApproverRelation {
+  REPORTING
+  FUNCTIONAL
+  PROJECT
+}
+
+enum TimesheetApprovalStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  SKIPPED
+}
+
+enum TimesheetApprovalMode {
+  PARALLEL
+  SEQUENTIAL
+}
+
+enum NotesRequirement {
+  NONE
+  BILLABLE
+  ALL
+}
+
+enum AvailabilitySource {
+  MANUAL
+  HRONE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  CANCELLED
+}
+
+model ActivityCategory {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  position       Int          @default(0)
+  archivedAt     DateTime?
+  activities     Activity[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([organizationId, name])
+  @@map("activity_categories")
+}
+
+model Activity {
+  id                String               @id @default(cuid())
+  organizationId    String
+  organization      Organization         @relation(fields: [organizationId], references: [id])
+  categoryId        String
+  category          ActivityCategory     @relation(fields: [categoryId], references: [id])
+  name              String
+  description       String?
+  /// null = inherit project → client → policy (37_timesheets BR-10).
+  billable          Boolean?
+  requiresProject   Boolean              @default(false)
+  requiresClient    Boolean              @default(false)
+  notesRequired     Boolean              @default(false)
+  visibleToAllTeams Boolean              @default(true)
+  position          Int                  @default(0)
+  archivedAt        DateTime?
+  teams             ActivityTeam[]
+  workLogs          WorkLog[]
+  timesheetRows     TimesheetRow[]
+  pinnedRows        PinnedTimesheetRow[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([categoryId, name])
+  @@index([organizationId, categoryId, archivedAt])
+  @@map("activities")
+}
+
+/// Pure link; removal is a hard delete, audited (DB design §2.22).
+model ActivityTeam {
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id])
+  teamId     String
+  createdAt  DateTime @default(now())
+  createdBy  String?
+
+  @@id([activityId, teamId])
+  @@map("activity_teams")
+}
+
+model Client {
+  id              String               @id @default(cuid())
+  organizationId  String
+  organization    Organization         @relation(fields: [organizationId], references: [id])
+  name            String
+  /// ISO 4217. Stored only — no rates, tax or conversion (brief §1).
+  currency        String               @db.Char(3)
+  defaultBillable Boolean              @default(true)
+  archivedAt      DateTime?
+  projects        Project[]
+  workLogs        WorkLog[]
+  timesheetRows   TimesheetRow[]
+  pinnedRows      PinnedTimesheetRow[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([organizationId, name])
+  @@map("clients")
+}
+
+/// Insert-only and effective-dated (37_timesheets BR-2): a change is a new row
+/// from the next period start; a timesheet keeps the policy it was created
+/// under.
+model TimesheetPolicy {
+  id                           String                @id @default(cuid())
+  organizationId               String
+  organization                 Organization          @relation(fields: [organizationId], references: [id])
+  effectiveFrom                DateTime              @db.Date
+  timezone                     String
+  weekStartDay                 Int                   @default(1)
+  dueWeekday                   Int                   @default(1)
+  dueTime                      String                @default("11:00")
+  reminderHoursBeforeDue       Int[]                 @default([24, 2])
+  autoLockOnApproval           Boolean               @default(true)
+  lockAfterDays                Int?
+  overtimeDailyMinutes         Int?
+  notesRequired                NotesRequirement      @default(NONE)
+  employeesMayOverrideBillable Boolean               @default(true)
+  defaultBillable              Boolean               @default(false)
+  approverRelations            ApproverRelation[]    @default([REPORTING])
+  approvalMode                 TimesheetApprovalMode @default(PARALLEL)
+  timesheets                   Timesheet[]
+
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([organizationId, effectiveFrom])
+  @@map("timesheet_policies")
+}
+
+model Timesheet {
+  id                      String              @id @default(cuid())
+  organizationId          String
+  organization            Organization        @relation(fields: [organizationId], references: [id])
+  userId                  String
+  user                    User                @relation("TimesheetOwner", fields: [userId], references: [id])
+  periodStart             DateTime            @db.Date
+  periodEnd               DateTime            @db.Date
+  policyId                String
+  policy                  TimesheetPolicy     @relation(fields: [policyId], references: [id])
+  status                  TimesheetStatus     @default(DRAFT)
+  round                   Int                 @default(0)
+  submittedAt             DateTime?
+  submittedLate           Boolean             @default(false)
+  approvedAt              DateTime?
+  /// Approved because no other approver existed (ADR-0059 §6.3). Audited.
+  autoApproved            Boolean             @default(false)
+  /// Orthogonal to status (ADR-0059 §4). lockedById null = a rule/migration.
+  lockedAt                DateTime?
+  lockedById              String?
+  expectedMinutesAtSubmit Int?
+  version                 Int                 @default(0)
+  rows                    TimesheetRow[]
+  workLogs                WorkLog[]
+  approvals               TimesheetApproval[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([userId, periodStart])
+  @@index([organizationId, status, periodStart])
+  @@map("timesheets")
+}
+
+model TimesheetRow {
+  id               String              @id @default(cuid())
+  timesheetId      String
+  timesheet        Timesheet           @relation(fields: [timesheetId], references: [id])
+  position         Int
+  /// Exactly one of issueId / activityId (CHECK); project/client tags only on
+  /// activity rows (CHECK).
+  issueId          String?
+  issue            Issue?              @relation(fields: [issueId], references: [id], onDelete: Restrict)
+  activityId       String?
+  activity         Activity?           @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  projectId        String?
+  project          Project?            @relation(fields: [projectId], references: [id])
+  clientId         String?
+  client           Client?             @relation(fields: [clientId], references: [id])
+  /// null = resolve (37_timesheets BR-10).
+  billableOverride Boolean?
+  pinnedRowId      String?
+  pinnedRow        PinnedTimesheetRow? @relation(fields: [pinnedRowId], references: [id])
+  /// The current round's return; history is in AuditLog.
+  returnedAt       DateTime?
+  returnedById     String?
+  returnedReason   String?
+  version          Int                 @default(0)
+  workLogs         WorkLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([timesheetId, position])
+  @@map("timesheet_rows")
+}
+
+model PinnedTimesheetRow {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User           @relation("PinnedRowOwner", fields: [userId], references: [id])
+  issueId        String?
+  issue          Issue?         @relation(fields: [issueId], references: [id], onDelete: Restrict)
+  activityId     String?
+  activity       Activity?      @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  projectId      String?
+  project        Project?       @relation(fields: [projectId], references: [id])
+  clientId       String?
+  client         Client?        @relation(fields: [clientId], references: [id])
+  position       Int
+  rows           TimesheetRow[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([userId, position])
+  @@map("pinned_timesheet_rows")
+}
+
+/// Append-only per submission round (DB design §2.26).
+model TimesheetApproval {
+  id           String                  @id @default(cuid())
+  timesheetId  String
+  timesheet    Timesheet               @relation(fields: [timesheetId], references: [id])
+  round        Int
+  relation     ApproverRelation
+  projectId    String?
+  approverId   String
+  approver     User                    @relation("TimesheetApprover", fields: [approverId], references: [id])
+  /// Set when this slot was filled by a fallback (ADR-0059 §6.3).
+  fallbackFrom ApproverRelation?
+  sequence     Int                     @default(0)
+  status       TimesheetApprovalStatus @default(PENDING)
+  decidedAt    DateTime?
+  comment      String?
+
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@index([timesheetId, round])
+  @@index([approverId, status])
+  @@map("timesheet_approvals")
+}
+
+/// Written only by the HR integration (and seeds/tests until it exists).
+model Holiday {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  date           DateTime           @db.Date
+  name           String
+  source         AvailabilitySource @default(MANUAL)
+  externalId     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@unique([organizationId, date, name])
+  @@map("holidays")
+}
+
+/// One row per person per day; `minutes` makes a half day exact.
+model EmployeeLeave {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User               @relation("LeaveUser", fields: [userId], references: [id])
+  date           DateTime           @db.Date
+  minutes        Int
+  type           String
+  status         LeaveStatus        @default(APPROVED)
+  source         AvailabilitySource @default(MANUAL)
+  externalId     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+
+  @@index([userId, date])
+  @@map("employee_leaves")
 }

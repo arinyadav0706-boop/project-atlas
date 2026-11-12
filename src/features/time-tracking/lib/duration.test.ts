@@ -10,28 +10,40 @@ describe("splitMinutes", () => {
   });
 });
 
-describe("parseDuration", () => {
-  it("parses bare minutes", () => {
-    expect(parseDuration("90")).toBe(90);
-    expect(parseDuration(" 45 ")).toBe(45);
+describe("parseDuration (37_timesheets BR-5, ADR-0059 Q10)", () => {
+  it("reads a bare number as HOURS", () => {
+    expect(parseDuration("1.5")).toBe(90);
+    expect(parseDuration("8")).toBe(480);
+    expect(parseDuration(" 2 ")).toBe(120);
+    expect(parseDuration("0.25")).toBe(15);
+  });
+  it("parses clock form", () => {
+    expect(parseDuration("1:30")).toBe(90);
+    expect(parseDuration("0:45")).toBe(45);
+    expect(parseDuration("10:05")).toBe(605);
   });
   it("parses h/m combinations", () => {
     expect(parseDuration("1h")).toBe(60);
     expect(parseDuration("1h30m")).toBe(90);
     expect(parseDuration("1h 30m")).toBe(90);
-    expect(parseDuration("30m")).toBe(30);
+    expect(parseDuration("90m")).toBe(90);
     expect(parseDuration("2H15M")).toBe(135);
-  });
-  it("parses fractional hours", () => {
     expect(parseDuration("1.5h")).toBe(90);
-    expect(parseDuration("0.25h")).toBe(15);
   });
-  it("rejects junk and non-positive", () => {
+  it("treats zero as 'clear', not as an error", () => {
+    expect(parseDuration("0")).toBe(0);
+    expect(parseDuration("0h 0m")).toBe(0);
+    expect(parseDuration("0:00")).toBe(0);
+  });
+  it("rejects junk, negatives and more than 24h", () => {
     expect(parseDuration("")).toBeNull();
     expect(parseDuration("abc")).toBeNull();
-    expect(parseDuration("0")).toBeNull();
-    expect(parseDuration("0h 0m")).toBeNull();
+    expect(parseDuration("-1")).toBeNull();
     expect(parseDuration("1x")).toBeNull();
+    expect(parseDuration("1:75")).toBeNull();
+    expect(parseDuration("25")).toBeNull();
+    expect(parseDuration("24:01")).toBeNull();
+    expect(parseDuration("24")).toBe(1440);
   });
 });
 

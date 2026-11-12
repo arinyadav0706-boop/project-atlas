@@ -16,15 +16,24 @@ export class NotFoundError extends Error {
   }
 }
 
+// `extra` is merged into the JSON error body, for responses whose client
+// needs structure beyond a message — e.g. a blocked timesheet submit lists
+// each problem so the screen can link to the cell (37_timesheets BR-24).
 export class ValidationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly extra?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ValidationError";
   }
 }
 
 export class ConflictError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly extra?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ConflictError";
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { RateLimitError, toHttpStatus } from "@/shared/lib/errors";
+import { ConflictError, RateLimitError, ValidationError, toHttpStatus } from "@/shared/lib/errors";
 
 // The single place domain errors become HTTP responses (Coding Standards
 // §6) — every Route Handler wraps its body in handleRoute instead of
@@ -49,8 +49,10 @@ export async function handleRoute(
       );
     }
     const known = error as Error;
+    const extra =
+      error instanceof ValidationError || error instanceof ConflictError ? error.extra : undefined;
     const response = NextResponse.json(
-      { error: known.name, message: known.message },
+      { ...extra, error: known.name, message: known.message },
       { status },
     );
     if (error instanceof RateLimitError) {

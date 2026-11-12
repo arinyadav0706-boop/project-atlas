@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/db";
+import { createWorkLogFixture } from "@/tests/support/timesheet-fixtures";
 import { WorkloadService } from "@/features/workload/services/workload.service";
 import { NotFoundError } from "@/shared/lib/errors";
 import type { Actor } from "@/shared/types/actor";
@@ -91,9 +92,7 @@ describe("aggregation across projects (BR-1, BR-3)", () => {
     const s = await seed("wa");
     const i1 = await s.issue({ projectId: s.alpha.id, key: "A-1", assigneeId: s.ana.id, estimateMinutes: 480 });
     await s.issue({ projectId: s.beta.id, key: "B-1", assigneeId: s.ana.id, estimateMinutes: 120 });
-    await prisma.workLog.create({
-      data: { issueId: i1.id, userId: s.ana.id, minutes: 180, workDate: new Date() },
-    });
+    await createWorkLogFixture({ issueId: i1.id, userId: s.ana.id, minutes: 180, workDate: new Date() });
 
     const res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
     const ana = res.rows.find((r) => r.userId === s.ana.id)!;
@@ -126,9 +125,7 @@ describe("aggregation across projects (BR-1, BR-3)", () => {
     await prisma.issue.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
 
     const live = await s.issue({ projectId: s.alpha.id, key: "A-2", assigneeId: s.ana.id, estimateMinutes: 300 });
-    const log = await prisma.workLog.create({
-      data: { issueId: live.id, userId: s.ana.id, minutes: 100, workDate: new Date() },
-    });
+    const log = await createWorkLogFixture({ issueId: live.id, userId: s.ana.id, minutes: 100, workDate: new Date() });
     await prisma.workLog.update({ where: { id: log.id }, data: { deletedAt: new Date() } });
 
     const res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
@@ -154,9 +151,7 @@ describe("aggregation across projects (BR-1, BR-3)", () => {
   it("clamps an overrun to zero (BR-1)", async () => {
     const s = await seed("we");
     const i = await s.issue({ projectId: s.alpha.id, key: "A-1", assigneeId: s.ana.id, estimateMinutes: 60 });
-    await prisma.workLog.create({
-      data: { issueId: i.id, userId: s.ana.id, minutes: 600, workDate: new Date() },
-    });
+    await createWorkLogFixture({ issueId: i.id, userId: s.ana.id, minutes: 600, workDate: new Date() });
 
     const res = await WorkloadService.getWorkload(s.mgrActor, s.team.id);
     expect(res.rows.find((r) => r.userId === s.ana.id)!.remainingMinutes).toBe(0);

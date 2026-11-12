@@ -46,6 +46,12 @@ export const CREDS_ADMIN_ID = "verus-admin-creds";
 const SEED = 0x5eed_1234;
 const DAY = 86_400_000;
 
+
+export type VerusWorkLog = Omit<
+  Prisma.WorkLogCreateManyInput,
+  "organizationId" | "timesheetId" | "timesheetRowId"
+> & { issueId: string };
+
 export interface AdminSeed {
   id: string;
   email: string;
@@ -71,7 +77,9 @@ export interface VerusDataset {
   issueLabels: Prisma.IssueLabelCreateManyInput[];
   comments: Prisma.CommentCreateManyInput[];
   commentMentions: Prisma.CommentMentionCreateManyInput[];
-  workLogs: Prisma.WorkLogCreateManyInput[];
+  // The seed places each log into its owner's weekly timesheet (ADR-0059)
+  // after ids are remapped, so the generator leaves those links out.
+  workLogs: VerusWorkLog[];
   auditLogs: Prisma.AuditLogCreateManyInput[];
   recentItems: Prisma.RecentItemCreateManyInput[];
   favorites: Prisma.FavoriteCreateManyInput[];
@@ -264,7 +272,7 @@ export function generateVerus(): VerusDataset {
   const issueLabels: Prisma.IssueLabelCreateManyInput[] = [];
   const comments: Prisma.CommentCreateManyInput[] = [];
   const commentMentions: Prisma.CommentMentionCreateManyInput[] = [];
-  const workLogs: Prisma.WorkLogCreateManyInput[] = [];
+  const workLogs: VerusWorkLog[] = [];
   const auditLogs: Prisma.AuditLogCreateManyInput[] = [];
 
   let commentCounter = 0;

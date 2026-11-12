@@ -22,16 +22,31 @@ vi.mock("@/features/projects/services/project.service", () => ({
 vi.mock("@/features/admin/services/audit-log.service", () => ({
   AuditLogService: { record: vi.fn() },
 }));
+// The timesheet gate (ADR-0059 §6.2) has its own tests; here it is a seam.
+vi.mock("@/features/timesheets/services/timesheet.service", () => ({
+  TimesheetService: { placeIssueLog: vi.fn(), assertLogWritable: vi.fn() },
+}));
+vi.mock("@/features/notifications/services/notification.service", () => ({
+  NotificationService: { workLogRemoved: vi.fn() },
+}));
+vi.mock("@/features/profile/services/profile.service", () => ({
+  ProfileService: { getMyProfile: vi.fn() },
+}));
 
 import { WorkLogRepository } from "@/features/time-tracking/repositories/work-log.repository";
 import { IssueRepository } from "@/features/issues/repositories/issue.repository";
 import { ProjectService } from "@/features/projects/services/project.service";
+import { TimesheetService } from "@/features/timesheets/services/timesheet.service";
+import { NotificationService } from "@/features/notifications/services/notification.service";
+import { ProfileService } from "@/features/profile/services/profile.service";
 import { WorkLogService } from "./work-log.service";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/shared/lib/errors";
 
 const logs = vi.mocked(WorkLogRepository);
 const issues = vi.mocked(IssueRepository);
 const projects = vi.mocked(ProjectService);
+const timesheets = vi.mocked(TimesheetService);
+const notifications = vi.mocked(NotificationService);
 
 const actor: Actor = { userId: "user-1", orgRole: "MEMBER", organizationId: "org-1" };
 const ctx = {
@@ -52,6 +67,8 @@ function row(overrides: Record<string, unknown> = {}) {
     note: "did x",
     version: 0,
     createdAt: new Date("2026-07-20T10:00:00.000Z"),
+    timesheetId: "ts-1",
+    timesheetRowId: "tsr-1",
     user: { id: "user-1", name: "Ana", avatarUrl: null },
     ...overrides,
   };
@@ -66,6 +83,14 @@ beforeEach(() => {
   } as never);
   projects.getContext.mockResolvedValue(ctx as never);
   projects.getMemberRole.mockResolvedValue("MEMBER" as never);
+  timesheets.placeIssueLog.mockResolvedValue({
+    timesheetId: "ts-1",
+    timesheetRowId: "tsr-1",
+    billable: false,
+    billableOverridden: false,
+  });
+  timesheets.assertLogWritable.mockResolvedValue(undefined);
+  vi.mocked(ProfileService.getMyProfile).mockResolvedValue({ name: "Lee" } as never);
 });
 
 describe("list", () => {
@@ -122,7 +147,7 @@ describe("create", () => {
 
 describe("update", () => {
   it("lets the author edit their own log", async () => {
-    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     logs.updateWithVersion.mockResolvedValue(row({ minutes: 120, version: 1 }) as never);
     const dto = await WorkLogService.update(actor, "wl1", { minutes: 120, workDate: "2026-07-20", expectedVersion: 0 });
     expect(dto.minutes).toBe(120);
@@ -130,14 +155,14 @@ describe("update", () => {
 
   it("forbids editing someone else's log (even a LEAD)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD" as never);
-    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     await expect(
       WorkLogService.update(actor, "wl1", { minutes: 120, workDate: "2026-07-20", expectedVersion: 0 }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("409s on a stale version (OCC)", async () => {
-    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     logs.updateWithVersion.mockResolvedValue(null as never);
     await expect(
       WorkLogService.update(actor, "wl1", { minutes: 120, workDate: "2026-07-20", expectedVersion: 0 }),
@@ -147,20 +172,35 @@ describe("update", () => {
 
 describe("delete", () => {
   it("lets the author delete their own", async () => {
-    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row(), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     logs.softDelete.mockResolvedValue({ id: "wl1" } as never);
     await expect(WorkLogService.delete(actor, "wl1")).resolves.toBeUndefined();
   });
 
   it("lets a LEAD delete another user's log (moderation)", async () => {
     projects.getMemberRole.mockResolvedValue("LEAD" as never);
-    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     logs.softDelete.mockResolvedValue({ id: "wl1" } as never);
     await expect(WorkLogService.delete(actor, "wl1")).resolves.toBeUndefined();
+    // ADR-0059 Q8: checked as a non-owner (DRAFT-only), and the author is told.
+    expect(timesheets.assertLogWritable).toHaveBeenCalledWith(actor, "ts-1", "tsr-1", false);
+    expect(notifications.workLogRemoved).toHaveBeenCalledWith(
+      actor,
+      expect.objectContaining({ authorId: "user-2", leadName: "Lee", issueKey: "ENG-1", minutes: 90 }),
+    );
+  });
+
+  it("does not let a LEAD remove time from a week that is no longer a draft", async () => {
+    projects.getMemberRole.mockResolvedValue("LEAD" as never);
+    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
+    timesheets.assertLogWritable.mockRejectedValue(new ConflictError("draft only"));
+    await expect(WorkLogService.delete(actor, "wl1")).rejects.toBeInstanceOf(ConflictError);
+    expect(logs.softDelete).not.toHaveBeenCalled();
+    expect(notifications.workLogRemoved).not.toHaveBeenCalled();
   });
 
   it("forbids a MEMBER deleting another user's log", async () => {
-    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1" } } as never);
+    logs.findById.mockResolvedValue({ ...row({ userId: "user-2" }), issue: { projectId: "proj-1", key: "ENG-1" } } as never);
     await expect(WorkLogService.delete(actor, "wl1")).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

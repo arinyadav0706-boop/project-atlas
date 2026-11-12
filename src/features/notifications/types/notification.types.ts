@@ -18,11 +18,18 @@ export const NOTIFICATION_TYPES = [
   "UNBLOCKED",
   /** An automation rule's `NOTIFY` action (ADR-0050). */
   "AUTOMATION",
+  // Timesheets (ADR-0059, 37_timesheets BR-35).
+  "TIMESHEET_SUBMITTED",
+  "TIMESHEET_RETURNED",
+  "TIMESHEET_APPROVED",
+  "TIMESHEET_UNLOCKED",
+  /** A project LEAD removed your time from a DRAFT week (ADR-0059 Q8). */
+  "WORKLOG_REMOVED",
 ] as const;
 
 export type NotificationTypeDto = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationEntityTypeDto = "ISSUE" | "COMMENT" | "SPRINT";
+export type NotificationEntityTypeDto = "ISSUE" | "COMMENT" | "SPRINT" | "TIMESHEET";
 
 export interface NotificationDto {
   id: string;

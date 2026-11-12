@@ -211,6 +211,74 @@ export const NotificationService = {
     });
   },
 
+  // --- Timesheets (ADR-0059, 37_timesheets BR-35) ---
+
+  timesheetSubmitted(
+    actor: Actor,
+    input: { timesheetId: string; approverIds: string[]; ownerName: string; periodLabel: string },
+  ) {
+    return notify(actor, {
+      recipientIds: input.approverIds,
+      type: "TIMESHEET_SUBMITTED",
+      entityType: "TIMESHEET",
+      entityId: input.timesheetId,
+      message: `${input.ownerName} submitted their timesheet for ${input.periodLabel}`,
+    });
+  },
+
+  timesheetReturned(
+    actor: Actor,
+    input: { timesheetId: string; ownerId: string; approverName: string; periodLabel: string; lineCount: number },
+  ) {
+    const lines = input.lineCount === 1 ? "1 line" : `${input.lineCount} lines`;
+    return notify(actor, {
+      recipientIds: [input.ownerId],
+      type: "TIMESHEET_RETURNED",
+      entityType: "TIMESHEET",
+      entityId: input.timesheetId,
+      message: `${input.approverName} returned ${lines} of your timesheet for ${input.periodLabel}`,
+    });
+  },
+
+  timesheetApproved(actor: Actor, input: { timesheetId: string; ownerId: string; periodLabel: string }) {
+    return notify(actor, {
+      recipientIds: [input.ownerId],
+      type: "TIMESHEET_APPROVED",
+      entityType: "TIMESHEET",
+      entityId: input.timesheetId,
+      message: `Your timesheet for ${input.periodLabel} was approved`,
+    });
+  },
+
+  timesheetUnlocked(
+    actor: Actor,
+    input: { timesheetId: string; ownerId: string; adminName: string; periodLabel: string; reason: string },
+  ) {
+    return notify(actor, {
+      recipientIds: [input.ownerId],
+      type: "TIMESHEET_UNLOCKED",
+      entityType: "TIMESHEET",
+      entityId: input.timesheetId,
+      message: `${input.adminName} unlocked your timesheet for ${input.periodLabel}: ${truncate(input.reason, 80)}`,
+    });
+  },
+
+  workLogRemoved(
+    actor: Actor,
+    input: { issueId: string; issueKey: string; authorId: string; leadName: string; minutes: number; workDate: string },
+  ) {
+    const h = Math.floor(input.minutes / 60);
+    const m = input.minutes % 60;
+    const duration = [h ? `${h}h` : "", m ? `${m}m` : ""].filter(Boolean).join(" ") || "0m";
+    return notify(actor, {
+      recipientIds: [input.authorId],
+      type: "WORKLOG_REMOVED",
+      entityType: "ISSUE",
+      entityId: input.issueId,
+      message: `${input.leadName} removed ${duration} you logged on ${input.issueKey} (${input.workDate})`,
+    });
+  },
+
   // --- Reads (the bell + notifications page) ---
 
   async list(
@@ -248,7 +316,12 @@ export const NotificationService = {
           message: r.message,
           isRead: r.isRead,
           createdAt: r.createdAt.toISOString(),
-          link: projectId ? `/projects/${projectId}/issues/${r.entityId}` : null,
+          link:
+            r.entityType === "TIMESHEET"
+              ? `/timesheets?timesheet=${r.entityId}`
+              : projectId
+                ? `/projects/${projectId}/issues/${r.entityId}`
+                : null,
         };
       }),
     ];

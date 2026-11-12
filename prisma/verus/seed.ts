@@ -118,10 +118,26 @@ async function main(): Promise<void> {
     d.memberships.map((m) => ({ ...m, userId: rid(m.userId), createdBy: ridN(m.createdBy) })),
   );
 
+  // Sample clients — demo data only, never a real org (ADR-0059 Q14). The
+  // first projects get one each so client-tagged timesheet rows have
+  // something real to show.
+  const clients = [
+    { id: "verus-client-northwind", name: "Northwind Retail", currency: "INR" },
+    { id: "verus-client-acme", name: "Acme Health", currency: "USD" },
+    { id: "verus-client-globex", name: "Globex Logistics", currency: "EUR" },
+  ];
+  await prisma.client.createMany({
+    data: clients.map((c) => ({ ...c, organizationId: ORG_ID, defaultBillable: true })),
+  });
+
   await insertMany<Prisma.ProjectCreateManyInput>(
     "projects",
     (rows) => prisma.project.createMany({ data: rows }),
-    d.projects.map((p) => ({ ...p, createdBy: ridN(p.createdBy) })),
+    d.projects.map((p, index) => ({
+      ...p,
+      clientId: clients[index]?.id ?? null,
+      createdBy: ridN(p.createdBy),
+    })),
   );
 
   // Statuses BEFORE issues: `Issue.statusId` is a required FK, so an issue
@@ -203,10 +219,84 @@ async function main(): Promise<void> {
     })),
   );
 
+  // Every log belongs to its owner's Monday-start week and a row per issue
+  // (ADR-0059 §3.2). Demo weeks are left as open drafts so the screen can be
+  // shown filling them in; nothing is marked approved.
+  const policy = await prisma.timesheetPolicy.create({
+    data: {
+      organizationId: ORG_ID,
+      effectiveFrom: new Date("2000-01-03T00:00:00.000Z"),
+      timezone: "Asia/Kolkata",
+    },
+    select: { id: true },
+  });
+  const mondayOf = (d: Date): string => {
+    const day = d.getUTCDay();
+    const back = (day + 6) % 7;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back))
+      .toISOString()
+      .slice(0, 10);
+  };
+  const sheets = new Map<string, Prisma.TimesheetCreateManyInput & { id: string }>();
+  const rows = new Map<string, Prisma.TimesheetRowCreateManyInput & { id: string }>();
+  const rowCountBySheet = new Map<string, number>();
+  const placedLogs: Prisma.WorkLogCreateManyInput[] = [];
+  const sortedLogs = [...d.workLogs].sort(
+    (a, b) => new Date(a.workDate).getTime() - new Date(b.workDate).getTime(),
+  );
+  for (const w of sortedLogs) {
+    const userId = rid(w.userId);
+    const week = mondayOf(new Date(w.workDate));
+    const sheetKey = `${userId}|${week}`;
+    let sheet = sheets.get(sheetKey);
+    if (!sheet) {
+      const start = new Date(`${week}T00:00:00.000Z`);
+      sheet = {
+        id: `verus-ts-${sheets.size.toString().padStart(6, "0")}`,
+        organizationId: ORG_ID,
+        userId,
+        periodStart: start,
+        periodEnd: new Date(start.getTime() + 6 * 86_400_000),
+        policyId: policy.id,
+      };
+      sheets.set(sheetKey, sheet);
+    }
+    const rowKey = `${sheet.id}|${w.issueId}`;
+    let row = rows.get(rowKey);
+    if (!row) {
+      const position = rowCountBySheet.get(sheet.id) ?? 0;
+      rowCountBySheet.set(sheet.id, position + 1);
+      row = {
+        id: `verus-tsr-${rows.size.toString().padStart(6, "0")}`,
+        timesheetId: sheet.id,
+        position,
+        issueId: w.issueId,
+      };
+      rows.set(rowKey, row);
+    }
+    placedLogs.push({
+      ...w,
+      organizationId: ORG_ID,
+      userId,
+      createdBy: ridN(w.createdBy),
+      timesheetId: sheet.id,
+      timesheetRowId: row.id,
+    });
+  }
+  await insertMany<Prisma.TimesheetCreateManyInput>(
+    "timesheets",
+    (batch) => prisma.timesheet.createMany({ data: batch }),
+    [...sheets.values()],
+  );
+  await insertMany<Prisma.TimesheetRowCreateManyInput>(
+    "timesheet rows",
+    (batch) => prisma.timesheetRow.createMany({ data: batch }),
+    [...rows.values()],
+  );
   await insertMany<Prisma.WorkLogCreateManyInput>(
     "work logs",
-    (rows) => prisma.workLog.createMany({ data: rows }),
-    d.workLogs.map((w) => ({ ...w, userId: rid(w.userId), createdBy: ridN(w.createdBy) })),
+    (batch) => prisma.workLog.createMany({ data: batch }),
+    placedLogs,
   );
 
   await insertMany<Prisma.AuditLogCreateManyInput>(
