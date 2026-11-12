@@ -149,8 +149,12 @@ policy (TS-5, TS-6); the approvals inbox (TS-9).
 
 ## 5. UI
 
-Route **`/timesheets`** (current week) and `/timesheets?week=YYYY-MM-DD`, under
-the app shell, with a **Timesheets** nav item. Built on the V2 primitives
+Route **`/timesheets`** (current week), `/timesheets?date=YYYY-MM-DD` (the week
+containing that date, under any week-start policy) and
+`/timesheets?timesheet=<id>` (a notification link: the owner's own week, or —
+for an approver or org admin — a read-only view of someone else's week with
+**Approve**, **Return lines** and **Unlock week** where allowed; the full
+approvals inbox is TS-9). Under the app shell, with a **Timesheets** nav item. Built on the V2 primitives
 (`AppFrame`, `Toolbar`, `DataTable` patterns, `Panel`) per
 `docs/05_UI/07_Migration_Plan.md`.
 
@@ -204,6 +208,11 @@ overtime, pinned row and row menu; submit blocked; approved/locked; HR not
 connected) is in the repo. *States A* (draft week, add-activity picker,
 returned, submitted, empty week) has not been received; those five states are
 specified from the brief's text until it is.
+
+**Step 3 notes (2026-11-13):** "Integrate HR" is shown as *coming soon* until
+the HR screen exists (TS-7). A cell holding several logs explains itself but
+does not yet edit them in place (TS-18). The deadline and decision times are
+rendered in the viewer's own clock, in the browser only.
 
 **Out of scope:** the running timer (Screen 2 — the top-bar slot stays),
 admin settings screens, HROne sync, reports, mobile layout.

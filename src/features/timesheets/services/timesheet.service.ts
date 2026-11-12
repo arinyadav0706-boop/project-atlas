@@ -306,12 +306,21 @@ export const TimesheetService = {
     return requirePeriod(ctx, todayIn(latest.timezone)).start;
   },
 
-  // Resolves a notification link (?timesheet=<id>) to the owner's week.
-  async periodStartOf(actor: Actor, timesheetId: string): Promise<IsoDate> {
+  // The first day of the period containing `date` — what the page's previous
+  // / next / pick-a-date navigation lands on, under any week-start policy.
+  async periodStartContaining(actor: Actor, date: IsoDate): Promise<IsoDate> {
+    const ctx = await loadContext(actor.organizationId);
+    return requirePeriod(ctx, date).start;
+  },
+
+  // Whose week a notification link (?timesheet=<id>) points at, without
+  // revealing anything: null unless the caller owns it.
+  async ownPeriodStartOf(actor: Actor, timesheetId: string): Promise<IsoDate | null> {
     const sheet = await TimesheetRepository.findSheetById(timesheetId);
-    if (!sheet || sheet.userId !== actor.userId) throw new NotFoundError("Timesheet not found.");
+    if (!sheet || sheet.userId !== actor.userId) return null;
     return toIsoDate(sheet.periodStart);
   },
+
 
   async addRow(actor: Actor, periodStart: IsoDate, input: RowInput): Promise<TimesheetRowDto> {
     const ctx = await loadContext(actor.organizationId);

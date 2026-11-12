@@ -11,6 +11,7 @@ import {
   Network,
   GaugeCircle,
   ChevronRight,
+  Clock3,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LogoMark } from "@/shared/components/brand/logo";
@@ -29,6 +30,9 @@ const navItems = [
   // Dashboards are everyone's, not an admin surface (ADR-0044 §1): the same
   // per-viewer project scope applies, so there is nothing to gate.
   { href: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
+  // Everyone logs their own week (37_timesheets); scope is enforced in the
+  // service, so the link is not gated.
+  { href: "/timesheets", label: "Timesheets", icon: Clock3 },
 ];
 
 export function Sidebar({

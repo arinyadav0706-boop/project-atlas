@@ -4360,6 +4360,7 @@ components:
             canSubmit: { type: boolean }
             canOverrideBillable: { type: boolean }
             canUnlock: { type: boolean, description: "Org admin viewing someone else's locked week" }
+            canDecide: { type: boolean, description: "The viewer is an approver whose turn it is in the current round" }
 
     TimesheetCellSaveResult:
       type: object

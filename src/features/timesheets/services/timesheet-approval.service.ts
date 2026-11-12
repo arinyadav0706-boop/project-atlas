@@ -71,7 +71,7 @@ async function weekForViewer(actor: Actor, sheet: TimesheetRecord): Promise<Time
     const cover = coveredProjectIds(all, actor.userId);
     if (!cover.wholeWeek) visibleProjectIds = cover.projectIds;
   }
-  return buildWeek({
+  const week = await buildWeek({
     organizationId: fresh.organizationId,
     viewerId: actor.userId,
     ownerId: fresh.userId,
@@ -81,6 +81,12 @@ async function weekForViewer(actor: Actor, sheet: TimesheetRecord): Promise<Time
     settings,
     visibleProjectIds,
   });
+  if (!isOwner && fresh.status === "SUBMITTED") {
+    const policy = await TimesheetRepository.policyById(fresh.policyId);
+    const { mine } = await actionableSlots(fresh, actor.userId, policy?.approvalMode ?? "PARALLEL");
+    week.permissions.canDecide = mine.length > 0;
+  }
+  return week;
 }
 
 export const TimesheetApprovalService = {
@@ -106,6 +112,20 @@ export const TimesheetApprovalService = {
       decidedAt: a.decidedAt?.toISOString() ?? null,
       comment: a.comment,
     }));
+  },
+
+  // The approver's (or an admin's) read of someone's week — the target of the
+  // TIMESHEET_* notification links. The owner, anyone ever asked to approve
+  // it, and org admins; everyone else gets 404 (BR-32).
+  async viewWeek(actor: Actor, timesheetId: string): Promise<{ week: TimesheetWeekDto; ownerName: string }> {
+    const sheet = await loadSheet(actor, timesheetId);
+    const allowed =
+      sheet.userId === actor.userId ||
+      actor.orgRole === "ADMIN" ||
+      (await TimesheetRepository.isApproverOf(sheet.id, actor.userId)) > 0;
+    if (!allowed) throw new NotFoundError("Timesheet not found.");
+    const owner = await TimesheetRepository.userName(sheet.userId);
+    return { week: await weekForViewer(actor, sheet), ownerName: owner?.name ?? "" };
   },
 
   // BR-30a: approved when every slot of the current round is approved.

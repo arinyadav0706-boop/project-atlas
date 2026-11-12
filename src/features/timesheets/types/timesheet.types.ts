@@ -106,6 +106,8 @@ export interface TimesheetWeekDto {
     canSubmit: boolean;
     canOverrideBillable: boolean;
     canUnlock: boolean;
+    // The viewer is an approver whose turn it is in the current round.
+    canDecide: boolean;
   };
 }
 

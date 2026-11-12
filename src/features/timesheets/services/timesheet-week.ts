@@ -344,6 +344,7 @@ export async function buildWeek(input: BuildInput): Promise<TimesheetWeekDto> {
       canSubmit: isOwner && (mode === "EDIT" || mode === "RETURNED_ONLY" || mode === "REOPENED") && sheet?.status !== "SUBMITTED",
       canOverrideBillable: canEditWeek && policy.employeesMayOverrideBillable,
       canUnlock: Boolean(sheet) && locked && input.isAdmin && !isOwner,
+      canDecide: false,
     },
   };
 }
