@@ -142,3 +142,73 @@ erDiagram
   refers to), documented in `01_Database_Design.md §2.12`.
 - This diagram is the source that `diagrams/er-diagram.mmd` mirrors for
   reuse outside this doc, per `diagrams/README.md`.
+
+## Timesheets (module 37, ADR-0059) — PROPOSED
+
+Not yet in `prisma/schema.prisma`. Field lists in `01_Database_Design.md`
+§2.21–2.30; existing tables are shown only with the keys these relate to.
+
+```mermaid
+erDiagram
+    ORGANIZATION ||--o{ TIMESHEET_POLICY : "rules (effective-dated)"
+    ORGANIZATION ||--o{ ACTIVITY_CATEGORY : has
+    ORGANIZATION ||--o{ CLIENT : has
+    ORGANIZATION ||--o{ HOLIDAY : "HR sync"
+    ACTIVITY_CATEGORY ||--o{ ACTIVITY : groups
+    ACTIVITY ||--o{ ACTIVITY_TEAM : "visible to"
+    TEAM ||--o{ ACTIVITY_TEAM : sees
+    CLIENT ||--o{ PROJECT : "optional owner"
+    USER ||--o{ TIMESHEET : owns
+    USER ||--o{ EMPLOYEE_LEAVE : "HR sync"
+    USER ||--o{ PINNED_TIMESHEET_ROW : pins
+    TIMESHEET_POLICY ||--o{ TIMESHEET : governs
+    TIMESHEET ||--o{ TIMESHEET_ROW : "grid rows"
+    TIMESHEET ||--o{ TIMESHEET_APPROVAL : "rounds of decisions"
+    USER ||--o{ TIMESHEET_APPROVAL : approves
+    TIMESHEET_ROW ||--o{ WORK_LOG : "cells (per day)"
+    PINNED_TIMESHEET_ROW |o--o{ TIMESHEET_ROW : instantiates
+    ISSUE |o--o{ WORK_LOG : "issue entry"
+    ACTIVITY |o--o{ WORK_LOG : "activity entry"
+    PROJECT |o--o{ WORK_LOG : "activity tag"
+    CLIENT |o--o{ WORK_LOG : "activity tag"
+
+    TIMESHEET {
+        string id PK
+        string userId FK
+        date periodStart
+        date periodEnd
+        string policyId FK
+        enum status
+        int round
+        datetime lockedAt
+        int version
+    }
+    TIMESHEET_ROW {
+        string id PK
+        string timesheetId FK
+        int position
+        string issueId FK "xor activityId"
+        string activityId FK
+        boolean billableOverride
+        string returnedReason
+    }
+    WORK_LOG {
+        string id PK
+        string organizationId FK
+        string timesheetId FK
+        string timesheetRowId FK
+        string issueId FK "xor activityId"
+        string activityId FK
+        int minutes
+        date workDate
+        boolean billable
+    }
+    TIMESHEET_APPROVAL {
+        string id PK
+        string timesheetId FK
+        int round
+        enum relation
+        string approverId FK
+        enum status
+    }
+```

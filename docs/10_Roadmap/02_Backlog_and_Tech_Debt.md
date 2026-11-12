@@ -377,3 +377,21 @@ and `CMT-*` rows — none of them blocks the gate.
 table, `Issue.sprintId`/`rank`/`version`, and the `issues(projectId, sprintId, rank)`
 index (ADR-0014). Prod just needs the `sprints` table to exist (part of the manual
 baseline reconciliation, GL-4/DB-2).
+
+## Timesheets (source: ADR-0059, `docs/02_Modules/37_timesheets.md`)
+
+| ID | Item | Pri | 🚩 | Status | Notes |
+|---|---|---|---|---|---|
+| TS-1 | **Mockup "states A" is not in the repo** | P2 | No | OPEN | `docs/05_UI/mockups/timesheets/my-timesheet-states-a.png` (draft week, add-activity picker, returned, submitted, empty week) was referenced by the brief but not received on 2026-11-12. Module 37 specifies those five states from the brief's text; Step 4 (visual match) needs the image. |
+| TS-2 | **`openapi.yaml` lacks the V2 endpoints that already exist** | P3 | No | OPEN | Work logs (module 19), teams (20) and workload (21) shipped without their paths in the contract, against CLAUDE.md rule 2. Found while adding module 37. Back-fill from the route handlers. |
+| TS-3 | **Product docs still describe an internal tool for one 500-person org** | P2 | No | OPEN — needs founder approval | Brief §1: EAGLES is becoming a commercial SaaS for tech companies. `CLAUDE.md` ("What this project is") and `docs/00_Product/01_Product_Vision.md` / `02_Product_Requirements.md` need rewording; not changed without approval. |
+| TS-4 | **Rehearse the ADR-0059 migration at VERUS scale before `main`** | P1 | No | OPEN | Since DB-9 a push to `main` runs the migration on production Supabase and a failure blocks the deploy. Rehearse on a local copy with the VERUS dataset (~8k issues) and time it. |
+| TS-5 | **Admin: activities, categories and clients** | P2 | No | OPEN | CRUD screens + API. Until then the catalogue is seeded (ADR-0059 Q14). |
+| TS-6 | **Admin: timesheet policy, approver flow, unlocking a locked week** | P2 | No | OPEN | Policy is insert-only and effective from the next period (module 37 BR-2). Unlock needs a mandatory reason and is audited (Q13). |
+| TS-7 | **HROne integration** | P2 | No | OPEN | Fills `Holiday`, `EmployeeLeave`, sets `Organization.hrConnectedAt`; later reporting/functional managers. Until then expected hours ignore leave and holidays and the screen says so (BR-14). |
+| TS-8 | **Timesheet reminders and overdue nudges** | P3 | No | OPEN | Policy stores `reminderHoursBeforeDue`; sending needs the production scheduler (GL-10) and, for email, the email module. |
+| TS-9 | **Approvals inbox, team timesheets, and `VIEW_TIME_REPORTS` for non-admins** | P2 | No | OPEN | Screen 1 exposes approve/return in the API only. Today only org ADMINs hold capabilities (`resolveCapabilities`), so HR needs a capability-grant model first (ADR-0059 Q6). |
+| TS-10 | **Running timer (Screen 2)** | P2 | No | OPEN | Top-bar slot is left empty in Screen 1. |
+| TS-11 | **Rates, invoicing (Invoiced marker), accounting export, client portal** | P4 | No | OPEN | Out of scope by founder decision (brief §1). Currency is stored on `Client`/`Project` now; no rates, tax or conversion. |
+| TS-12 | **Mobile layout for timesheets** | P4 | No | OPEN | Desktop only (brief). |
+| TS-13 | **Re-base Time Reports (module 36) on activities and billable** | P3 | No | OPEN | ADR-0056 predates activities, clients and billable; its by-project grouping must include activity time and its access rule is superseded by ADR-0059 §6.4. |

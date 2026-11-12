@@ -355,6 +355,188 @@ additive with defaults (migration `20260805210000_org_working_week`), so
 existing rows keep the previous 40-hour behaviour. Consumed by Workload
 (module 21); see `docs/12_Metrics/01_Metric_Definitions.md`.
 
+> **§2.21–2.30 are PROPOSED** (ADR-0059, module 37) and not yet in
+> `prisma/schema.prisma`. Items marked *(Q n)* depend on an open question in
+> ADR-0059 §9. "Audit" = `createdAt`, `updatedAt`, `createdBy`, `updatedBy`,
+> `deletedAt` (soft delete).
+
+### 2.21 `WorkLog` amendments (ADR-0059 §3.2)
+
+| Column | Change | Notes |
+|---|---|---|
+| `organizationId` | **new**, `String` FK → Organization, NOT NULL after backfill | Tenant scope for activity logs, which have no issue (F-1). Backfilled from `issue → project`. |
+| `issueId` | **now nullable** | |
+| `activityId` | **new**, `String?` FK → Activity | |
+| `projectId` | **new**, `String?` FK → Project | Activity entries only; issue entries derive it from the issue. |
+| `clientId` | **new**, `String?` FK → Client | Activity entries only. |
+| `billable` | **new**, `Boolean` NOT NULL default `false` | Resolved and stored at write (module 37 BR-10). |
+| `billableOverridden` | **new**, `Boolean` NOT NULL default `false` | |
+| `timesheetId` | **new**, `String` FK → Timesheet, NOT NULL after backfill | |
+| `timesheetRowId` | **new**, `String` FK → TimesheetRow, NOT NULL after backfill | |
+
+Constraints: `CHECK (num_nonnulls("issueId", "activityId") = 1)`;
+`CHECK ("projectId" IS NULL AND "clientId" IS NULL) OR "activityId" IS NOT NULL`.
+New indexes: `(timesheetId, workDate)` (the grid), `(timesheetRowId, workDate)`
+(a cell), `(organizationId, workDate)` (org reports), `(activityId)`.
+Existing `(issueId, deletedAt)` and `(userId, workDate)` stay.
+
+### 2.22 `ActivityCategory`, `Activity`, `ActivityTeam`
+
+**ActivityCategory** — `id`, `organizationId`, `name` (unique per org among
+non-archived, case-insensitive), `position Int`, `archivedAt?`, audit.
+
+**Activity**
+
+| Column | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| organizationId | String FK | |
+| categoryId | String FK → ActivityCategory | |
+| name | String | unique per (org, category) among non-archived |
+| description | String? | |
+| billable | Boolean? | null = inherit project → client → policy |
+| requiresProject | Boolean, default false | |
+| requiresClient | Boolean, default false | |
+| notesRequired | Boolean, default false | |
+| visibleToAllTeams | Boolean, default true | false = only `ActivityTeam` teams |
+| position | Int | order inside its category |
+| archivedAt | DateTime? | archived activities keep history but leave pickers |
+| + audit | | |
+
+Index `(organizationId, categoryId, archivedAt)`.
+
+**ActivityTeam** — `activityId`, `teamId`, `createdAt`, `createdBy`;
+unique `(activityId, teamId)`. A pure link: removal is a hard delete, audited
+(same exception as `TeamMembership`, §2.19).
+
+### 2.23 `Client` and `Project` / `Issue` columns
+
+**Client** — `id`, `organizationId`, `name` (unique per org,
+case-insensitive), `currency` `Char(3)` ISO 4217, `defaultBillable Boolean`
+default `true`, `archivedAt?`, audit. No rates, tax or conversion (brief §1).
+
+**Project** + `clientId String?` FK → Client · `currency Char(3)?` (null = the
+client's) · `defaultBillable Boolean?` (null = the client's).
+
+**Issue** + `defaultBillable Boolean?` (null = the project's).
+
+### 2.24 `Timesheet`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| organizationId | String FK | |
+| userId | String FK → User | the owner |
+| periodStart | Date | |
+| periodEnd | Date | inclusive; usually +6 days (ADR-0059 Q16) |
+| policyId | String FK → TimesheetPolicy | the rules this week is judged by |
+| status | `TimesheetStatus` | DRAFT · SUBMITTED · RETURNED · APPROVED |
+| round | Int, default 0 | increments on each submit |
+| submittedAt | DateTime? | latest submit |
+| submittedLate | Boolean, default false | after the deadline (Q12) |
+| approvedAt | DateTime? | |
+| lockedAt | DateTime? | orthogonal to status (ADR-0059 §4) |
+| lockedById | String? | null = locked by a rule or the migration |
+| expectedMinutesAtSubmit | Int? | snapshot, so a later holiday sync never changes an approved week |
+| version | Int, default 0 | OCC |
+| + audit | | |
+
+Unique `(userId, periodStart)`. Indexes `(organizationId, status, periodStart)`,
+`(userId, periodStart DESC)`.
+
+### 2.25 `TimesheetRow` and `PinnedTimesheetRow`
+
+**TimesheetRow**
+
+| Column | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| timesheetId | String FK | |
+| position | Int | order in the grid (move up / down) |
+| issueId / activityId | String? | exactly one (CHECK) |
+| projectId / clientId | String? | activity rows only (CHECK) |
+| billableOverride | Boolean? | null = resolve (module 37 BR-10) |
+| pinnedRowId | String? FK → PinnedTimesheetRow | set when instantiated from a pin |
+| returnedAt / returnedById / returnedReason | DateTime? / String? / String? | current round's return; history in `AuditLog` |
+| version | Int, default 0 | OCC |
+| + audit | | |
+
+Index `(timesheetId, position)`. Duplicate work items are allowed (the
+*Duplicate* action), so there is no uniqueness on the work item.
+
+**PinnedTimesheetRow** — `id`, `organizationId`, `userId`, `issueId?` /
+`activityId?` (CHECK exactly one), `projectId?`, `clientId?`, `position`,
+audit. Index `(userId, position)`.
+
+### 2.26 `TimesheetApproval`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | String (PK) | |
+| timesheetId | String FK | |
+| round | Int | the submit round this decision belongs to |
+| relation | `ApproverRelation` | REPORTING · FUNCTIONAL · PROJECT |
+| projectId | String? | set for PROJECT; scopes the approver to that project's rows |
+| approverId | String FK → User | resolved at submit |
+| sequence | Int | order, used when `approvalMode = SEQUENTIAL` |
+| status | `TimesheetApprovalStatus` | PENDING · APPROVED · RETURNED · SKIPPED |
+| decidedAt | DateTime? | |
+| comment | String? | ≤ 1000 |
+| createdAt, createdBy | | append-only per round; never soft-deleted |
+
+Indexes `(timesheetId, round)`, `(approverId, status)` (the future approvals
+inbox).
+
+### 2.27 `TimesheetPolicy` (effective-dated, insert-only)
+
+| Column | Type | Default |
+|---|---|---|
+| id | String (PK) | |
+| organizationId | String FK | |
+| effectiveFrom | Date | a period start; unique `(organizationId, effectiveFrom)` |
+| timezone | String (IANA) | set at org creation (Q7) |
+| weekStartDay | Int 0–6 (0 = Sunday) | 1 (Monday) |
+| dueWeekday | Int 0–6 | 1 (Monday) |
+| dueTime | String `HH:MM` | `11:00` |
+| reminderHoursBeforeDue | Int[] | `{24, 2}` |
+| autoLockOnApproval | Boolean | true |
+| lockAfterDays | Int? | null (no age-based lock) |
+| overtimeDailyMinutes | Int? | null = `Organization.workingMinutesPerDay` |
+| notesRequired | `NotesRequirement` | NONE |
+| employeesMayOverrideBillable | Boolean | true |
+| defaultBillable | Boolean | false |
+| approverRelations | `ApproverRelation[]` | `{REPORTING}` (Q4) |
+| approvalMode | `TimesheetApprovalMode` | PARALLEL |
+| createdAt, createdBy | | rows are never updated or deleted (BR-2) |
+
+### 2.28 `Holiday` and `EmployeeLeave`
+
+Written only by the HR integration (and seeds/tests until it exists).
+
+**Holiday** — `id`, `organizationId`, `date Date`, `name`, `source`
+`AvailabilitySource` (MANUAL · HRONE), `externalId?`, audit. Unique
+`(organizationId, date, name)`.
+
+**EmployeeLeave** — `id`, `organizationId`, `userId`, `date Date`, `minutes
+Int` (half days are 240 on an 8h day), `type String`, `status` `LeaveStatus`
+(PENDING · APPROVED · CANCELLED), `source`, `externalId?`, audit. Index
+`(userId, date)`. One row per person per day, so a three-day leave is three
+rows and a half day is exact.
+
+### 2.29 `Organization` / `User` columns
+
+- `Organization.hrConnectedAt DateTime?` — null = HR not connected; expected
+  hours then ignore §2.28 (module 37 BR-13/14).
+- `User.functionalManagerId String?` FK → User — *(Q2)*.
+
+### 2.30 Enum and value additions
+
+`TimesheetStatus`, `ApproverRelation`, `TimesheetApprovalStatus`,
+`TimesheetApprovalMode` (PARALLEL · SEQUENTIAL), `NotesRequirement`
+(NONE · BILLABLE · ALL), `AvailabilitySource`, `LeaveStatus` — values above.
+`FavoriteEntityType` + `ACTIVITY`. `NotificationType` + `TIMESHEET_SUBMITTED`,
+`TIMESHEET_RETURNED`, `TIMESHEET_APPROVED` *(Q15)*.
+
 ## 3. Enums Reference
 
 ### 3.1 `OrgRole`

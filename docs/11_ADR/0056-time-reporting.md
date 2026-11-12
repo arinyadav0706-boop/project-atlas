@@ -1,7 +1,8 @@
 # ADR-0056 — Time reporting for HR: who logged what, against what capacity
 
-- **Status:** PROPOSED — awaiting approval on §4 (who may see whose hours).
-  Everything else is settled and needs no schema change.
+- **Status:** PROPOSED — **§4 superseded by ADR-0059 §6.4** (founder decision
+  2026-11-12: a dedicated `VIEW_TIME_REPORTS` capability, not `MANAGE_TEAMS`).
+  The rest is to be re-based on activities and billable (backlog TS-13).
 - **Date:** 2026-10-11
 - **Module:** `docs/02_Modules/36_time_reports.md`
 - **Related:** ADR-0030 (time tracking), ADR-0034 (workload + the working
