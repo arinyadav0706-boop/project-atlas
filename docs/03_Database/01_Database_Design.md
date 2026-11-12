@@ -355,9 +355,8 @@ additive with defaults (migration `20260805210000_org_working_week`), so
 existing rows keep the previous 40-hour behaviour. Consumed by Workload
 (module 21); see `docs/12_Metrics/01_Metric_Definitions.md`.
 
-> **§2.21–2.30 are PROPOSED** (ADR-0059, module 37) and not yet in
-> `prisma/schema.prisma`. Items marked *(Q n)* depend on an open question in
-> ADR-0059 §9. "Audit" = `createdAt`, `updatedAt`, `createdBy`, `updatedBy`,
+> **§2.21–2.30 are DESIGNED** (ADR-0059 accepted 2026-11-13, module 37) and
+> not yet in `prisma/schema.prisma`. "Audit" = `createdAt`, `updatedAt`, `createdBy`, `updatedBy`,
 > `deletedAt` (soft delete).
 
 ### 2.21 `WorkLog` amendments (ADR-0059 §3.2)
@@ -435,6 +434,7 @@ client's) · `defaultBillable Boolean?` (null = the client's).
 | submittedAt | DateTime? | latest submit |
 | submittedLate | Boolean, default false | after the deadline (Q12) |
 | approvedAt | DateTime? | |
+| autoApproved | Boolean, default false | approved because no other approver existed (ADR-0059 §6.3); always audited |
 | lockedAt | DateTime? | orthogonal to status (ADR-0059 §4) |
 | lockedById | String? | null = locked by a rule or the migration |
 | expectedMinutesAtSubmit | Int? | snapshot, so a later holiday sync never changes an approved week |
@@ -477,7 +477,8 @@ audit. Index `(userId, position)`.
 | round | Int | the submit round this decision belongs to |
 | relation | `ApproverRelation` | REPORTING · FUNCTIONAL · PROJECT |
 | projectId | String? | set for PROJECT; scopes the approver to that project's rows |
-| approverId | String FK → User | resolved at submit |
+| approverId | String FK → User | resolved at submit; never the owner |
+| fallbackFrom | `ApproverRelation`? | set when this slot was filled by a §6.3 fallback |
 | sequence | Int | order, used when `approvalMode = SEQUENTIAL` |
 | status | `TimesheetApprovalStatus` | PENDING · APPROVED · RETURNED · SKIPPED |
 | decidedAt | DateTime? | |
@@ -527,7 +528,7 @@ rows and a half day is exact.
 
 - `Organization.hrConnectedAt DateTime?` — null = HR not connected; expected
   hours then ignore §2.28 (module 37 BR-13/14).
-- `User.functionalManagerId String?` FK → User — *(Q2)*.
+- `User.functionalManagerId String?` FK → User —.
 
 ### 2.30 Enum and value additions
 
@@ -535,7 +536,9 @@ rows and a half day is exact.
 `TimesheetApprovalMode` (PARALLEL · SEQUENTIAL), `NotesRequirement`
 (NONE · BILLABLE · ALL), `AvailabilitySource`, `LeaveStatus` — values above.
 `FavoriteEntityType` + `ACTIVITY`. `NotificationType` + `TIMESHEET_SUBMITTED`,
-`TIMESHEET_RETURNED`, `TIMESHEET_APPROVED` *(Q15)*.
+`TIMESHEET_RETURNED`, `TIMESHEET_APPROVED`, `TIMESHEET_UNLOCKED`,
+`WORKLOG_REMOVED` (a LEAD removed your time, ADR-0059 Q8).
+`NotificationEntityType` + `TIMESHEET`.
 
 ## 3. Enums Reference
 

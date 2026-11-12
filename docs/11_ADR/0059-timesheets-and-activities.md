@@ -1,6 +1,6 @@
 # ADR-0059: Weekly timesheets, org-defined activities, and approval
 
-**Status:** Proposed — Q1, Q4, Q14 decided and Q5 partly decided (2026-11-12); the rest of §9 awaits founder approval
+**Status:** Accepted (2026-11-13) — every §9 question decided by the founders
 **Date:** 2026-11-12
 **Deciders:** Founders
 **Module:** `docs/02_Modules/37_timesheets.md`
@@ -108,8 +108,11 @@ its work item, and logs reference the row.
 
 One row per **required approver per submission round**: `timesheetId`,
 `round`, `relation` (`REPORTING | FUNCTIONAL | PROJECT`), `projectId?` (for
-`PROJECT`), `approverId`, `sequence`, `status`
-(`PENDING | APPROVED | RETURNED | SKIPPED`), `decidedAt`, `comment`. Rounds
+`PROJECT`), `approverId`, `fallbackFrom?` (the relation it stands in for, when
+resolved through a §6.3 fallback), `sequence`, `status`
+(`PENDING | APPROVED | RETURNED | SKIPPED`), `decidedAt`, `comment`.
+`Timesheet.autoApproved` marks a week approved because no other approver
+existed (§6.3). Rounds
 are never deleted, so "View approval history" is a plain read.
 
 ### 3.5 Policy — `TimesheetPolicy` (effective-dated)
@@ -167,7 +170,8 @@ rows, and the expected-hours rule needs to be written and tested once.
 - **Lock** is **orthogonal** to status (`lockedAt`), because lock rules can
   freeze a week that was never submitted ("lock anything older than 30 days").
   A locked week rejects every write — from the grid, the issue panel, the API
-  and bulk paths — with 409. The mockup shows *Approved* and *Locked* as two
+  and bulk paths — with 409, until an org admin unlocks it with a reason
+  (§6.5). The mockup shows *Approved* and *Locked* as two
   chips for exactly this reason.
 - **Invoiced** is future scope and will be a further orthogonal marker, not a
   status.
@@ -197,6 +201,15 @@ One migration, set-based SQL, safe to re-run. Order:
    migration date stays an open DRAFT.** Nothing is marked approved — no
    approval that did not happen is fabricated (Q1, decided).
 
+### 5a. Report before the duration-input change (Q10)
+
+Today the issue page reads a bare "1.5" as 2 minutes and "8" as 8 minutes, so
+some existing logs may be hours recorded as minutes. Before the input changes,
+`scripts/worklog-short-durations.sql` (read-only) lists every log of **under
+15 minutes**, bucketed (`<5`, `5–14`) and grouped by person, for the founder to
+review. Any correction is a separate, explicit, audited step that the founder
+approves row by row; the migration itself never changes `minutes`.
+
 **Deploy note.** Since DB-9, every push to `main` runs `prisma migrate deploy`
 against production Supabase and fails the deploy if a migration fails. This
 migration will be rehearsed against a copy of the VERUS demo dataset (~8k
@@ -213,12 +226,38 @@ it (§4). No admin, manager or LEAD writes into someone else's week.
   (creating it if needed, onto the first matching row or a new one), and is
   refused with 409 when the week is submitted, approved or locked.
 - **BR-4's LEAD moderation delete** is narrowed to weeks still in DRAFT; a
-  LEAD can never remove time from a submitted or locked week (Q8).
+  LEAD can never remove time from a submitted or locked week. The delete is
+  audited and **the author is notified** (Q8).
+- **Bare numbers mean hours** in the issue page's inputs too (Q10) — but that
+  input change ships only **after** the founder has reviewed the report of
+  existing logs that look like this bug (§5a). Existing data is never changed
+  silently.
 
-### 6.3 Approvers
-An approver may read the whole timesheet they are asked to approve, and
-approve or return it. `PROJECT` approvers see and act on **their project's
-rows only** (Q3).
+### 6.3 Approvers (Q3, Q4, Q5)
+Resolved at submit, per line, from the policy's `approverRelations`:
+
+- **REPORTING** approves the whole week: the owner's team manager (ADR-0032).
+- **PROJECT** (when enabled) approves **only the lines of their project** —
+  issue lines in that project and **activity lines tagged to it**. Any one
+  LEAD of the project may act. Lines with no project (an HR activity, say) are
+  approved by the reporting manager alone.
+- **FUNCTIONAL** (when enabled) approves the whole week:
+  `User.functionalManagerId`.
+
+**Nobody ever approves their own lines, anywhere in the flow.** The owner is
+removed from every candidate set, and a slot that empties falls back in
+order: for a PROJECT slot, **another LEAD of that project → the reporting
+manager → an org admin**; for a REPORTING or FUNCTIONAL slot, **an org admin**
+(also the case when the owner has no team manager, or manages their own
+team). An approver appearing in several slots decides once for all of them.
+
+If **no other eligible approver exists at all** (e.g. a one-admin startup),
+the week is **auto-approved** at submit: `Timesheet.autoApproved = true` and
+an `AuditLog` entry `TIMESHEET_AUTO_APPROVED` with the reason "no other
+approver available". It is never silent.
+
+An approver may read the whole timesheet they are asked to approve; a PROJECT
+approver sees and acts on **their project's lines only**.
 
 ### 6.4 Who sees whose hours (supersedes ADR-0056 §4)
 Everyone sees their own. Managers see their teams and descendant teams (the
@@ -226,6 +265,15 @@ ADR-0032 set). Anyone else needs the new capability **`VIEW_TIME_REPORTS`**
 (founder decision, 2026-11-12). Screen 1 shows only your own week, so this
 capability is *declared* in Step 2 but first *used* by the reports and
 approvals screens — see Q6 for how it reaches a non-admin.
+
+### 6.5 Unlocking a week (Q13)
+An **org admin** may unlock a locked week from the timesheet itself, now —
+not deferred to the admin screens. A **reason is required** (1–500 chars);
+the action is audited (`TIMESHEET_UNLOCKED`, with the reason and the previous
+`lockedAt`) and **the owner is notified**. Unlocking clears `lockedAt` and
+leaves `status` as it was: an approved week becomes an approved-but-unlocked
+week, and editing it returns it to DRAFT so it must be re-approved. An admin
+cannot unlock their own week (Q5's rule applies).
 
 ## 7. Alternatives considered
 
@@ -253,23 +301,23 @@ approvals screens — see Q6 for how it reaches a non-admin.
   integration; reminders (needs the production scheduler, GL-10); the
   approvals screen; invoicing — all in the backlog (TS-1…TS-13).
 
-## 9. Open questions (answer before Step 2)
+## 9. Decisions (all questions closed 2026-11-12 / 2026-11-13)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 |---|---|---|
-| Q1 | Status of back-filled weeks. | **DECIDED 2026-11-12:** past weeks are **frozen** (DRAFT + `lockedAt` at migration, no approvals created, never overdue); **the week containing the migration date stays an open DRAFT**. |
-| Q2 | Where is a **functional manager** stored? There is no field today. | `User.functionalManagerId?` — one column, the same shape HROne exports, and the HR sync can fill it later. |
-| Q3 | Does a **project manager** approve only their project's rows, and who is the project manager — any project `LEAD`? | Yes, only that project's rows; any one LEAD of the project may act. Rows with no project are approved by the reporting manager. |
-| Q4 | Default approver set. | **DECIDED 2026-11-12:** default **reporting manager only**, but the model and the service support **multiple approvers from day one** — REPORTING, FUNCTIONAL and PROJECT (project LEADs approving their project's rows), parallel or sequential — switchable in the policy. Screen 1's tests cover the multi-approver path, not just the default. |
-| Q5 | No approver found. | **PARTLY DECIDED 2026-11-12:** someone with **no team manager** is approved by an **org admin**. Still open: self-approval (a manager who is their own team's manager) — recommendation: treat as "no manager" → org admin; never self-approve. |
-| Q6 | `VIEW_TIME_REPORTS` must reach HR people who are not org admins, but today **only ADMINs hold any capability** (`resolveCapabilities`). Add a capability-grant table now, or later with the reports screen? | Later, with the reports/approvals screen (TS-9). Screen 1 does not use it. |
-| Q7 | **Timezone** for the due time (e.g. Monday 11:00). Organizations have no timezone today. | A required `timezone` on `TimesheetPolicy` (IANA, e.g. `Asia/Kolkata`), set when the org is created. |
-| Q8 | Module 19 BR-4 lets a project LEAD delete anyone's log. Keep that only for DRAFT weeks? | Yes, DRAFT only. |
-| Q9 | A cell with **several logs** (e.g. two logged from the issue page): breakdown popover, or merge them into one? | Breakdown popover; never merge silently. |
-| Q10 | **Bare numbers.** The issue panel reads "90" as 90 minutes and "1.5" as 2 minutes; the brief wants "1.5" = 1.5 hours. One rule everywhere? | Yes: a bare number means **hours** everywhere ("1.5" = 1h 30m, "8" = 8h); minutes need an `m` ("90m"). Changes module 19's input once. |
-| Q11 | **Future days.** Module 19 forbids logging on a future date. Keep that in the grid (no pre-filling Friday on Wednesday)? | Keep it. |
-| Q12 | **Late submission**: allowed after the deadline (and shown as late), or blocked until a manager reopens it? | Allowed, marked late. |
-| Q13 | **Unlocking**: if a locked week is wrong, can anyone unlock it? | An org admin can unlock with a mandatory reason, audited — built with the admin screens (TS-6). Until then, locked is final. |
-| Q14 | Activities and clients before their admin screens. | **DECIDED 2026-11-12:** every org gets a **seeded, editable default activity list**. **Sample clients only in dev/demo seeds** (`prisma/seed.ts`, VERUS), never in a real org. Until the Clients screen exists (TS-5), **"client required" is not enforced** (`CLIENT_REQUIRED` is not raised). |
-| Q15 | **Notifications**: send in-app notifications on submit, return and approve as part of Screen 1? Needs 3 new `NotificationType` values. | Yes, in-app only. Email and reminders wait for the email module and the production scheduler. |
-| Q16 | **Week-start change**: when a policy moves the week from Monday to Sunday, the transition period is 6 or 8 days. Allow that one odd-length period? | Yes; `periodStart`/`periodEnd` are explicit, so nothing assumes 7 days. |
+| Q1 | Status of back-filled weeks | Past weeks **frozen** (DRAFT + `lockedAt` at migration, no approvals created, never overdue); the migration week stays an open DRAFT. |
+| Q2 | Where a functional manager is stored | `User.functionalManagerId?`, the same shape HROne exports. |
+| Q3 | Project-manager scope | A project LEAD approves only that project's lines — issue lines **and activity lines tagged to the project**; any one LEAD may act. Lines with no project go to the reporting manager. |
+| Q4 | Default approvers | Reporting manager only by default; multiple approvers (REPORTING, FUNCTIONAL, PROJECT; parallel or sequential) supported from day one and switchable in the policy. |
+| Q5 | No approver / self-approval | **Nobody approves their own lines anywhere.** Fallbacks per §6.3; no team manager → org admin; no eligible approver at all → **auto-approved with an audit entry** "no other approver available". |
+| Q6 | `VIEW_TIME_REPORTS` for non-admins | Later, with the approvals/reports screen (TS-9); Screen 1 does not use it. |
+| Q7 | Timezone for the deadline | Required IANA `timezone` on `TimesheetPolicy`. |
+| Q8 | LEAD deleting someone's log | Only while the week is DRAFT; audited; **the author is notified**. |
+| Q9 | Several logs in one cell | Breakdown to edit each; never merged silently. |
+| Q10 | Bare numbers | **Hours everywhere**, including the issue page — after the founder reviews the short-duration report (§5a); existing data is never changed silently. |
+| Q11 | Future days | Not allowed. |
+| Q12 | Late submission | Allowed, marked late. |
+| Q13 | Unlocking | **Now**, not deferred: org admins unlock a locked week with a required reason; audited; owner notified (§6.5). |
+| Q14 | Activities and clients | Seeded, editable default activity list per org; sample clients only in dev/demo seeds; "client required" not enforced until the Clients screen exists (TS-5). |
+| Q15 | Notifications | In-app on submit, return, approve — plus unlock (Q13) and a LEAD's delete (Q8). Email and reminders later. |
+| Q16 | Week-start change | One shorter or longer transition period is allowed. |

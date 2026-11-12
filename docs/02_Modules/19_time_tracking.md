@@ -4,7 +4,7 @@
 Projects/RBAC. **Enables:** Workload view (Epic 3), Reports (Epic 4),
 Timesheets (37).
 
-> **Amendment PROPOSED by ADR-0059 / module 37 (2026-11-12), not yet built.**
+> **Amendment by ADR-0059 / module 37 (accepted 2026-11-13), not yet built.**
 > Every work log will belong to a weekly timesheet, and a log may point to an
 > org-defined *activity* instead of an issue. The rules below marked
 > **[ADR-0059]** take effect when module 37 ships; until then the original
@@ -39,7 +39,8 @@ report reads this data. Inspired by Jira (Tempo) + ClickUp. Self-contained
 - **BR-4** The **author or a project LEAD** may delete a log (soft delete).
   **[ADR-0059]** The LEAD's moderation delete applies only while the log's
   week is DRAFT (ADR-0059 Q8); nobody removes time from a submitted, approved
-  or locked week.
+  or locked week. A LEAD's delete of someone else's log is audited and **the
+  author is notified** (`WORKLOG_REMOVED`).
 - **BR-5** Estimate is `estimateMinutes` on the issue, integer 0…100000,
   nullable (unset = no estimate). **LEAD-only** (planning decision; org ADMIN
   elevates). Settable at **issue creation** (the create dialog shows the field
@@ -68,8 +69,10 @@ A **Time Tracking** panel on the issue detail page:
 - Estimate vs Logged vs Remaining, with a progress bar (over-logged shown
   distinctly).
 - Editable estimate (writers only), input accepts `1h 30m` / `90m` / `1.5h`.
-  **[ADR-0059 Q10, proposed]** a bare number becomes **hours** ("1.5" = 1h 30m),
-  matching the timesheet grid; minutes need `m`.
+  **[ADR-0059 Q10, decided]** a bare number becomes **hours** ("1.5" = 1h 30m),
+  matching the timesheet grid; minutes need `m`. Ships only after the founder
+  has reviewed the short-duration report (ADR-0059 §5a); existing logs are
+  never rewritten silently.
 - "Log time" form: duration, date (default today, not future), optional note.
 - Log list: person (avatar+name), date, duration, note; edit (author) / delete
   (author or LEAD) affordances. VIEWER sees read-only.

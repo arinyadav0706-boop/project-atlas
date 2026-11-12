@@ -2605,6 +2605,34 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
 
+  /timesheets/{timesheetId}/unlock:
+    post:
+      tags: [timesheets]
+      summary: Org admin unlocks a locked week (37 BR-34, ADR-0059 §6.5)
+      description: >
+        Reason required; audited (TIMESHEET_UNLOCKED); the owner is notified.
+        403 for non-admins; 403 when the admin owns the week; 409 when the
+        week is not locked.
+      parameters: [{ $ref: "#/components/parameters/TimesheetIdParam" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200":
+          description: Unlocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimesheetWeekDto" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
   /timesheets/pickers/issues:
     get:
       tags: [timesheets]
@@ -4288,6 +4316,7 @@ components:
         project: { type: object, nullable: true, properties: { id: { type: string }, name: { type: string } } }
         approver: { type: object, properties: { id: { type: string }, name: { type: string }, avatarUrl: { type: string, nullable: true } } }
         status: { type: string, enum: [PENDING, APPROVED, RETURNED, SKIPPED] }
+        fallbackFrom: { type: string, enum: [REPORTING, FUNCTIONAL, PROJECT], nullable: true }
         decidedAt: { type: string, format: date-time, nullable: true }
         comment: { type: string, nullable: true }
 
@@ -4301,6 +4330,8 @@ components:
         status: { type: string, enum: [DRAFT, SUBMITTED, RETURNED, APPROVED] }
         locked: { type: boolean }
         lockedAt: { type: string, format: date-time, nullable: true }
+        autoApproved: { type: boolean, description: "Approved because no other approver existed (ADR-0059 §6.3)" }
+        unlockedBy: { type: object, nullable: true, properties: { name: { type: string }, at: { type: string, format: date-time }, reason: { type: string } } }
         submittedAt: { type: string, format: date-time, nullable: true }
         submittedLate: { type: boolean }
         dueAt: { type: string, format: date-time }
@@ -4325,6 +4356,7 @@ components:
             canEdit: { type: boolean }
             canSubmit: { type: boolean }
             canOverrideBillable: { type: boolean }
+            canUnlock: { type: boolean, description: "Org admin viewing someone else's locked week" }
 
     TimesheetCellSaveResult:
       type: object

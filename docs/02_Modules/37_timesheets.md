@@ -1,6 +1,6 @@
 # Module 37 — Timesheets (Screen 1: My Timesheet)
 
-**Status:** v0.1 spec — **Proposed**, awaiting approval of ADR-0059 §9
+**Status:** v1.0 spec — **Accepted** with ADR-0059 (2026-11-13); not yet built
 **ADR:** 0059 · **Brief:** `docs/briefs/timesheets-screen1.md`
 **Mockups:** `docs/05_UI/mockups/timesheets/my-timesheet-states-a.png`
 (*not yet in the repo — see §5.6*), `my-timesheet-states-b.png`
@@ -36,7 +36,7 @@ API-complete here; the approver's screen comes later).
 | | |
 |---|---|
 | BR-4 | **Every entry is an issue XOR an activity** — enforced by a database CHECK. An activity entry may carry a project and/or a client; an activity may *require* either. |
-| BR-5 | **Durations** accept `1:30`, `1.5`, `1h 30m`, `1h`, `90m`; stored as integer minutes. A bare number means **hours** (ADR-0059 Q10). One cell ≤ 24h; zero clears the cell. |
+| BR-5 | **Durations** accept `1:30`, `1.5`, `1h 30m`, `1h`, `90m`; stored as integer minutes. A bare number means **hours** (ADR-0059 Q10); the issue page adopts the same rule only after the founder reviews the short-duration report (ADR-0059 §5a). One cell ≤ 24h; zero clears the cell. |
 | BR-6 | **No future days** (ADR-0059 Q11). Days before today in the period, and today, are editable. |
 | BR-7 | **Autosave per cell.** Every cell write is one request with OCC (`expectedVersion`, ADR-0011); a stale write is 409 and the cell shows the current value. |
 | BR-8 | **A cell is the sum of that row's logs for that day.** A cell with 0–1 logs edits inline; with more than one (e.g. logged from the issue page) it opens a breakdown; nothing is merged silently (ADR-0059 Q9). |
@@ -75,16 +75,19 @@ API-complete here; the approver's screen comes later).
 | BR-25 | **SUBMITTED** — read-only; approvers listed with their status. |
 | BR-26 | **RETURNED** — only the returned rows are editable, each showing its reason; resubmitting opens a new approval round. |
 | BR-27 | **APPROVED** — read-only; approvers shown with date and time; "View approval history" lists every round. |
-| BR-28 | **Locked** (orthogonal to status) — every write is refused with 409, from every path: grid, issue page, API, bulk. "Edit timesheet" is disabled. |
-| BR-29 | **Approvers** are resolved at submit from the policy's relations: REPORTING (the person's team manager, ADR-0032), FUNCTIONAL (ADR-0059 Q2), PROJECT (the project's LEAD, for that project's rows only — Q3). Never the owner. **Default: REPORTING only; multiple approvers are supported from day one and switched on in the policy** (ADR-0059 Q4). **No team manager → an org admin approves** (Q5). |
-| BR-30 | **Approved** when every required approval of the current round is APPROVED. Any RETURNED decision returns the timesheet. |
+| BR-28 | **Locked** (orthogonal to status) — every write is refused with 409, from every path: grid, issue page, API, bulk. "Edit timesheet" is disabled. Only an org admin's **Unlock week** (BR-34) reopens it. |
+| BR-29 | **Approvers** are resolved at submit, per line, from the policy's relations (ADR-0059 §6.3). REPORTING (the owner's team manager, ADR-0032) and FUNCTIONAL (`User.functionalManagerId`) approve the whole week. PROJECT (any one LEAD of the project) approves **only that project's lines — issue lines and activity lines tagged to the project**; lines with no project go to the reporting manager. **Default: REPORTING only**; the others are switched on in the policy and fully supported from day one. |
+| BR-30 | **Nobody approves their own lines, anywhere.** The owner is removed from every candidate set; an emptied slot falls back — PROJECT: another LEAD of that project → the reporting manager → an org admin; REPORTING/FUNCTIONAL: an org admin (also when the owner has no team manager or manages their own team). One person in several slots decides once. **No eligible approver at all → auto-approved at submit**, `autoApproved = true`, audited as "no other approver available". |
+| BR-30a | **Approved** when every required approval of the current round is APPROVED. Any RETURNED decision returns the timesheet. |
 
 ### Authorization and audit
 | | |
 |---|---|
-| BR-31 | Only the owner writes their timesheet. Approvers read the timesheet they are asked to approve; PROJECT approvers act on their project's rows only. |
+| BR-31 | Only the owner writes their timesheet. Approvers read the timesheet they are asked to approve; PROJECT approvers see and act on their project's lines only. |
 | BR-32 | Out-of-scope or cross-org timesheet → `NotFoundError` (404), never 403 (F-1). |
-| BR-33 | Everything is audited: `TIMESHEET_CREATED`, `TIMESHEET_ROW_ADDED/UPDATED/MOVED/REMOVED`, `WORKLOG_*` (existing), `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_ROW_RETURNED`, `TIMESHEET_RETURNED`, `TIMESHEET_LOCKED`, `TIMESHEET_POLICY_CREATED`, `PINNED_ROW_*`. |
+| BR-33 | Everything is audited: `TIMESHEET_CREATED`, `TIMESHEET_ROW_ADDED/UPDATED/MOVED/REMOVED`, `WORKLOG_*` (existing), `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_ROW_RETURNED`, `TIMESHEET_RETURNED`, `TIMESHEET_LOCKED`, `TIMESHEET_AUTO_APPROVED`, `TIMESHEET_UNLOCKED`, `TIMESHEET_POLICY_CREATED`, `PINNED_ROW_*`. |
+| BR-34 | **Unlock week** — an org admin may unlock someone else's locked week. A reason (1–500 chars) is required; the action is audited (`TIMESHEET_UNLOCKED`, with the reason and the previous lock time) and the owner is notified. Status is kept; any edit to an unlocked APPROVED week returns it to DRAFT for re-approval. Nobody unlocks their own week. |
+| BR-35 | **In-app notifications:** approvers on submit; the owner on return, approval, auto-approval and unlock; a log's author when a project LEAD removes it from a DRAFT week (module 19 BR-4). Email and reminders later (TS-8). |
 
 ## 3. Database
 
@@ -127,6 +130,7 @@ the same transaction as the first write. **Reads never create anything.**
 | GET | `/timesheets/{timesheetId}/history` | Approval rounds and decisions. |
 | POST | `/timesheets/{timesheetId}/approve` | Approver: `{ comment? }`. |
 | POST | `/timesheets/{timesheetId}/return` | Approver: `{ rows: [{ rowId, reason }], comment? }`. |
+| POST | `/timesheets/{timesheetId}/unlock` | Org admin: `{ reason }` (BR-34). Never the owner. |
 | GET · POST | `/timesheets/me/pinned` | List / add pinned rows. |
 | PATCH · DELETE | `/timesheets/me/pinned/{pinnedRowId}` | Reorder / remove. |
 | GET | `/timesheets/pickers/issues?q=&periodStart=` | Issue suggestions and search (BR-21). |
@@ -179,7 +183,11 @@ Timesheet**.
   with their reasons; other rows read-only.
 - **Submitted** — read-only grid; approvers with status.
 - **Approved / Locked** — read-only; approvers with date and time; "View
-  approval history"; "Edit timesheet" disabled.
+  approval history"; "Edit timesheet" disabled. An **auto-approved** week says
+  so ("Approved automatically — no other approver available").
+- **Unlock week** — on a locked week, org admins (never the owner) see an
+  "Unlock week" action that asks for a reason; the owner later sees who
+  unlocked it, when and why.
 - **Empty week** — empty state with Add row and Copy last week.
 
 ### 5.6 Visual fidelity (Step 4)
@@ -222,7 +230,16 @@ admin settings screens, HROne sync, reports, mobile layout.
   approval round; the first round stays in history.
 - Every write to a locked week is 409 — grid, issue page, API.
 - Another person's timesheet is 404 to a non-approver; a cross-org id is 404.
-- A PROJECT approver can act only on rows of their project.
+- A PROJECT approver can act only on rows of their project, including
+  activity rows tagged to it; rows with no project go to the reporting manager.
+- A project LEAD's own lines on their own project go to another LEAD, else the
+  reporting manager, else an org admin — never to themselves.
+- In a one-admin organization the admin's own week is auto-approved, with the
+  audit entry "no other approver available".
+- An org admin unlocks a locked week only with a reason; the owner is
+  notified; an admin cannot unlock their own week.
+- A LEAD removing another person's log works only in a DRAFT week, is audited,
+  and notifies the author.
 - Copy last week copies rows and never hours; duplicates no row already
   present.
 - A pinned row appears in a new week; unpinning keeps this week's row.
@@ -240,6 +257,7 @@ admin settings screens, HROne sync, reports, mobile layout.
   `clientId?` (cuids) only with `activityId`; `billableOverride?` boolean.
 - `expectedVersion`: int ≥ 0 on every write to an existing record.
 - Return: `rows` non-empty; each `reason` 1…500 chars.
+- Unlock: `reason` trimmed, 1…500 chars.
 - Move: `direction` ∈ `up | down`.
 
 ## 8. Future Scope
