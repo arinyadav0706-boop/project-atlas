@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { CheckCircle2, CornerUpLeft, History, LockOpen } from "lucide-react";
 import { toast } from "sonner";
-import { AppFrame, WorkspaceHeader } from "@/shared/components/layout/app-frame";
+import { AppFrame } from "@/shared/components/layout/app-frame";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/components/ui/dialog";
 import { TimesheetGrid } from "@/features/timesheets/components/timesheet-grid";
 import { ApprovalHistoryDialog } from "@/features/timesheets/components/timesheet-dialogs";
-import { ApproversAndDeadline, StatusChips, SummaryStrip } from "@/features/timesheets/components/timesheet-parts";
+import { ApproversAndDeadline, GLASS, OUTLINE, PageTitle, PRIMARY, StatusChips, SummaryStrip } from "@/features/timesheets/components/timesheet-parts";
 import { timesheetApi } from "@/features/timesheets/api/timesheet-api";
 import { periodLabel } from "@/features/timesheets/lib/format";
 import type { TimesheetWeekDto } from "@/features/timesheets/types/timesheet.types";
@@ -49,59 +50,62 @@ export function TimesheetReview({ initialWeek, ownerName }: { initialWeek: Times
 
   return (
     <AppFrame>
-      <WorkspaceHeader
-        title={`${ownerName}’s timesheet`}
-        breadcrumb={<span>Timesheets</span>}
-        actions={<StatusChips week={week} />}
-      />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        <p className="text-meta font-medium text-foreground">{periodLabel(week.periodStart, week.periodEnd)}</p>
-        <ApproversAndDeadline week={week} />
-        <SummaryStrip week={week} />
-        {week.permissions.canDecide && (
-          <p className="text-meta text-muted-foreground">
-            Tick the lines that need changes to return them, or approve the week.
-          </p>
-        )}
-        <div className="min-h-0 overflow-x-auto rounded-lg border border-border">
-          <TimesheetGrid
-            rows={week.rows}
-            days={week.days}
-            canEdit={false}
-            canOverrideBillable={false}
-            highlightRowId={null}
-            selectable={week.permissions.canDecide}
-            selected={selected}
-            onToggleSelected={(id) =>
-              setSelected((s) => {
-                const next = new Set(s);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })
-            }
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          {week.id && (
-            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
-              <History className="h-4 w-4" /> View approval history
-            </Button>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-col gap-5 px-8 pb-6 pt-6">
+          <PageTitle title={`${ownerName}’s timesheet`} trail="Review" />
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex h-9 items-center rounded-lg border border-line bg-background px-4 text-meta font-semibold text-foreground">
+              {periodLabel(week.periodStart, week.periodEnd)}
+            </span>
+            <div className="ml-auto">
+              <StatusChips week={week} />
+            </div>
+          </div>
+          <ApproversAndDeadline week={week} />
+          <SummaryStrip week={week} />
+          {week.permissions.canDecide && (
+            <p className="text-meta text-muted-foreground">Tick the lines that need changes to return them, or approve the week.</p>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="overflow-x-auto rounded-xl border border-line bg-background">
+            <TimesheetGrid
+              rows={week.rows}
+              days={week.days}
+              canEdit={false}
+              canOverrideBillable={false}
+              highlightRowId={null}
+              selectable={week.permissions.canDecide}
+              selected={selected}
+              onToggleSelected={(id) =>
+                setSelected((s) => {
+                  const next = new Set(s);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+            />
+          </div>
+        </div>
+        <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-2.5 border-t border-line bg-background/90 px-8 py-4 backdrop-blur-md">
+          {week.id && (
+            <button type="button" className={OUTLINE} onClick={() => setHistoryOpen(true)}>
+              <History className="h-4 w-4" /> View approval history
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-2.5">
             {week.permissions.canUnlock && (
-              <Button variant="outline" onClick={() => setUnlockOpen(true)}>
+              <button type="button" className={OUTLINE} onClick={() => setUnlockOpen(true)}>
                 <LockOpen className="h-4 w-4" /> Unlock week
-              </Button>
+              </button>
             )}
             {week.permissions.canDecide && (
               <>
-                <Button variant="outline" disabled={selected.size === 0} onClick={() => setReturnOpen(true)}>
+                <button type="button" className={OUTLINE} disabled={selected.size === 0} onClick={() => setReturnOpen(true)}>
                   <CornerUpLeft className="h-4 w-4" /> Return {selected.size > 0 ? `${selected.size} line${selected.size === 1 ? "" : "s"}` : "lines"}
-                </Button>
-                <Button loading={busy} onClick={() => void act(() => timesheetApi.approve(week.id!), "Approved")}>
+                </button>
+                <button type="button" className={PRIMARY} disabled={busy} onClick={() => void act(() => timesheetApi.approve(week.id!), "Approved")}>
                   <CheckCircle2 className="h-4 w-4" /> Approve
-                </Button>
+                </button>
               </>
             )}
           </div>
@@ -109,7 +113,7 @@ export function TimesheetReview({ initialWeek, ownerName }: { initialWeek: Times
       </div>
 
       <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className={cn("max-w-lg rounded-2xl p-6", GLASS)}>
           <DialogTitle>Return lines</DialogTitle>
           <DialogDescription>Say what needs to change on each line. {ownerName} can edit only these.</DialogDescription>
           <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
@@ -164,7 +168,7 @@ export function TimesheetReview({ initialWeek, ownerName }: { initialWeek: Times
       </Dialog>
 
       <Dialog open={unlockOpen} onOpenChange={setUnlockOpen}>
-        <DialogContent>
+        <DialogContent className={cn("rounded-2xl p-6", GLASS)}>
           <DialogTitle>Unlock this week?</DialogTitle>
           <DialogDescription>
             {ownerName} will be told, with your reason. If they change anything, the week goes back for approval.

@@ -61,6 +61,21 @@
   /* One focus colour, used by every interactive element. */
   --focus-ring: 220 98% 57%;
 
+  /* Timesheets (37_timesheets §5.6, Step 4). ADDED, never re-valued, so no
+     other screen moves; the later UI makeover unifies them.
+     --line is the mockup's #E5E7EB hairline. The *-ink shades exist because
+     the mockup's bright orange/green/purple fail 4.5:1 as small text on
+     white; tints stay bright, words use the ink. */
+  --line: 220 13% 91%;
+  --glass: 0 0% 100%;
+  --holiday: 262 83% 58%;
+  --holiday-ink: 262 60% 42%;
+  --leave-ink: 142 72% 27%;
+  --warning-ink: 25 95% 37%;
+  --success-ink: 142 72% 29%;
+  --danger-ink: 0 74% 42%;
+  --primary-ink: 221 83% 47%;
+
   /* Two more tokens the codebase was ALREADY using and this project never
      defined — found by the UX-2 guardrail on its first run, not by review:
        `border-input`  in features/issues/components/epic-select.tsx

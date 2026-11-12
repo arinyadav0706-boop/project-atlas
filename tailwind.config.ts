@@ -48,6 +48,15 @@ const config: Config = {
         "border-subtle": "hsl(var(--border-subtle))",
         "border-strong": "hsl(var(--border-strong))",
         info: "hsl(var(--info))",
+        // Timesheets (37_timesheets §5.6) — see globals.css.
+        line: "hsl(var(--line))",
+        glass: "hsl(var(--glass))",
+        holiday: { DEFAULT: "hsl(var(--holiday))", ink: "hsl(var(--holiday-ink))" },
+        "leave-ink": "hsl(var(--leave-ink))",
+        "warning-ink": "hsl(var(--warning-ink))",
+        "success-ink": "hsl(var(--success-ink))",
+        "danger-ink": "hsl(var(--danger-ink))",
+        "primary-ink": "hsl(var(--primary-ink))",
         // Already referenced by epic-select and comment-composer against
         // nothing; see globals.css.
         input: "hsl(var(--input))",

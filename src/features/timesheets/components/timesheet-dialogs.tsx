@@ -5,6 +5,8 @@ import { ArrowDown, ArrowUp, CheckCircle2, CircleDashed, CornerUpLeft, MinusCirc
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
+import { GLASS } from "@/features/timesheets/components/timesheet-parts";
 import { timesheetApi } from "@/features/timesheets/api/timesheet-api";
 import { dateTimeLabel } from "@/features/timesheets/lib/format";
 import type {
@@ -43,7 +45,7 @@ export function EditRowDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={cn("rounded-2xl p-6", GLASS)}>
         <DialogTitle>Edit line</DialogTitle>
         <DialogDescription>{label}</DialogDescription>
         <div className="mt-4 space-y-4">
@@ -126,7 +128,7 @@ export function ManageRecurringDialog({ open, onOpenChange }: { open: boolean; o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn("max-w-lg rounded-2xl p-6", GLASS)}>
         <DialogTitle>Recurring rows</DialogTitle>
         <DialogDescription>
           These appear in every new week. Removing one keeps it in weeks that already have it.
@@ -198,7 +200,7 @@ export function ApprovalHistoryDialog({
   const rounds = [...new Set((items ?? []).map((i) => i.round))];
   return (
     <Dialog open={timesheetId !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn("max-w-lg rounded-2xl p-6", GLASS)}>
         <DialogTitle>Approval history</DialogTitle>
         <DialogDescription>Every submission and each approver’s decision.</DialogDescription>
         <div className="mt-4 max-h-96 space-y-4 overflow-y-auto scroll-fade">

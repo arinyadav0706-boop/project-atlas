@@ -8,6 +8,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Button } from "@/shared/components/ui/button";
 import { timesheetApi } from "@/features/timesheets/api/timesheet-api";
 import { cn } from "@/shared/lib/utils";
+import { GLASS } from "@/features/timesheets/components/timesheet-parts";
 import type {
   ActivityOptionDto,
   ActivityPickerDto,
@@ -75,7 +76,7 @@ export function AddRowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn("max-w-lg rounded-2xl p-6", GLASS)}>
         <DialogTitle>{kind === "ISSUE" ? "Add an issue" : "Add an activity"}</DialogTitle>
         <DialogDescription>
           {kind === "ISSUE"

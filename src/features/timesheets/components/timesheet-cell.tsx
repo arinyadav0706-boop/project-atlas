@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { Layers, MessageSquareText, StickyNote } from "lucide-react";
+import { FileWarning, Layers, MessageSquareText } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { Button } from "@/shared/components/ui/button";
 import { parseDuration } from "@/features/time-tracking/lib/duration";
 import { minutesInput, minutesLabel } from "@/features/timesheets/lib/format";
+import { GLASS } from "@/features/timesheets/components/timesheet-parts";
 import { cn } from "@/shared/lib/utils";
 import type { TimesheetCellDto } from "@/features/timesheets/types/timesheet.types";
 
@@ -19,19 +18,21 @@ export function cellDomId(rowId: string, date: string): string {
   return `ts-cell-${rowId.replace(/[^a-zA-Z0-9_-]/g, "_")}-${date}`;
 }
 
+const BOX = "flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-body tabular-nums";
+
 export function TimesheetCell({
   rowId,
   cell,
   label,
   editable,
-  issueHref,
+  overtime,
   onSave,
 }: {
   rowId: string;
   cell: TimesheetCellDto;
   label: string;
   editable: boolean;
-  issueHref: string | null;
+  overtime: boolean;
   onSave: (duration: string, note?: string | null) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -47,6 +48,11 @@ export function TimesheetCell({
 
   const multiple = cell.logCount > 1;
   const missingNote = cell.noteRequired && cell.minutes > 0 && !cell.note;
+  const valueTone = cell.minutes
+    ? overtime
+      ? "font-semibold text-danger-ink"
+      : "font-medium text-foreground"
+    : "text-muted-foreground";
 
   async function commit() {
     const raw = draft.trim();
@@ -71,12 +77,14 @@ export function TimesheetCell({
           id={cellDomId(rowId, cell.date)}
           aria-label={`${label}, hours`}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${cellDomId(rowId, cell.date)}-error` : undefined}
           className={cn(
-            "h-8 w-full rounded-md border bg-background px-1.5 text-center text-meta tabular-nums text-foreground outline-none",
-            error ? "border-destructive ring-1 ring-destructive" : "border-primary ring-1 ring-primary",
+            "h-10 w-full rounded-lg border bg-background px-2 text-center text-body font-medium tabular-nums text-foreground outline-none ring-2 transition-shadow",
+            error ? "border-destructive ring-destructive/25" : "border-primary ring-primary/20",
           )}
           value={draft}
           inputMode="decimal"
+          placeholder="0:00"
           onChange={(e) => {
             setDraft(e.target.value);
             setError(null);
@@ -93,7 +101,11 @@ export function TimesheetCell({
           }}
         />
         {error && (
-          <p role="alert" className="absolute left-0 top-full z-10 mt-1 w-44 rounded-md border border-destructive/30 bg-background px-2 py-1 text-micro text-destructive">
+          <p
+            id={`${cellDomId(rowId, cell.date)}-error`}
+            role="alert"
+            className={cn("absolute left-1/2 top-full z-20 mt-1.5 w-48 -translate-x-1/2 rounded-lg px-2.5 py-1.5 text-micro text-danger-ink", GLASS)}
+          >
             {error}
           </p>
         )}
@@ -110,31 +122,27 @@ export function TimesheetCell({
             id={cellDomId(rowId, cell.date)}
             type="button"
             aria-label={`${label}: ${minutesLabel(cell.minutes)} across ${cell.logCount} entries`}
-            className="flex h-8 w-full items-center justify-center gap-1 rounded-md text-meta tabular-nums text-foreground hover:bg-muted"
+            className={cn(BOX, valueTone, "hover:bg-background hover:ring-1 hover:ring-line")}
           >
             {minutesLabel(cell.minutes)}
-            <Layers className="h-3 w-3 text-muted-foreground" aria-hidden />
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 text-meta">
-          <p className="text-foreground">
-            {cell.logCount} separate entries add up to {minutesLabel(cell.minutes)} here.
+        <PopoverContent className={cn("w-64 rounded-xl p-4 text-meta", GLASS)}>
+          <p className="font-semibold text-foreground">
+            {cell.logCount} entries · {minutesLabel(cell.minutes)}
           </p>
           <p className="mt-1 text-muted-foreground">
-            Edit them one by one on the issue, so nothing is merged by accident.
+            These were logged separately (for example from the issue page). Edit them one by one there, so nothing is
+            merged by accident.
           </p>
-          {issueHref && (
-            <Link href={issueHref} className="mt-2 inline-block font-medium text-primary hover:underline">
-              Open the issue
-            </Link>
-          )}
         </PopoverContent>
       </Popover>
     );
   }
 
   return (
-    <div className="group relative">
+    <div className="group/cell relative">
       <button
         id={cellDomId(rowId, cell.date)}
         type="button"
@@ -152,15 +160,16 @@ export function TimesheetCell({
           }
         }}
         className={cn(
-          "flex h-8 w-full items-center justify-center gap-1 rounded-md text-meta tabular-nums",
-          cell.minutes ? "text-foreground" : "text-muted-foreground",
-          editable && "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-          missingNote && "border border-destructive bg-destructive/5",
+          BOX,
+          valueTone,
+          "transition-[background-color,box-shadow] duration-150",
+          editable && "cursor-text hover:bg-background hover:ring-1 hover:ring-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          missingNote && "bg-background ring-1 ring-destructive hover:ring-destructive",
           !editable && "cursor-default",
         )}
       >
+        {missingNote && <FileWarning className="h-4 w-4 shrink-0 text-danger-ink" aria-hidden />}
         {minutesLabel(cell.minutes)}
-        {missingNote && <StickyNote className="h-3 w-3 text-destructive" aria-hidden />}
       </button>
 
       {cell.minutes > 0 && (editable || cell.note) && (
@@ -177,46 +186,48 @@ export function TimesheetCell({
             <button
               type="button"
               aria-label={cell.note ? `${label}: note — ${cell.note}` : `${label}: add a note`}
-              className="absolute right-0 top-0 flex h-3.5 w-3.5 items-start justify-end rounded-tr-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-start justify-end rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               {cell.note && (
-                <span aria-hidden className="h-0 w-0 border-l-[7px] border-t-[7px] border-l-transparent border-t-primary group-hover:hidden" />
+                <span aria-hidden className="mr-0.5 mt-0.5 h-0 w-0 border-l-[7px] border-t-[7px] border-l-transparent border-t-primary group-hover/cell:hidden" />
               )}
               <MessageSquareText
                 aria-hidden
                 className={cn(
-                  "h-3 w-3 text-muted-foreground",
-                  cell.note ? "hidden text-primary group-hover:block" : "opacity-0 group-hover:opacity-100",
+                  "h-3.5 w-3.5",
+                  cell.note ? "hidden text-primary-ink group-hover/cell:block" : "text-muted-foreground opacity-0 group-hover/cell:opacity-100",
                 )}
               />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-72">
-            <label className="text-label text-foreground" htmlFor={`${cellDomId(rowId, cell.date)}-note`}>
-              Note{cell.noteRequired ? " (required)" : ""}
+          <PopoverContent align="end" sideOffset={6} className={cn("w-80 rounded-xl p-4", GLASS)}>
+            <label className="text-label font-semibold text-foreground" htmlFor={`${cellDomId(rowId, cell.date)}-note`}>
+              Note{cell.noteRequired ? " · required" : ""}
             </label>
             <Textarea
               id={`${cellDomId(rowId, cell.date)}-note`}
-              className="mt-1.5 min-h-20 text-meta"
+              className="mt-2 min-h-24 rounded-lg border-line bg-background text-meta"
               maxLength={1000}
+              placeholder="What was this time spent on?"
               value={noteDraft}
               readOnly={!editable}
               onChange={(e) => setNoteDraft(e.target.value)}
             />
             {editable && (
-              <div className="mt-2 flex justify-end gap-1.5">
-                <Button variant="ghost" size="sm" onClick={() => setNoteOpen(false)}>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" className="h-8 rounded-lg px-3 text-meta font-medium text-foreground hover:bg-muted" onClick={() => setNoteOpen(false)}>
                   Cancel
-                </Button>
-                <Button
-                  size="sm"
+                </button>
+                <button
+                  type="button"
+                  className="h-8 rounded-lg bg-primary-ink px-3 text-meta font-semibold text-white hover:bg-primary-ink/90"
                   onClick={async () => {
                     const ok = await onSave(minutesInput(cell.minutes), noteDraft.trim() || null);
                     if (ok) setNoteOpen(false);
                   }}
                 >
                   Save note
-                </Button>
+                </button>
               </div>
             )}
           </PopoverContent>

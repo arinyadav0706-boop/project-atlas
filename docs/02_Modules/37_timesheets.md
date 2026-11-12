@@ -211,6 +211,19 @@ language. The mockup is the floor, not the ceiling: generous 8–12px radii on
 cards and panels, 6–8px on inputs and chips, comfortable spacing, precise grid
 alignment, a clear type hierarchy and polished interactions.
 
+**Step 4 — as built (2026-11-13).** New tokens, added (never re-valued) in
+`globals.css` / `tailwind.config.ts`: `line` (#E5E7EB hairline), `glass`
+(floating-layer surface), `holiday`, and text "inks" `warning-ink`,
+`leave-ink`, `holiday-ink`, `success-ink`, `danger-ink`, `primary-ink`. The
+inks exist because the mockup's bright orange, green, purple, red-on-tint and
+brand blue measured below 4.5:1 as small text (e.g. red on the overtime tint
+4.24:1, brand blue 4.46:1, white on the brand-blue button 4.46:1); every ink
+measures ≥ 4.5:1 on white and on its tint. Glass (translucent surface + blur)
+is applied only to floating layers — row menu, add-row menu, popovers, dialogs,
+the submit-blocked panel and the sticky footer — locally, so shared primitives
+and other screens are unchanged. Controls are 8px radius, cards and panels
+12–16px, no shadows on content. No new shared primitive was needed.
+
 **Step 3 notes (2026-11-13):** "Integrate HR" is shown as *coming soon* until
 the HR screen exists (TS-7). A cell holding several logs explains itself but
 does not yet edit them in place (TS-18). The deadline and decision times are
