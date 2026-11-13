@@ -49,15 +49,37 @@ async function context(sheet: TimesheetRecord) {
 // The current round's slots belonging to this approver that can act now:
 // all of them in PARALLEL mode; in SEQUENTIAL mode only while every earlier
 // slot of the round is decided.
-async function actionableSlots(sheet: TimesheetRecord, approverId: string, mode: "PARALLEL" | "SEQUENTIAL") {
+// The current round's slots this actor can act on now. Their own slots — and,
+// for an org admin, any slot an admin holds as a stand-in (ADR-0059 §6.3: "an
+// org admin approves", so any admin may, not only the one picked at submit;
+// otherwise a week can stall on an admin account nobody watches). Never the
+// owner. In SEQUENTIAL mode only while every earlier slot is decided.
+async function actionableSlots(sheet: TimesheetRecord, actor: Actor, mode: "PARALLEL" | "SEQUENTIAL") {
   const round = await TimesheetRepository.approvals(sheet.id, sheet.round);
   const pending = round.filter((a) => a.status === "PENDING");
-  const mine = pending.filter((a) => a.approverId === approverId);
+  const adminIds =
+    actor.orgRole === "ADMIN" && actor.userId !== sheet.userId
+      ? new Set(await TimesheetRepository.orgAdminIds(sheet.organizationId))
+      : new Set<string>();
+  const mine = pending.filter(
+    (a) => a.approverId === actor.userId || (a.fallbackFrom !== null && adminIds.has(a.approverId)),
+  );
   if (mode === "SEQUENTIAL") {
     const firstPending = Math.min(...pending.map((a) => a.sequence));
     return { round, mine: mine.filter((a) => a.sequence === firstPending) };
   }
   return { round, mine };
+}
+
+// BR-32: before anything about the week's state is said, the caller must be
+// someone with a reason to see it — an approver of it (any round) or an org
+// admin. Everyone else, and the owner acting as an approver, gets a 404.
+async function requireDecider(actor: Actor, sheet: TimesheetRecord): Promise<void> {
+  if (sheet.userId === actor.userId) throw new NotFoundError("Timesheet not found.");
+  if (actor.orgRole === "ADMIN") return;
+  if ((await TimesheetRepository.isApproverOf(sheet.id, actor.userId)) === 0) {
+    throw new NotFoundError("Timesheet not found.");
+  }
 }
 
 async function weekForViewer(actor: Actor, sheet: TimesheetRecord): Promise<TimesheetWeekDto> {
@@ -83,7 +105,7 @@ async function weekForViewer(actor: Actor, sheet: TimesheetRecord): Promise<Time
   });
   if (!isOwner && fresh.status === "SUBMITTED") {
     const policy = await TimesheetRepository.policyById(fresh.policyId);
-    const { mine } = await actionableSlots(fresh, actor.userId, policy?.approvalMode ?? "PARALLEL");
+    const { mine } = await actionableSlots(fresh, actor, policy?.approvalMode ?? "PARALLEL");
     week.permissions.canDecide = mine.length > 0;
   }
   return week;
@@ -131,17 +153,17 @@ export const TimesheetApprovalService = {
   // BR-30a: approved when every slot of the current round is approved.
   async approve(actor: Actor, timesheetId: string, comment?: string): Promise<TimesheetWeekDto> {
     const sheet = await loadSheet(actor, timesheetId);
-    if (sheet.userId === actor.userId) throw new NotFoundError("Timesheet not found.");
+    await requireDecider(actor, sheet);
     const { policy } = await context(sheet);
     if (sheet.status !== "SUBMITTED") throw new ConflictError("This timesheet is not waiting for approval.");
-    const { round, mine } = await actionableSlots(sheet, actor.userId, policy.approvalMode);
+    const { round, mine } = await actionableSlots(sheet, actor, policy.approvalMode);
     if (mine.length === 0) {
       if (round.some((a) => a.approverId === actor.userId)) {
         throw new ConflictError("You have already decided, or it is not your turn yet.");
       }
       throw new NotFoundError("Timesheet not found.");
     }
-    await TimesheetRepository.decide(mine.map((a) => a.id), "APPROVED", comment?.trim() || null);
+    await TimesheetRepository.decide(mine.map((a) => a.id), "APPROVED", comment?.trim() || null, actor.userId);
 
     const after = await TimesheetRepository.approvals(sheet.id, sheet.round);
     const done = after.every((a) => a.status === "APPROVED" || a.status === "SKIPPED");
@@ -183,10 +205,10 @@ export const TimesheetApprovalService = {
   // pending slots are skipped, and resubmitting opens a new round.
   async returnLines(actor: Actor, timesheetId: string, input: ReturnInput): Promise<TimesheetWeekDto> {
     const sheet = await loadSheet(actor, timesheetId);
-    if (sheet.userId === actor.userId) throw new NotFoundError("Timesheet not found.");
+    await requireDecider(actor, sheet);
     const { policy } = await context(sheet);
     if (sheet.status !== "SUBMITTED") throw new ConflictError("This timesheet is not waiting for approval.");
-    const { round, mine } = await actionableSlots(sheet, actor.userId, policy.approvalMode);
+    const { round, mine } = await actionableSlots(sheet, actor, policy.approvalMode);
     if (mine.length === 0) {
       if (round.some((a) => a.approverId === actor.userId)) {
         throw new ConflictError("You have already decided, or it is not your turn yet.");
@@ -194,7 +216,8 @@ export const TimesheetApprovalService = {
       throw new NotFoundError("Timesheet not found.");
     }
 
-    const cover = coveredProjectIds(round, actor.userId);
+    // Scope comes from the slots being decided, not from whose name is on them.
+    const cover = coveredProjectIds(mine.map((a) => ({ ...a, approverId: actor.userId })), actor.userId);
     const rows = await TimesheetRepository.rows(sheet.id);
     for (const r of input.rows) {
       const row = rows.find((x) => x.id === r.rowId);
@@ -206,7 +229,7 @@ export const TimesheetApprovalService = {
     }
 
     await TimesheetRepository.markRowsReturned(input.rows, actor.userId);
-    await TimesheetRepository.decide(mine.map((a) => a.id), "RETURNED", input.comment?.trim() || null);
+    await TimesheetRepository.decide(mine.map((a) => a.id), "RETURNED", input.comment?.trim() || null, actor.userId);
     await TimesheetRepository.skipPending(sheet.id, sheet.round);
     const ok = await TimesheetRepository.updateSheetIfVersion(sheet.id, sheet.version, {
       status: "RETURNED",

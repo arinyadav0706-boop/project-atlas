@@ -266,6 +266,11 @@ order: for a PROJECT slot, **another LEAD of that project → the reporting
 manager → an org admin**; for a REPORTING or FUNCTIONAL slot, **an org admin**
 (also the case when the owner has no team manager, or manages their own
 team). An approver appearing in several slots decides once for all of them.
+**Any org admin may decide a slot an admin holds as a stand-in** — every
+admin is notified, and the slot records the admin who actually decided — so a
+week never stalls on one admin account nobody watches (found by the Step 5
+end-to-end test: the seed has a bootstrap "Platform Admin"). A caller with no
+reason to see the week gets 404 before anything about its state is said.
 
 If **no other eligible approver exists at all** (e.g. a one-admin startup),
 the week is **auto-approved** at submit: `Timesheet.autoApproved = true` and

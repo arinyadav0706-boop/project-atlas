@@ -687,7 +687,17 @@ export const TimesheetService = {
       const owner = await TimesheetRepository.userName(actor.userId);
       await NotificationService.timesheetSubmitted(actor, {
         timesheetId: sheet.id,
-        approverIds: [...new Set(plan.slots.map((s) => s.approverId))],
+        // A slot an admin holds as a stand-in can be decided by any admin, so
+        // every admin hears about it (ADR-0059 §6.3).
+        approverIds: [
+          ...new Set(
+            plan.slots.flatMap((s) =>
+              s.fallbackFrom !== null && orgAdminIds.includes(s.approverId)
+                ? orgAdminIds.filter((id) => id !== actor.userId)
+                : [s.approverId],
+            ),
+          ),
+        ],
         ownerName: owner?.name ?? "Someone",
         periodLabel: periodLabel(period.start, period.end),
       });

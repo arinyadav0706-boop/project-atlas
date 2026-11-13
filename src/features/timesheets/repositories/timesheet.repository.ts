@@ -576,10 +576,12 @@ export const TimesheetRepository = {
     });
   },
 
-  decide(ids: string[], status: "APPROVED" | "RETURNED", comment: string | null) {
+  // Records who actually decided: an admin may act on another admin's
+  // stand-in slot, and the history must name them (ADR-0059 §6.3).
+  decide(ids: string[], status: "APPROVED" | "RETURNED", comment: string | null, deciderId: string) {
     return prisma.timesheetApproval.updateMany({
       where: { id: { in: ids }, status: "PENDING" },
-      data: { status, decidedAt: new Date(), comment },
+      data: { status, decidedAt: new Date(), comment, approverId: deciderId },
     });
   },
 

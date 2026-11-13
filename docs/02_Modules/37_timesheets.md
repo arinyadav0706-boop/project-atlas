@@ -1,6 +1,6 @@
 # Module 37 — Timesheets (Screen 1: My Timesheet)
 
-**Status:** v1.0 spec — **Accepted** with ADR-0059 (2026-11-13); not yet built
+**Status:** v1.0 — **Built** (Screen 1, 2026-11-13); ADR-0059 accepted
 **ADR:** 0059 · **Brief:** `docs/briefs/timesheets-screen1.md`
 **Mockups:** `docs/05_UI/mockups/timesheets/my-timesheet-states-a.png`
 `my-timesheet-states-b.png` (the only sheet — §5.6)
@@ -77,7 +77,7 @@ API-complete here; the approver's screen comes later).
 | BR-27 | **APPROVED** — read-only; approvers shown with date and time; "View approval history" lists every round. |
 | BR-28 | **Locked** (orthogonal to status) — every write is refused with 409, from every path: grid, issue page, API, bulk. "Edit timesheet" is disabled. Only an org admin's **Unlock week** (BR-34) reopens it. |
 | BR-29 | **Approvers** are resolved at submit, per line, from the policy's relations (ADR-0059 §6.3). REPORTING (the owner's team manager, ADR-0032) and FUNCTIONAL (`User.functionalManagerId`) approve the whole week. PROJECT (any one LEAD of the project) approves **only that project's lines — issue lines and activity lines tagged to the project**; lines with no project go to the reporting manager. **Default: REPORTING only**; the others are switched on in the policy and fully supported from day one. |
-| BR-30 | **Nobody approves their own lines, anywhere.** The owner is removed from every candidate set; an emptied slot falls back — PROJECT: another LEAD of that project → the reporting manager → an org admin; REPORTING/FUNCTIONAL: an org admin (also when the owner has no team manager or manages their own team). One person in several slots decides once. **No eligible approver at all → auto-approved at submit**, `autoApproved = true`, audited as "no other approver available". |
+| BR-30 | **Nobody approves their own lines, anywhere.** The owner is removed from every candidate set; an emptied slot falls back — PROJECT: another LEAD of that project → the reporting manager → an org admin; REPORTING/FUNCTIONAL: an org admin (also when the owner has no team manager or manages their own team). One person in several slots decides once. **Any org admin may decide a slot an admin holds as a stand-in** (all admins are notified; the history records who decided). **No eligible approver at all → auto-approved at submit**, `autoApproved = true`, audited as "no other approver available". |
 | BR-30a | **Approved** when every required approval of the current round is APPROVED. Any RETURNED decision returns the timesheet. |
 
 ### Authorization and audit
@@ -234,44 +234,37 @@ admin settings screens, HROne sync, reports, mobile layout.
 
 ## 6. Acceptance Criteria
 
-- An activity entry and an issue entry on the same day both save; an entry
-  with both or neither is rejected by the database.
-- "1:30", "1.5", "1h 30m", "90m" all store 90; "8" stores 480.
-- Two people editing — or one person in two tabs — the same cell: the stale
-  write gets 409 and the cell shows the current value.
-- Billable resolves in the documented order; changing a project default later
-  does not change a submitted week.
-- With HR not connected, expected = working days × working day and the hint is
-  visible; with HR connected, a holiday and an approved leave day reduce it.
-- A day above the overtime threshold is flagged and still submits.
-- Submit is refused for each of: missing required note, missing required
-  project/client, a day over 24h, an empty week — each problem links to the
-  right cell or row.
-- Submit → all approvers approve → APPROVED → locked (auto-lock on).
-- With REPORTING + PROJECT enabled: the project LEAD sees and decides only
-  their project's rows; the week is APPROVED only when both have approved.
-- A person with no team manager is routed to an org admin.
-- Migration: past weeks are frozen with hours unchanged; the migration week
-  stays an open DRAFT.
-- Submit → return two rows → only those rows are editable → resubmit → a new
-  approval round; the first round stays in history.
-- Every write to a locked week is 409 — grid, issue page, API.
-- Another person's timesheet is 404 to a non-approver; a cross-org id is 404.
-- A PROJECT approver can act only on rows of their project, including
-  activity rows tagged to it; rows with no project go to the reporting manager.
-- A project LEAD's own lines on their own project go to another LEAD, else the
-  reporting manager, else an org admin — never to themselves.
-- In a one-admin organization the admin's own week is auto-approved, with the
-  audit entry "no other approver available".
-- An org admin unlocks a locked week only with a reason; the owner is
-  notified; an admin cannot unlock their own week.
-- A LEAD removing another person's log works only in a DRAFT week, is audited,
-  and notifies the author.
-- Copy last week copies rows and never hours; duplicates no row already
-  present.
-- A pinned row appears in a new week; unpinning keeps this week's row.
-- Move up / down persists across reloads.
-- Back-filled weeks from existing logs show their hours unchanged.
+All met (2026-11-13). Where each is proven — **U** unit
+(`lib/rules.test.ts`, `lib/approvers.test.ts`, `time-tracking/lib/duration.test.ts`),
+**I** integration (`src/tests/integration/timesheets.integration.test.ts`),
+**E** Playwright (`e2e/timesheets.spec.ts`), **R** migration rehearsal
+(ADR-0059 §5):
+
+| Criterion | Proof |
+|---|---|
+| An activity entry and an issue entry on the same day both save; an entry with both or neither is rejected by the database. | I |
+| "1:30", "1.5", "1h 30m", "90m" all store 90; "8" stores 480. | U, E |
+| A stale write to the same cell (second tab) gets 409 and the current value stands. | I |
+| Billable resolves in the documented order; a later project-default change does not change a submitted week. | U, I |
+| HR not connected: expected = working days × working day and the hint shows; connected: a holiday and approved leave reduce it. | U (+ screenshots, Step 4) |
+| A day above the overtime threshold is flagged and still submits. | U, I |
+| Submit is refused for a missing required note, a missing required project/client, a day over 24h, an empty week — each problem points to its cell or row. | U, I, E |
+| Submit → all approvers approve → APPROVED → locked (auto-lock on). | I, E |
+| REPORTING + PROJECT: the project LEAD sees and decides only their project's rows; APPROVED only when both approved. | I |
+| No team manager → an org admin; **any** org admin may decide a stand-in slot, and the history names who did. | U, I, E |
+| Migration: past weeks frozen with hours unchanged; the migration week stays an open DRAFT. | R |
+| Submit → return rows → only those editable → resubmit → new round; the first round stays in history. | I, E |
+| Every write to a locked week is 409 — grid, issue page, API. | I, E |
+| Another person's timesheet is 404 to a non-approver, before anything about its state is revealed; a cross-org id is 404. | I |
+| A PROJECT approver acts only on rows of their project, including activity rows tagged to it; untagged rows go to the reporting manager. | U, I |
+| A project LEAD's own lines go to another LEAD, else the reporting manager, else an org admin — never to themselves. | U, I |
+| One-admin organization: the admin's own week is auto-approved with the audit entry "no other approver available". | U, I |
+| An org admin unlocks a locked week only with a reason; the owner is notified; an admin cannot unlock their own week. | I |
+| A LEAD removing another person's log works only in a DRAFT week, is audited, and notifies the author. | U (module 19), I |
+| Copy last week copies rows, never hours, and duplicates no row already present. | I |
+| A pinned row appears in a new week; unpinning keeps this week's row. | I |
+| Move up / down persists. | I |
+| Back-filled weeks from existing logs show their hours unchanged. | R |
 
 ## 7. Validation (Zod, shared client ↔ server)
 

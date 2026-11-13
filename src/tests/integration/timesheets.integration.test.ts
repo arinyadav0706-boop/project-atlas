@@ -257,6 +257,35 @@ describe("who can see and act (BR-31, BR-32, F-1)", () => {
   });
 });
 
+describe("org-admin stand-in (ADR-0059 §6.3, Q5)", () => {
+  it("lets any org admin decide a slot an admin holds as a stand-in, and names who decided", async () => {
+    const s = await seed("tz");
+    const second = await prisma.user.create({
+      data: { organizationId: s.org.id, email: "second-admin@x.com", name: "Second Admin", orgRole: "ADMIN" },
+    });
+    await prisma.teamMembership.delete({ where: { userId: s.ana.id } }); // no team manager → admins
+    const row = await TimesheetService.addRow(s.a.ana, s.period, { issueId: s.i1.id });
+    await TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 60 });
+    const sub = await TimesheetService.submit(s.a.ana, s.period, 0);
+    const assigned = sub.approvals[0]!.approver.id;
+    expect([s.admin.id, second.id]).toContain(assigned);
+    expect(sub.approvals[0]!.fallbackFrom).toBe("REPORTING");
+
+    // Both admins are told; whichever was not picked can still approve.
+    for (const id of [s.admin.id, second.id]) {
+      expect(await prisma.notification.count({ where: { userId: id, type: "TIMESHEET_SUBMITTED" } })).toBe(1);
+    }
+    const other = assigned === s.admin.id ? second : s.admin;
+    const done = await TimesheetApprovalService.approve(actorOf(other), sub.id!);
+    expect(done.status).toBe("APPROVED");
+    const history = await TimesheetApprovalService.history(s.a.ana, sub.id!);
+    expect(history[0]!.approver.id).toBe(other.id);
+
+    // A non-admin who is not an approver still cannot.
+    await expect(TimesheetApprovalService.approve(s.a.bo, sub.id!)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
 describe("unlock week (BR-34, Q13)", () => {
   it("needs an org admin and a reason, notifies the owner, and sends an edited week back for approval", async () => {
     const s = await seed("tg");
@@ -404,6 +433,43 @@ describe("module 19 under timesheets (ADR-0059 §6.2, Q8, Q9)", () => {
       await expect(TimesheetService.saveCell(s.a.ana, s.period, row.id!, tomorrow, { duration: 60 })).rejects.toBeInstanceOf(ValidationError);
     }
     await expect(TimesheetService.saveCell(s.a.ana, s.period, row.id!, addDays(s.period, 7), { duration: 60 })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("acceptance criteria not covered above (37 §6)", () => {
+  it("rejects a stale write to the same cell from a second tab with 409", async () => {
+    const s = await seed("tx");
+    const row = await TimesheetService.addRow(s.a.ana, s.period, { issueId: s.i1.id });
+    const first = await TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 60 });
+    const staleVersion = first.cell.version!;
+    await TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 90, expectedVersion: staleVersion });
+    await expect(
+      TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 30, expectedVersion: staleVersion }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    const week = await TimesheetService.getWeek(s.a.ana, s.period);
+    expect(week.rows[0]!.cells.find((c) => c.date === s.day)!.minutes).toBe(90);
+  });
+
+  it("flags an overtime day but still lets the week submit (BR-15)", async () => {
+    const s = await seed("ty");
+    const row = await TimesheetService.addRow(s.a.ana, s.period, { issueId: s.i1.id });
+    await TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 600 });
+    const week = await TimesheetService.getWeek(s.a.ana, s.period);
+    expect(week.days.find((d) => d.date === s.day)!.overtime).toBe(true);
+    expect(week.problems).toEqual([]);
+    expect((await TimesheetService.submit(s.a.ana, s.period, week.version)).status).toBe("SUBMITTED");
+  });
+
+  it("routes an activity line tagged to a project to that project's lead (Q3)", async () => {
+    const s = await seed("tw", { relations: ["REPORTING", "PROJECT"] });
+    const hr = await hrActivity(s.org.id);
+    const row = await TimesheetService.addRow(s.a.ana, s.period, { activityId: hr.id, projectId: s.alpha.id });
+    await TimesheetService.saveCell(s.a.ana, s.period, row.id!, s.day, { duration: 60 });
+    const sub = await TimesheetService.submit(s.a.ana, s.period, 0);
+    expect(sub.approvals.map((a) => [a.relation, a.approver.id])).toContainEqual(["PROJECT", s.lee.id]);
+    // …and the lead may return that tagged activity line.
+    const back = await TimesheetApprovalService.returnLines(s.a.lee, sub.id!, { rows: [{ rowId: row.id!, reason: "Which task?" }] });
+    expect(back.status).toBe("RETURNED");
   });
 });
 
