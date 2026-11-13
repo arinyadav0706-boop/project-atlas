@@ -18,7 +18,9 @@ import type { ReturnInput } from "@/features/timesheets/validation/timesheet.sch
 // (TS-9); this is its API.
 
 function periodLabel(sheet: TimesheetRecord): string {
-  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  // Fixed tables, not locale data (see lib/rules.ts).
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fmt = (d: Date) => `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
   return `${fmt(sheet.periodStart)} – ${fmt(sheet.periodEnd)}`;
 }
 

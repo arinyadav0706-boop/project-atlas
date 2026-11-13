@@ -123,9 +123,15 @@ export interface ProblemInputs {
 
 const DAY_LIMIT = 1440;
 
+// Built from fixed tables, not toLocaleDateString: ICU data differs between
+// machines (CI on Linux printed "Tue 17 Nov" where macOS printed "Tue, 17
+// Nov"), and these messages are compared in tests and shown to people.
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function shortDate(date: IsoDate): string {
   const d = new Date(`${date}T00:00:00.000Z`);
-  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  return `${WEEKDAYS[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 }
 
 export function findProblems(i: ProblemInputs): Problem[] {

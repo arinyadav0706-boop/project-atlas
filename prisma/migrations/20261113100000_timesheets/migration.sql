@@ -422,16 +422,19 @@ WHERE i."id" = wl."issueId";
 INSERT INTO "timesheets" ("id", "organizationId", "userId", "periodStart", "periodEnd",
                           "policyId", "status", "lockedAt", "createdAt", "updatedAt")
 SELECT 'ts_' || replace(gen_random_uuid()::text, '-', ''),
-       w."organizationId", w."userId", w."periodStart", w."periodStart" + 6,
+       u."organizationId", w."userId", w."periodStart", w."periodStart" + 6,
        pol."id", 'DRAFT',
        CASE WHEN w."periodStart" < date_trunc('week', CURRENT_DATE)::date THEN now() END,
        now(), now()
 FROM (
-  SELECT DISTINCT wl."organizationId", wl."userId",
-         date_trunc('week', wl."workDate")::date AS "periodStart"
+  -- One week per (person, week), never per organization: a person whose logs
+  -- span two organizations (an account adopted by a demo org, say) must still
+  -- get exactly one timesheet per week, or the unique key fails.
+  SELECT DISTINCT wl."userId", date_trunc('week', wl."workDate")::date AS "periodStart"
   FROM "work_logs" wl
 ) w
-JOIN "timesheet_policies" pol ON pol."organizationId" = w."organizationId";
+JOIN "users" u ON u."id" = w."userId"
+JOIN "timesheet_policies" pol ON pol."organizationId" = u."organizationId";
 
 -- One row per (timesheet, issue), ordered by the first day it was logged. A
 -- row whose logs are all deleted is itself soft-deleted.

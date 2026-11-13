@@ -130,9 +130,15 @@ function requirePeriodStart(ctx: Context, periodStart: IsoDate): Period {
   return period;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Fixed tables, not locale data: the label appears in notifications and must
+// read the same on every server (see lib/rules.ts).
 function periodLabel(start: IsoDate, end: IsoDate): string {
-  const fmt = (d: IsoDate) =>
-    fromIsoDate(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const fmt = (d: IsoDate) => {
+    const x = fromIsoDate(d);
+    return `${x.getUTCDate()} ${MONTHS[x.getUTCMonth()]}`;
+  };
   return `${fmt(start)} – ${fmt(end)}`;
 }
 

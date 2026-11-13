@@ -204,6 +204,12 @@ One migration, set-based SQL, safe to re-run. Order:
    migration date stays an open DRAFT.** Nothing is marked approved — no
    approval that did not happen is fabricated (Q1, decided).
 
+**Correction after the first production attempt (TS-19):** back-filled
+weeks are grouped by **person and week only** and take the **person's own
+organization**; each log keeps the organization of its issue. Grouping by the
+log's organization created two weeks for one person when their logs spanned two
+organizations, which the unique `(userId, periodStart)` rejects.
+
 **Rehearsal (TS-4, 2026-11-13):** on the VERUS demo dataset — 5,612 logs,
 547,080 minutes, 156 people — the migration ran in 0.6 s through
 `prisma migrate deploy`. Log count and minute totals were identical before and
